@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { ProjectSchema, SendMessageInputSchema, RunModeSchema, CapabilitiesSchema } from './schemas';
+import {
+  ProjectSchema,
+  SendMessageInputSchema,
+  RunModeSchema,
+  CapabilitiesSchema,
+  CheckpointSchema,
+  DiffEntrySchema,
+  ValidateRepoResultSchema,
+  PackageManifestSchema,
+} from './schemas';
 
 describe('ProjectSchema', () => {
   it('parses a valid project with defaults applied', () => {
@@ -91,6 +100,90 @@ describe('CapabilitiesSchema', () => {
         supportsPackageInstall: true,
         supportsVscodeWeb: false,
       }),
+    ).toThrow();
+  });
+});
+
+describe('CheckpointSchema', () => {
+  it('parses a valid checkpoint', () => {
+    const parsed = CheckpointSchema.parse({
+      id: 'cp-1',
+      taskId: 'task-1',
+      message: 'initial',
+      sha: 'abc123',
+      changedFiles: 2,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(parsed.id).toBe('cp-1');
+    expect(parsed.sha).toBe('abc123');
+  });
+
+  it('rejects a checkpoint missing required message', () => {
+    expect(() =>
+      CheckpointSchema.parse({
+        id: 'cp-1',
+        taskId: 'task-1',
+        changedFiles: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('DiffEntrySchema', () => {
+  it('parses a valid diff entry', () => {
+    const parsed = DiffEntrySchema.parse({
+      path: 'src/a.ts',
+      status: 'modified',
+      additions: 3,
+      deletions: 1,
+    });
+    expect(parsed.status).toBe('modified');
+  });
+
+  it('rejects an unknown status', () => {
+    expect(() =>
+      DiffEntrySchema.parse({ path: 'src/a.ts', status: 'bogus', additions: 0, deletions: 0 }),
+    ).toThrow();
+  });
+});
+
+describe('ValidateRepoResultSchema', () => {
+  it('parses a valid result', () => {
+    const parsed = ValidateRepoResultSchema.parse({
+      valid: true,
+      branch: 'main',
+      agentsDirExists: true,
+    });
+    expect(parsed.valid).toBe(true);
+  });
+
+  it('rejects a result missing agentsDirExists', () => {
+    expect(() => ValidateRepoResultSchema.parse({ valid: true })).toThrow();
+  });
+});
+
+describe('PackageManifestSchema', () => {
+  it('parses a valid manifest', () => {
+    const parsed = PackageManifestSchema.parse({
+      name: 'my-pkg',
+      version: '1.0.0',
+      resources: {
+        extensions: [],
+        skills: ['s1'],
+        prompts: [],
+        themes: [],
+        providers: [],
+      },
+      trusted: false,
+    });
+    expect(parsed.name).toBe('my-pkg');
+    expect(parsed.resources.skills).toEqual(['s1']);
+  });
+
+  it('rejects a manifest missing resources', () => {
+    expect(() =>
+      PackageManifestSchema.parse({ name: 'my-pkg', version: '1.0.0', trusted: false }),
     ).toThrow();
   });
 });
