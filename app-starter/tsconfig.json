@@ -10,5 +10,12 @@
     }
   },
   "include": ["app", "src", "expo-env.d.ts"],
-  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": [
+    "src/**/__tests__/**",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "app/**/__tests__/**",
+    "app/**/*.test.ts",
+    "app/**/*.test.tsx"
+  ]
 }
