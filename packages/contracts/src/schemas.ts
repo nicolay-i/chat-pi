@@ -107,3 +107,22 @@ export const ApiErrorSchema = z.object({
   retryable: z.boolean().optional(),
 });
 export type ApiError = z.infer<typeof ApiErrorSchema>;
+
+export const CapabilitiesSchema = z.object({
+  apiVersion: z.string(),
+  piAvailable: z.boolean(),
+  gitAvailable: z.boolean(),
+  supportsWorktrees: z.boolean(),
+  supportsSse: z.boolean(),
+  supportsWebSocket: z.boolean(),
+  supportsPackageInstall: z.boolean(),
+  supportsVscodeWeb: z.boolean(),
+  supportsIgnis: z.boolean(),
+});
+export type Capabilities = z.infer<typeof CapabilitiesSchema>;
+
+export const HealthResponseSchema = z.object({
+  ok: z.literal(true),
+  time: z.string(),
+});
+export type HealthResponse = z.infer<typeof HealthResponseSchema>;

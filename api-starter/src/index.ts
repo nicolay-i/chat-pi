@@ -1,8 +1,7 @@
 import { serve } from '@hono/node-server';
 import { app } from './server';
+import { config } from './config';
 
-const port = Number(process.env.PORT ?? 8787);
-
-serve({ fetch: app.fetch, port }, (info) => {
+serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`Pi Agents API listening on http://localhost:${info.port}`);
 });

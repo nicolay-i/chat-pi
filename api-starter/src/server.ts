@@ -1,23 +1,35 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
-import { ProjectSchema, SendMessageInputSchema } from '@pi-agents/contracts';
+import {
+  ProjectSchema,
+  SendMessageInputSchema,
+  CapabilitiesSchema,
+  HealthResponseSchema,
+  ApiErrorSchema,
+} from '@pi-agents/contracts';
+import { config } from './config';
 
 export const app = new Hono();
 
-app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }));
+app.get('/health', (c) =>
+  c.json(
+    HealthResponseSchema.parse({ ok: true, time: new Date().toISOString() }),
+  ),
+);
 
 app.get('/api/capabilities', (c) =>
-  c.json({
-    apiVersion: '0.0.0',
-    piAvailable: false,
-    gitAvailable: true,
-    supportsWorktrees: true,
-    supportsSse: true,
-    supportsWebSocket: false,
-    supportsPackageInstall: true,
-    supportsVscodeWeb: false,
-    supportsIgnis: false,
-  })
+  c.json(
+    CapabilitiesSchema.parse({
+      apiVersion: '0.0.0',
+      piAvailable: false,
+      gitAvailable: true,
+      supportsWorktrees: true,
+      supportsSse: true,
+      supportsWebSocket: false,
+      supportsPackageInstall: true,
+      supportsVscodeWeb: false,
+      supportsIgnis: false,
+    }),
+  ),
 );
 
 app.get('/api/projects', (c) =>
@@ -61,6 +73,21 @@ app.get('/api/chats/:chatId/events', (c) => {
       connection: 'keep-alive',
     },
   });
+});
+
+if (config.nodeEnv !== 'production') {
+  app.get('/__throws', () => {
+    throw new Error('boom');
+  });
+}
+
+app.onError((err, c) => {
+  const body = ApiErrorSchema.parse({
+    code: 'internal_error',
+    message: err.message,
+    retryable: false,
+  });
+  return c.json(body, 500);
 });
 
 export type AppType = typeof app;

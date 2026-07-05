@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ProjectSchema, SendMessageInputSchema, RunModeSchema } from './schemas';
+import { ProjectSchema, SendMessageInputSchema, RunModeSchema, CapabilitiesSchema } from './schemas';
 
 describe('ProjectSchema', () => {
   it('parses a valid project with defaults applied', () => {
@@ -59,5 +59,38 @@ describe('RunModeSchema', () => {
     for (const mode of modes) {
       expect(RunModeSchema.parse(mode)).toBe(mode);
     }
+  });
+});
+
+describe('CapabilitiesSchema', () => {
+  it('parses a valid capabilities object', () => {
+    const parsed = CapabilitiesSchema.parse({
+      apiVersion: '0.0.0',
+      piAvailable: false,
+      gitAvailable: true,
+      supportsWorktrees: true,
+      supportsSse: true,
+      supportsWebSocket: false,
+      supportsPackageInstall: true,
+      supportsVscodeWeb: false,
+      supportsIgnis: false,
+    });
+    expect(parsed.apiVersion).toBe('0.0.0');
+    expect(parsed.supportsWorktrees).toBe(true);
+  });
+
+  it('rejects a capabilities object missing a required flag', () => {
+    expect(() =>
+      CapabilitiesSchema.parse({
+        apiVersion: '0.0.0',
+        piAvailable: false,
+        gitAvailable: true,
+        supportsWorktrees: true,
+        supportsSse: true,
+        supportsWebSocket: false,
+        supportsPackageInstall: true,
+        supportsVscodeWeb: false,
+      }),
+    ).toThrow();
   });
 });
