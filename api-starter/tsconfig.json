@@ -6,6 +6,8 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "types": ["node"],
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@pi-agents/contracts": ["../packages/contracts/src"]
