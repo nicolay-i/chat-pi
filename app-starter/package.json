@@ -33,12 +33,14 @@
     "react-native-screens": "latest",
     "react-native-svg": "latest",
     "react-native-web": "0.21.0",
-    "zustand": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "zustand": "latest"
   },
   "devDependencies": {
     "@testing-library/react-native": "latest",
     "@types/react": "latest",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.0",
     "jest-expo": "latest",
     "typescript": "latest"
   }

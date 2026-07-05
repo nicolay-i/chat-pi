@@ -8,7 +8,9 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: true }}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+      </Stack>
     </QueryClientProvider>
   );
 }
