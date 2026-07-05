@@ -593,6 +593,17 @@ export class ApiClient {
     return OkBooleanResultSchema.parse(await res.json());
   }
 
+  // --- Settings: theme ---
+  async saveTheme(projectId: string, overrides: unknown): Promise<{ ok: true }> {
+    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/theme`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(overrides),
+    });
+    if (!res.ok) throw await this.toError(res);
+    return { ok: true };
+  }
+
   private async toError(res: Response): Promise<ApiClientError> {
     const json = await res.json().catch(() => ({ code: 'HTTP_ERROR', message: res.statusText }));
     return new ApiClientError(ApiErrorSchema.parse(json));
