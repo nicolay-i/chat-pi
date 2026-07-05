@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { tokens } from '@/theme/tokens';
 import { Composer } from '@/components/chat/Composer';
+import type { SendMessageBehavior } from '@/components/chat/composerRules';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { QuickActionChip } from '@/components/chat/QuickActionChip';
 import { ToolCard } from '@/components/chat/ToolCard';
+import { getQuickActions } from '@/features/actions/quickActions';
 import { useChatThread } from './useChatThread';
 
 const DOT_SIZE = 8;
-const QUICK_ACTIONS = ['Улучшить', 'Commit', 'Тесты'];
 
 function connectionLabel(status: string): string {
   switch (status) {
@@ -60,8 +61,9 @@ function ToolCardDemo() {
 }
 
 export function ChatThread({ chatId }: { chatId: string }) {
-  const { messages, connectionStatus, isOffline, sending, send } = useChatThread(chatId);
+  const { messages, connectionStatus, isOffline, sending, taskStatus, send } = useChatThread(chatId);
   const [draft, setDraft] = useState('');
+  const [behavior, setBehavior] = useState<SendMessageBehavior>('send');
 
   const empty = messages.length === 0;
   const connecting = connectionStatus === 'connecting' || connectionStatus === 'idle';
@@ -72,8 +74,13 @@ export function ChatThread({ chatId }: { chatId: string }) {
   const handleSend = () => {
     const text = draft;
     setDraft('');
-    void send(text);
+    void send(text, behavior);
   };
+
+  const quickActions = getQuickActions({
+    taskStatus: taskStatus,
+    hasUncommittedDiff: false,
+  });
 
   return (
     <KeyboardAvoidingView
@@ -181,15 +188,24 @@ export function ChatThread({ chatId }: { chatId: string }) {
         }}
       >
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-          {QUICK_ACTIONS.map((label) => (
+          {quickActions.map((action) => (
             <QuickActionChip
-              key={label}
-              label={label}
-              onPress={() => setDraft((d) => `${d}${d ? ' ' : ''}${label.toLowerCase()}`)}
+              key={action.id}
+              label={action.label}
+              disabled={!action.enabled}
+              onPress={action.onPress}
             />
           ))}
         </ScrollView>
-        <Composer value={draft} onValueChange={setDraft} onSend={handleSend} disabled={sending} />
+        <Composer
+          value={draft}
+          onValueChange={setDraft}
+          onSend={handleSend}
+          disabled={sending}
+          behavior={behavior}
+          onBehaviorChange={setBehavior}
+          taskStatus={taskStatus}
+        />
       </View>
     </KeyboardAvoidingView>
   );

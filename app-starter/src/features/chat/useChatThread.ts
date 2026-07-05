@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { TaskStatus } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
+import type { SendMessageBehavior } from '@/components/chat/composerRules';
 import { useBackend } from '@/state/backendStore';
 import {
   type ConnectionStatus,
@@ -19,7 +21,9 @@ export type UseChatThreadResult = {
   connectionStatus: ConnectionStatus;
   isOffline: boolean;
   sending: boolean;
-  send: (text: string) => Promise<void>;
+  activeTaskId: string | null;
+  taskStatus: TaskStatus | null;
+  send: (text: string, behavior?: SendMessageBehavior) => Promise<void>;
 };
 
 export function useChatThread(chatId: string): UseChatThreadResult {
@@ -52,7 +56,18 @@ export function useChatThread(chatId: string): UseChatThreadResult {
     [state.messagesByChat, chatId],
   );
 
-  const send = async (text: string) => {
+  const activeTaskId = useMemo<string | null>(() => {
+    const ids = Object.keys(state.taskStatuses);
+    return ids.length > 0 ? ids[ids.length - 1] : null;
+  }, [state.taskStatuses]);
+
+  const taskStatus = useMemo<TaskStatus | null>(() => {
+    if (!activeTaskId) return null;
+    const raw = state.taskStatuses[activeTaskId];
+    return (raw as TaskStatus | undefined) ?? null;
+  }, [state.taskStatuses, activeTaskId]);
+
+  const send = async (text: string, behavior: SendMessageBehavior = 'send') => {
     const trimmed = text.trim();
     if (!trimmed) return;
     if (!baseUrl) {
@@ -61,7 +76,7 @@ export function useChatThread(chatId: string): UseChatThreadResult {
     const client = new ApiClient(baseUrl);
     setSending(true);
     try {
-      await client.sendMessage(chatId, { text: trimmed, behavior: 'send' });
+      await client.sendMessage(chatId, { text: trimmed, behavior });
     } finally {
       setSending(false);
     }
@@ -72,6 +87,8 @@ export function useChatThread(chatId: string): UseChatThreadResult {
     connectionStatus: status,
     isOffline: selectIsOffline(status),
     sending,
+    activeTaskId,
+    taskStatus,
     send,
   };
 }

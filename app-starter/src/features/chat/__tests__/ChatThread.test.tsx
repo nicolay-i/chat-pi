@@ -132,4 +132,26 @@ describe('ChatThread', () => {
     expect(String(url)).toContain('/api/chats/c1/messages');
     expect(JSON.parse((init as RequestInit).body as string).text).toBe('Напиши тесты');
   });
+
+  it('renders the composer mode toggle and contextual quick action chips', async () => {
+    const { getByTestId, getByText } = await render(<ChatThread chatId="c1" />);
+    expect(getByTestId('chat.composer.modeToggle')).toBeTruthy();
+    // Always-visible chips (no task): Улучшить, Тесты, Commit.
+    expect(getByText('Улучшить')).toBeTruthy();
+    expect(getByText('Тесты')).toBeTruthy();
+    expect(getByText('Commit')).toBeTruthy();
+  });
+
+  it('renders quick action chips disabled when there is no active task', async () => {
+    const { getByLabelText } = await render(<ChatThread chatId="c1" />);
+    const improve = getByLabelText('Улучшить');
+    const tests = getByLabelText('Тесты');
+    const commit = getByLabelText('Commit');
+    expect((improve.props as { accessibilityState?: { disabled?: boolean } }).accessibilityState
+      ?.disabled).toBe(true);
+    expect((tests.props as { accessibilityState?: { disabled?: boolean } }).accessibilityState
+      ?.disabled).toBe(true);
+    expect((commit.props as { accessibilityState?: { disabled?: boolean } }).accessibilityState
+      ?.disabled).toBe(true);
+  });
 });
