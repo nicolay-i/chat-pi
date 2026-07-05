@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="390" height="645" viewBox="0 0 390 645">
+  <defs>
+    <clipPath id="clip0">
+      <rect width="390" height="645"/>
+    </clipPath>
+    <clipPath id="clip1">
+      <rect width="358" height="52"/>
+    </clipPath>
+    <clipPath id="clip2">
+      <rect width="318" height="215"/>
+    </clipPath>
+    <clipPath id="clip3">
+      <rect width="234" height="34"/>
+    </clipPath>
+  </defs>
+  <g>
+    <rect width="390" height="645" rx="12" ry="12" fill="#F8FAFC"/>
+    <g clip-path="url(#clip0)">
+      <g transform="translate(16, 16)">
+        <g>
+          <g>
+            <path d="M0 0L318 0L318 48L4 48A4 4 0 0 1 0 44L0 0Z" fill="#FFFFFF"/>
+            <g transform="translate(14, 14)">
+              <text x="0" y="14" font-family="Segoe UI" font-size="14" fill="#334155">Привет! Чем могу помочь?</text>
+            </g>
+          </g>
+          <g transform="translate(0, 54)">
+            <g transform="translate(0, 0.5)">
+              <text x="0" y="11" font-family="Segoe UI" font-size="11" fill="#94A3B8">14:02</text>
+            </g>
+            <g transform="translate(282, 0)">
+              <path d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+              <g transform="translate(22, 0)">
+                <path d="M5.25 10.5C5.25 11.47 6.03 12.25 7 12.25C7.97 12.25 8.75 11.47 8.75 10.5C8.75 9.53 7.97 8.75 7 8.75C6.03 8.75 5.25 9.53 5.25 10.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M1.75 3.5C1.75 4.47 2.53 5.25 3.5 5.25C4.47 5.25 5.25 4.47 5.25 3.5C5.25 2.53 4.47 1.75 3.5 1.75C2.53 1.75 1.75 2.53 1.75 3.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M8.75 3.5C8.75 4.47 9.53 5.25 10.5 5.25C11.47 5.25 12.25 4.47 12.25 3.5C12.25 2.53 11.47 1.75 10.5 1.75C9.53 1.75 8.75 2.53 8.75 3.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M10.5 5.25L10.5 6.42M10.5 6.42C10.5 6.77 10.27 7 9.92 7M9.92 7L4.08 7M4.08 7C3.73 7 3.5 6.77 3.5 6.42M3.5 6.42L3.5 5.25M7 7L7 8.75" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+              </g>
+            </g>
+          </g>
+        </g>
+        <g transform="translate(0, 84)">
+          <g transform="translate(40, 0)">
+            <path d="M0 0L318 0L318 44A4 4 0 0 1 314 48L0 48L0 0Z" fill="#6366F1"/>
+            <g transform="translate(14, 14)">
+              <text x="0" y="14" font-family="Segoe UI" font-size="14" fill="#FFFFFF">Напиши debounce на TypeScript</text>
+            </g>
+          </g>
+          <g transform="translate(40, 54)">
+            <g>
+              <path d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+              <g transform="translate(22, 0)">
+                <path d="M5.25 10.5C5.25 11.47 6.03 12.25 7 12.25C7.97 12.25 8.75 11.47 8.75 10.5C8.75 9.53 7.97 8.75 7 8.75C6.03 8.75 5.25 9.53 5.25 10.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M1.75 3.5C1.75 4.47 2.53 5.25 3.5 5.25C4.47 5.25 5.25 4.47 5.25 3.5C5.25 2.53 4.47 1.75 3.5 1.75C2.53 1.75 1.75 2.53 1.75 3.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M8.75 3.5C8.75 4.47 9.53 5.25 10.5 5.25C11.47 5.25 12.25 4.47 12.25 3.5C12.25 2.53 11.47 1.75 10.5 1.75C9.53 1.75 8.75 2.53 8.75 3.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M10.5 5.25L10.5 6.42M10.5 6.42C10.5 6.77 10.27 7 9.92 7M9.92 7L4.08 7M4.08 7C3.73 7 3.5 6.77 3.5 6.42M3.5 6.42L3.5 5.25M7 7L7 8.75" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+              </g>
+            </g>
+            <g transform="translate(289, 0.5)">
+              <text x="0" y="11" font-family="Segoe UI" font-size="11" fill="#94A3B8">14:03</text>
+            </g>
+          </g>
+        </g>
+        <g transform="translate(0, 168)">
+          <g>
+            <path d="M0 0L318 0L318 52L4 52A4 4 0 0 1 0 48L0 0Z" fill="#FFFFFF"/>
+            <g transform="translate(16, 16)">
+              <text x="0" y="14" font-family="Segoe UI" font-size="14" fill="#000000">Сейчас добавлю debounce в проект</text>
+            </g>
+          </g>
+          <g transform="translate(0, 283)">
+            <rect width="358" height="52" rx="8" ry="8" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+            <g clip-path="url(#clip1)">
+              <g transform="translate(12, 12)">
+                <rect width="24" height="24" rx="6" ry="6" fill="#EFF6FF"/>
+                <g transform="translate(5.5, 5.5)">
+                  <path d="M11.38 11.38L9.02 9.02" fill="none" stroke="#3B82F6" stroke-width="1.08"/>
+                  <g>
+                    <path d="M1.63 5.96C1.63 8.35 3.57 10.29 5.96 10.29C8.35 10.29 10.29 8.35 10.29 5.96C10.29 3.57 8.35 1.63 5.96 1.63C3.57 1.63 1.63 3.57 1.63 5.96Z" fill="none" stroke="#3B82F6" stroke-width="1.08"/>
+                    <g transform="translate(44, 12)">
+                      <g>
+                        <text x="0" y="12" font-family="Cascadia Code" font-size="12" fill="#334155">search_files</text>
+                      </g>
+                      <g transform="translate(0, 17)">
+                        <g transform="translate(0, 7)">
+                          <path d="M8.33 8.33C8.55 8.33 8.77 8.25 8.92 8.09C9.08 7.93 9.17 7.72 9.17 7.5L9.17 3.33C9.17 3.11 9.08 2.9 8.92 2.74C8.77 2.58 8.55 2.5 8.33 2.5L5.04 2.5C4.76 2.5 4.49 2.36 4.34 2.12L4 1.63C3.85 1.39 3.58 1.25 3.3 1.25L1.67 1.25C1.45 1.25 1.23 1.33 1.08 1.49C0.92 1.65 0.83 1.86 0.83 2.08L0.83 7.5C0.83 7.72 0.92 7.93 1.08 8.09C1.23 8.25 1.45 8.33 1.67 8.33L8.33 8.33Z" fill="none" stroke="#64748B" stroke-width="0.83"/>
+                          <g transform="translate(14, 0)">
+                            <text x="0" y="10" font-family="Cascadia Code" font-size="10" fill="#64748B">src/components/</text>
+                          </g>
+                        </g>
+                        <g transform="translate(278, 15.5)">
+                          <rect width="44" height="21" rx="6" ry="6" fill="#EFF6FF"/>
+                          <g transform="translate(8, 4)">
+                            <path d="M4 6L8 10M8 10L12 6" fill="none" stroke="#94A3B8" stroke-width="1.33"/>
+                          </g>
+                          <g transform="translate(24, 6)">
+                            <text x="0" y="10" font-family="Segoe UI" font-size="10" font-weight="500" fill="#3B82F6">готово</text>
+                          </g>
+                          <g transform="translate(52, 4)"/>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </g>
+          </g>
+          <g transform="translate(0, 60)">
+            <rect width="318" height="215" rx="12" ry="12" fill="#FFFFFF" stroke="#FDFDFD" stroke-width="1"/>
+            <g clip-path="url(#clip2)">
+              <g>
+                <rect width="318" height="54" fill="#FFFFFF"/>
+                <g transform="translate(12, 15)">
+                  <rect width="24" height="24" rx="6" ry="6" fill="#ECFDF5"/>
+                  <g transform="translate(5.5, 5.5)">
+                    <path d="M7.96 3.41C7.75 3.62 7.75 3.96 7.96 4.17L8.83 5.04C9.04 5.25 9.38 5.25 9.59 5.04L11.27 3.36C11.44 3.19 11.74 3.24 11.8 3.47C12.14 4.69 11.74 5.99 10.78 6.81C9.83 7.63 8.48 7.82 7.33 7.3L3.04 11.58C2.59 12.03 1.87 12.03 1.42 11.58C0.97 11.13 0.97 10.41 1.42 9.96L5.7 5.67C5.18 4.52 5.37 3.17 6.19 2.22C7.01 1.26 8.31 0.86 9.53 1.2C9.77 1.26 9.82 1.56 9.65 1.73L7.96 3.41Z" fill="none" stroke="#10B981" stroke-width="1.08"/>
+                  </g>
+                </g>
+                <g transform="translate(44, 12)">
+                  <g>
+                    <text x="0" y="12" font-family="Cascadia Code" font-size="12" fill="#334155">edit_file</text>
+                  </g>
+                  <g transform="translate(0, 17)">
+                    <g transform="translate(0, 1.5)">
+                      <path d="M2.5 9.17C2.28 9.17 2.07 9.08 1.91 8.92C1.75 8.77 1.67 8.55 1.67 8.33L1.67 1.67C1.67 1.45 1.75 1.23 1.91 1.08C2.07 0.92 2.28 0.83 2.5 0.83L5.83 0.83C6.1 0.83 6.35 0.94 6.54 1.13L8.04 2.62C8.23 2.81 8.33 3.06 8.33 3.33L8.33 8.33C8.33 8.55 8.25 8.77 8.09 8.92C7.93 9.08 7.72 9.17 7.5 9.17L2.5 9.17Z" fill="none" stroke="#94A3B8" stroke-width="0.83"/>
+                      <path d="M5.83 0.83L5.83 2.92M5.83 2.92C5.84 3.15 6.02 3.33 6.25 3.33M6.25 3.33L8.33 3.33M4.17 5.21L3.33 6.25M3.33 6.25L4.17 7.29M5.83 5.21L6.67 6.25M6.67 6.25L5.83 7.29" fill="none" stroke="#94A3B8" stroke-width="0.83"/>
+                    </g>
+                    <g transform="translate(14, 0)">
+                      <text x="0" y="10" font-family="Cascadia Code" font-size="10" fill="#64748B">src/utils/debounce.ts</text>
+                    </g>
+                  </g>
+                </g>
+                <g transform="translate(257, 17)">
+                  <rect width="49" height="20" rx="4" ry="4" fill="#ECFDF5"/>
+                  <g transform="translate(8, 4)">
+                    <text x="0" y="10" font-family="Segoe UI" font-size="10" fill="#10B981">готово</text>
+                  </g>
+                </g>
+              </g>
+              <g transform="translate(0, 54)">
+                <rect width="318" height="1" fill="#E2E8F0"/>
+              </g>
+              <g transform="translate(0, 55)">
+                <g>
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">2</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">export function debounce&lt;T&gt;(fn: T, delay: number) {</text>
+                  </g>
+                </g>
+                <g transform="translate(0, 20)">
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">3</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">  let timer: NodeJS.Timeout;</text>
+                  </g>
+                </g>
+                <g transform="translate(0, 40)">
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">4</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">  return (...args) =&gt; {</text>
+                  </g>
+                </g>
+                <g transform="translate(0, 60)">
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">5</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">    clearTimeout(timer);</text>
+                  </g>
+                </g>
+                <g transform="translate(0, 80)">
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">6</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">    timer = setTimeout(() =&gt;</text>
+                  </g>
+                </g>
+                <g transform="translate(0, 100)">
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">7</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">      fn(...args), delay);</text>
+                  </g>
+                </g>
+                <g transform="translate(0, 120)">
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">8</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">  };</text>
+                  </g>
+                </g>
+                <g transform="translate(0, 140)">
+                  <rect width="318" height="20" fill="#F0FDF4"/>
+                  <g>
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#86EFAC">9</text>
+                  </g>
+                  <g transform="translate(32, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#22C55E">+</text>
+                  </g>
+                  <g transform="translate(48, 0)">
+                    <text x="0" y="11" font-family="Cascadia Code" font-size="11" fill="#15803D">}</text>
+                  </g>
+                </g>
+              </g>
+            </g>
+          </g>
+          <g transform="translate(0, 339)">
+            <g transform="translate(0, 0.5)">
+              <g transform="translate(0, 0.5)">
+                <path d="M1 6C1 8.76 3.24 11 6 11C8.76 11 11 8.76 11 6C11 3.24 8.76 1 6 1C3.24 1 1 3.24 1 6Z" fill="none" stroke="#94A3B8" stroke-width="1"/>
+                <path d="M6 3L6 6M6 6L8 7" fill="none" stroke="#94A3B8" stroke-width="1"/>
+              </g>
+              <g transform="translate(20, 0)">
+                <text x="0" y="11" font-family="Segoe UI" font-size="11" fill="#94A3B8">14:02</text>
+              </g>
+              <g transform="translate(57, 0)">
+                <text x="0" y="11" font-family="Segoe UI" font-size="11" fill="#CBD5E1">·</text>
+              </g>
+              <g transform="translate(69, 0.5)">
+                <path d="M5 1L7 1M6 7L7.5 5.5" fill="none" stroke="#94A3B8" stroke-width="1"/>
+                <path d="M2 7C2 9.21 3.79 11 6 11C8.21 11 10 9.21 10 7C10 4.79 8.21 3 6 3C3.79 3 2 4.79 2 7Z" fill="none" stroke="#94A3B8" stroke-width="1"/>
+              </g>
+              <g transform="translate(89, 0)">
+                <text x="0" y="11" font-family="Segoe UI" font-size="11" fill="#94A3B8">12 сек</text>
+              </g>
+            </g>
+            <g transform="translate(282, 0)">
+              <path d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+              <g transform="translate(22, 0)">
+                <path d="M5.25 10.5C5.25 11.47 6.03 12.25 7 12.25C7.97 12.25 8.75 11.47 8.75 10.5C8.75 9.53 7.97 8.75 7 8.75C6.03 8.75 5.25 9.53 5.25 10.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M1.75 3.5C1.75 4.47 2.53 5.25 3.5 5.25C4.47 5.25 5.25 4.47 5.25 3.5C5.25 2.53 4.47 1.75 3.5 1.75C2.53 1.75 1.75 2.53 1.75 3.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M8.75 3.5C8.75 4.47 9.53 5.25 10.5 5.25C11.47 5.25 12.25 4.47 12.25 3.5C12.25 2.53 11.47 1.75 10.5 1.75C9.53 1.75 8.75 2.53 8.75 3.5Z" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+                <path d="M10.5 5.25L10.5 6.42M10.5 6.42C10.5 6.77 10.27 7 9.92 7M9.92 7L4.08 7M4.08 7C3.73 7 3.5 6.77 3.5 6.42M3.5 6.42L3.5 5.25M7 7L7 8.75" fill="none" stroke="#CBD5E1" stroke-width="1.17"/>
+              </g>
+            </g>
+          </g>
+        </g>
+      </g>
+      <g transform="translate(0, 553)">
+        <rect width="390" height="92" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1"/>
+        <g>
+          <g transform="translate(12, 8)">
+            <rect width="144" height="28" rx="14" ry="14" fill="#F1F5F9"/>
+            <g transform="translate(10, 8)">
+              <path d="M8.5 1L10.5 3M10.5 3L8.5 5" fill="none" stroke="#6366F1" stroke-width="1"/>
+              <path d="M1.5 5.5L1.5 5M1.5 5C1.5 3.9 2.4 3 3.5 3M3.5 3L10.5 3M3.5 11L1.5 9M1.5 9L3.5 7" fill="none" stroke="#6366F1" stroke-width="1"/>
+              <path d="M10.5 6.5L10.5 7M10.5 7C10.5 8.1 9.6 9 8.5 9M8.5 9L1.5 9" fill="none" stroke="#6366F1" stroke-width="1"/>
+            </g>
+            <g transform="translate(26, 7)">
+              <text x="0" y="11" font-family="Inter" font-size="11" fill="#6366F1">Улучшить debounce</text>
+            </g>
+          </g>
+          <g transform="translate(164, 8)">
+            <rect width="77" height="28" rx="14" ry="14" fill="#F1F5F9"/>
+            <g transform="translate(10, 8)">
+              <path d="M7.5 9C7.5 9.83 8.17 10.5 9 10.5C9.83 10.5 10.5 9.83 10.5 9C10.5 8.17 9.83 7.5 9 7.5C8.17 7.5 7.5 8.17 7.5 9Z" fill="none" stroke="#6366F1" stroke-width="1"/>
+              <path d="M1.5 3C1.5 3.83 2.17 4.5 3 4.5C3.83 4.5 4.5 3.83 4.5 3C4.5 2.17 3.83 1.5 3 1.5C2.17 1.5 1.5 2.17 1.5 3Z" fill="none" stroke="#6366F1" stroke-width="1"/>
+              <path d="M6.5 3L8 3M8 3C8.55 3 9 3.45 9 4M9 4L9 7.5M3 4.5L3 10.5" fill="none" stroke="#6366F1" stroke-width="1"/>
+            </g>
+            <g transform="translate(26, 7)">
+              <text x="0" y="11" font-family="Inter" font-size="11" fill="#6366F1">Commit</text>
+            </g>
+          </g>
+          <g transform="translate(249, 8)">
+            <rect width="69" height="28" rx="14" ry="14" fill="#F1F5F9"/>
+            <g transform="translate(10, 8)">
+              <path d="M7 1L7 4M7 4C7 4.17 7.04 4.33 7.12 4.48M7.12 4.48L9.88 9.52M9.88 9.52C10.05 9.83 10.04 10.21 9.86 10.51M9.86 10.51C9.68 10.82 9.35 11 9 11M9 11L3 11M3 11C2.65 11 2.32 10.82 2.14 10.51M2.14 10.51C1.96 10.21 1.95 9.83 2.12 9.52M2.12 9.52L4.88 4.48M4.88 4.48C4.96 4.33 5 4.17 5 4M5 4L5 1M3.23 7.5L8.77 7.5M4.25 1L7.75 1" fill="none" stroke="#6366F1" stroke-width="1"/>
+            </g>
+            <g transform="translate(26, 7)">
+              <text x="0" y="11" font-family="Inter" font-size="11" fill="#6366F1">Тесты</text>
+            </g>
+          </g>
+        </g>
+        <g transform="translate(0, 40)">
+          <g transform="translate(12, 8)">
+            <g transform="translate(9, 9)">
+              <path d="M12 4.5L5.69 10.94M5.69 10.94C5.14 11.53 5.16 12.45 5.73 13.02M5.73 13.02C6.3 13.59 7.22 13.61 7.81 13.06M7.81 13.06L14.12 6.62M14.12 6.62C14.92 5.87 15.25 4.75 14.98 3.68M14.98 3.68C14.71 2.62 13.88 1.79 12.82 1.52M12.82 1.52C11.75 1.25 10.63 1.58 9.88 2.38M9.88 2.38L3.59 8.79M3.59 8.79C1.83 10.55 1.83 13.4 3.59 15.16M3.59 15.16C5.35 16.92 8.2 16.92 9.96 15.16M9.96 15.16L16.24 8.74" fill="none" stroke="#94A3B8" stroke-width="1.5"/>
+            </g>
+          </g>
+          <g transform="translate(56, 10)">
+            <rect width="234" height="34" rx="16" ry="16" fill="#F1F5F9"/>
+            <g clip-path="url(#clip3)">
+              <g transform="translate(16, 8)">
+                <text x="0" y="14" font-family="Inter" font-size="14" fill="#94A3B8">Сообщение…</text>
+              </g>
+            </g>
+          </g>
+          <g transform="translate(298, 8)">
+            <g transform="translate(10, 10)">
+              <path d="M10 2L14 2M14 2L14 6M14 2L9.33 6.67M2 14L6.67 9.33M6 14L2 14M2 14L2 10" fill="none" stroke="#94A3B8" stroke-width="1.33"/>
+            </g>
+          </g>
+          <g transform="translate(342, 8)">
+            <rect width="36" height="36" rx="18" ry="18" fill="#6366F1"/>
+            <g transform="translate(9, 9)">
+              <path d="M3.75 9L9 3.75M9 3.75L14.25 9M9 14.25L9 3.75" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+            </g>
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

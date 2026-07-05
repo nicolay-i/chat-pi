@@ -1,0 +1,45 @@
+{
+  "name": "mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "lint": "expo lint",
+    "test": "jest --watchAll=false"
+  },
+  "dependencies": {
+    "@pi-agents/contracts": "workspace:*",
+    "@tanstack/react-query": "latest",
+    "expo": "~57.0.0",
+    "expo-clipboard": "latest",
+    "expo-haptics": "latest",
+    "expo-linking": "latest",
+    "expo-notifications": "latest",
+    "expo-router": "~57.0.3",
+    "expo-secure-store": "latest",
+    "expo-status-bar": "latest",
+    "lucide-react-native": "latest",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "latest",
+    "react-native-reanimated": "latest",
+    "react-native-safe-area-context": "latest",
+    "react-native-screens": "latest",
+    "react-native-svg": "latest",
+    "react-native-web": "0.21.0",
+    "zustand": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "latest",
+    "@types/react": "latest",
+    "jest-expo": "latest",
+    "typescript": "latest"
+  }
+}

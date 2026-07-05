@@ -1,0 +1,15 @@
+{
+  "name": "pi-agents-mobile-web",
+  "agentsDir": ".agents",
+  "defaultMode": "implementation",
+  "taskPolicy": {
+    "writableTasksUseWorktree": true,
+    "rollbackCreatesNewTask": true,
+    "mergeStrategyDefault": "squash"
+  },
+  "verification": {
+    "requireTypecheck": true,
+    "requireTestsForBehavior": true,
+    "requireSubagentReport": true
+  }
+}

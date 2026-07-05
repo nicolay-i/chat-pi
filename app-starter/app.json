@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Pi Agents",
+    "slug": "pi-agents",
+    "scheme": "piagents",
+    "platforms": ["ios", "android", "web"],
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"]
+  }
+}

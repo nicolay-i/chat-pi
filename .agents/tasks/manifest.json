@@ -1,0 +1,575 @@
+{
+  "tasks": [
+    {
+      "id": "T00-bootstrap-react-native-project",
+      "title": "Bootstrap React Native project",
+      "goal": "Создать Expo React Native Web проект и подготовить стартовую структуру.",
+      "inputs": [
+        "scripts/bootstrap-react-native.sh",
+        "app-starter/",
+        "docs/12-source-notes.md"
+      ],
+      "acceptance": [
+        "В проекте есть Expo Router routes: `_layout`, `index`, setup, projects, chat mock.",
+        "TypeScript strict включён.",
+        "React Native Web web старт описан и работает после install.",
+        "Зависимости устанавливаются через `create-expo-app@latest --template default@sdk-57` и `expo install` для Expo-managed пакетов."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile typecheck",
+        "pnpm --filter mobile web"
+      ]
+    },
+    {
+      "id": "T01-monorepo-tooling-contracts",
+      "title": "Monorepo tooling and contracts",
+      "goal": "Настроить workspace, shared contracts и базовые scripts.",
+      "inputs": [
+        "pnpm-workspace.yaml",
+        "packages/contracts",
+        "apps/mobile",
+        "apps/api"
+      ],
+      "acceptance": [
+        "Фронт и backend импортируют типы из `packages/contracts`.",
+        "Нет duplicated DTO types для Project/Chat/Task.",
+        "Workspace scripts запускают typecheck/test."
+      ],
+      "verificationCommands": [
+        "pnpm -r typecheck",
+        "pnpm -r test"
+      ]
+    },
+    {
+      "id": "T02-design-system-reference",
+      "title": "Design system from reference",
+      "goal": "Реализовать design tokens и базовые UI components по приложенному reference.",
+      "inputs": [
+        "docs/03-design-system.md",
+        "app-starter/src/theme",
+        "app-starter/src/components/ui"
+      ],
+      "acceptance": [
+        "MessageBubble, ToolCard, QuickActionChip, Composer существуют.",
+        "ChatReferenceScreen воспроизводит структуру screenshot.",
+        "Цвета/радиусы centralized tokens."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile typecheck",
+        "pnpm --filter mobile test -- ChatReference"
+      ]
+    },
+    {
+      "id": "T03-navigation-shell",
+      "title": "Navigation shell",
+      "goal": "Создать Expo Router структуру для всех экранов ТЗ.",
+      "inputs": [
+        "docs/02-screen-specification.md",
+        "app-starter/app"
+      ],
+      "acceptance": [
+        "Все major route placeholders существуют.",
+        "Mobile back navigation работает.",
+        "Web layout содержит sidebar/context placeholders."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T04-api-client-contracts",
+      "title": "API client and schemas",
+      "goal": "Собрать typed API client и schemas на shared contracts.",
+      "inputs": [
+        "packages/contracts/src",
+        "app-starter/src/api"
+      ],
+      "acceptance": [
+        "Все request/response schemas находятся в contracts.",
+        "API errors normalized.",
+        "No `any` in exported client methods."
+      ],
+      "verificationCommands": [
+        "pnpm --filter contracts typecheck",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T05-realtime-event-stream",
+      "title": "Realtime event stream",
+      "goal": "Реализовать SSE/WebSocket abstraction с resume by event id.",
+      "inputs": [
+        "app-starter/src/api/eventStream.ts",
+        "app-starter/src/state"
+      ],
+      "acceptance": [
+        "Reconnect догружает events after last id.",
+        "Reducer deterministic for same event sequence.",
+        "Offline state reflected in UI."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- eventStream",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T06-connection-setup",
+      "title": "Connection setup screen",
+      "goal": "Экран настройки backend connection.",
+      "inputs": [
+        "docs/02-screen-specification.md",
+        "app-starter/app/setup.tsx"
+      ],
+      "acceptance": [
+        "Valid mock connection сохраняется.",
+        "Invalid URL shows error.",
+        "Capabilities displayed."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- setup",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T07-projects-screens",
+      "title": "Projects screens",
+      "goal": "Projects list, create/edit project, project dashboard.",
+      "inputs": [
+        "app-starter/app/projects",
+        "app-starter/src/features/projects"
+      ],
+      "acceptance": [
+        "Empty/loading/error states.",
+        "Repo validation UI.",
+        "Dashboard separates chats/tasks."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- projects",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T08-chats-new-chat",
+      "title": "Chats list and new chat",
+      "goal": "Chats list, filters, new chat/mode picker.",
+      "inputs": [
+        "app-starter/app/projects/[projectId]/chats"
+      ],
+      "acceptance": [
+        "Mode picker creates correct payload.",
+        "Implementation mode offers task creation.",
+        "Chat list badges status."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- chats",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T09-chat-thread-ui",
+      "title": "Chat thread UI",
+      "goal": "Основной chat screen с messages/toolcards/streaming states.",
+      "inputs": [
+        "design/reference/ChatAppMobile@1x.png",
+        "app-starter/src/components/chat"
+      ],
+      "acceptance": [
+        "UI visually follows reference.",
+        "Tool cards expandable.",
+        "Streaming state visible."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- chat",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T10-composer-queue-actions",
+      "title": "Composer queue modes and quick actions",
+      "goal": "Send/Follow-up/Steer/Abort & replace composer mechanics and quick action chips.",
+      "inputs": [
+        "app-starter/src/components/chat/Composer.tsx",
+        "app-starter/src/features/actions"
+      ],
+      "acceptance": [
+        "Buttons enabled/disabled by task status.",
+        "Quick actions contextual.",
+        "Keyboard-safe layout."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- composer",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T11-tasks-list-detail",
+      "title": "Tasks list and detail",
+      "goal": "Tasks screens for parallel tasks/statuses.",
+      "inputs": [
+        "app-starter/app/projects/[projectId]/tasks"
+      ],
+      "acceptance": [
+        "Running tasks independent.",
+        "Stale/review/merged groups.",
+        "Task detail tabs exist."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- tasks",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T12-runtime-trace",
+      "title": "Runtime status and full trace",
+      "goal": "Runtime panel and full trace filters.",
+      "inputs": [
+        "app-starter/src/features/trace"
+      ],
+      "acceptance": [
+        "Tool/run/message events filterable.",
+        "Raw JSON view available.",
+        "Secret redaction markers respected."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- trace",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T13-diff-review",
+      "title": "Diff review",
+      "goal": "Mobile/web diff screens.",
+      "inputs": [
+        "app-starter/src/features/diff"
+      ],
+      "acceptance": [
+        "File list + unified diff.",
+        "Markdown rendered diff placeholder.",
+        "Revert/apply buttons with confirmation."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- diff",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T14-merge-flow",
+      "title": "Merge flow",
+      "goal": "Merge task screen and conflict state UI.",
+      "inputs": [
+        "app-starter/src/features/tasks/MergeTaskScreen.tsx"
+      ],
+      "acceptance": [
+        "Merge disabled while running.",
+        "Checks summary shown.",
+        "Conflict route exists."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- merge",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T15-checkpoints-fork-rollback",
+      "title": "Checkpoints, fork, rollback",
+      "goal": "Session tree/checkpoints UI.",
+      "inputs": [
+        "app-starter/src/features/checkpoints"
+      ],
+      "acceptance": [
+        "Checkpoint list/tree.",
+        "Fork/rollback payload includes checkpoint id.",
+        "Rollback creates new task wording."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- checkpoints",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T16-files-markdown",
+      "title": "File browser and Markdown viewer",
+      "goal": "Файлы, Markdown preview, search, frontmatter.",
+      "inputs": [
+        "app-starter/src/features/files"
+      ],
+      "acceptance": [
+        "Search UI.",
+        "Markdown preview.",
+        "Large file warning."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- files",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T17-skills-prompts-actions",
+      "title": "Skills, prompts, actions",
+      "goal": "Skill list/editor, prompt templates, action picker.",
+      "inputs": [
+        "app-starter/src/features/skills",
+        "app-starter/src/features/prompts",
+        "app-starter/src/features/actions"
+      ],
+      "acceptance": [
+        "Skills loaded from mock `.agents` source.",
+        "Prompt render preview.",
+        "Action confirmation for side effects."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- skills",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T18-providers-mcp-packages",
+      "title": "Providers, MCP, packages",
+      "goal": "Settings screens for providers/MCP/Pi packages.",
+      "inputs": [
+        "app-starter/src/features/settings"
+      ],
+      "acceptance": [
+        "Provider secret never displayed raw.",
+        "Package install review shows resources.",
+        "Trust toggle controls extension enabled state."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- settings",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T19-theme-editor",
+      "title": "Theme editor",
+      "goal": "Project theme editor and live preview.",
+      "inputs": [
+        "app-starter/src/features/theme"
+      ],
+      "acceptance": [
+        "Accent change updates preview.",
+        "Invalid color rejected.",
+        "Theme persisted through API mock."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- theme",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T20-offline-notifications-settings",
+      "title": "Offline, notifications, app settings",
+      "goal": "Global offline/reconnect states, approvals, app settings.",
+      "inputs": [
+        "app-starter/src/features/settings",
+        "app-starter/src/features/approvals"
+      ],
+      "acceptance": [
+        "Reconnect banner.",
+        "Approvals list.",
+        "Reset connection returns setup."
+      ],
+      "verificationCommands": [
+        "pnpm --filter mobile test -- offline",
+        "pnpm --filter mobile typecheck"
+      ]
+    },
+    {
+      "id": "T21-tests-ci-accessibility",
+      "title": "Tests, CI, accessibility pass",
+      "goal": "Укрепить тесты, CI scripts, accessibility labels.",
+      "inputs": [
+        "package.json",
+        ".github/workflows",
+        "app-starter"
+      ],
+      "acceptance": [
+        "All critical buttons labelled.",
+        "CI runs typecheck/test.",
+        "Known gaps documented."
+      ],
+      "verificationCommands": [
+        "pnpm typecheck",
+        "pnpm test"
+      ]
+    },
+    {
+      "id": "T22-documentation-handoff",
+      "title": "Documentation handoff",
+      "goal": "Обновить README/runbook и сверить docs с кодом.",
+      "inputs": [
+        "README.md",
+        "docs"
+      ],
+      "acceptance": [
+        "Runbook includes install/run/test.",
+        "Architecture docs match implemented structure.",
+        "Subagent status updated."
+      ],
+      "verificationCommands": [
+        "pnpm typecheck"
+      ]
+    },
+    {
+      "id": "B00-hono-api-bootstrap",
+      "title": "Hono API bootstrap",
+      "goal": "Создать Hono API app с health/capabilities, env config, tests.",
+      "inputs": [
+        "api-starter",
+        "docs/05-api-contract.md"
+      ],
+      "acceptance": [
+        "GET /health returns ok.",
+        "GET /api/capabilities returns feature flags.",
+        "Server starts on configured port."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api typecheck",
+        "pnpm --filter api test"
+      ]
+    },
+    {
+      "id": "B01-db-schema-repositories",
+      "title": "DB schema and repositories",
+      "goal": "Реализовать migrations/repositories для core entities.",
+      "inputs": [
+        "docs/06-data-model.md",
+        "api-starter/src/db"
+      ],
+      "acceptance": [
+        "Migrations apply to temp DB.",
+        "CRUD tests for Project/Chat/Task/Event.",
+        "Event ordering stable."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- db",
+        "pnpm --filter api typecheck"
+      ]
+    },
+    {
+      "id": "B02-project-chat-task-services",
+      "title": "Project/chat/task services",
+      "goal": "Сервисы создания проектов, чатов и tasks.",
+      "inputs": [
+        "api-starter/src/services"
+      ],
+      "acceptance": [
+        "Implementation chat creates writable task if requested.",
+        "Discussion chat does not create worktree.",
+        "Task statuses valid."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- services",
+        "pnpm --filter api typecheck"
+      ]
+    },
+    {
+      "id": "B03-git-worktree-manager",
+      "title": "Git worktree manager",
+      "goal": "Изоляция writable tasks через git branch/worktree.",
+      "inputs": [
+        "docs/07-git-worktree-runtime.md",
+        "api-starter/src/services/gitWorktreeService.ts"
+      ],
+      "acceptance": [
+        "Temp repo creates two worktrees for two tasks.",
+        "Main checkout remains clean.",
+        "Stale target branch detected."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- worktree",
+        "pnpm --filter api typecheck"
+      ]
+    },
+    {
+      "id": "B04-pi-runtime-wrapper",
+      "title": "Pi runtime wrapper",
+      "goal": "Интерфейс runtime service + fake runtime + Pi adapter stub.",
+      "inputs": [
+        "api-starter/src/services/piRuntimeService.ts"
+      ],
+      "acceptance": [
+        "Fake runtime emits run/tool/message events.",
+        "One runtime lock per session.",
+        "Abort calls runtime and emits event."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- piRuntime",
+        "pnpm --filter api typecheck"
+      ]
+    },
+    {
+      "id": "B05-event-store-realtime",
+      "title": "Event store and realtime",
+      "goal": "Append-only event store and SSE resume.",
+      "inputs": [
+        "api-starter/src/realtime",
+        "api-starter/src/services/eventStore.ts"
+      ],
+      "acceptance": [
+        "Events persist and stream.",
+        "SSE `after` resumes correctly.",
+        "Duplicate delivery safe for reducer."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- realtime",
+        "pnpm --filter api typecheck"
+      ]
+    },
+    {
+      "id": "B06-session-sync",
+      "title": "Pi session sync",
+      "goal": "Import/tail Pi JSONL into app events.",
+      "inputs": [
+        "docs/08-pi-sync-packages-providers.md",
+        "api-starter/src/services/sessionSyncService.ts"
+      ],
+      "acceptance": [
+        "Append-only JSONL import.",
+        "Dedupe by entry id/offset.",
+        "Lock conflict handled."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- sessionSync",
+        "pnpm --filter api typecheck"
+      ]
+    },
+    {
+      "id": "B07-actions-skills-packages-providers",
+      "title": "Actions, skills, packages, providers",
+      "goal": "Action engine, skill runner, package/provider manager.",
+      "inputs": [
+        "api-starter/src/services/actionEngine.ts",
+        "api-starter/src/services/packageService.ts"
+      ],
+      "acceptance": [
+        "Package resolve/install review flow.",
+        "Untrusted extensions not loaded.",
+        "Provider secret redacted."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- packages",
+        "pnpm --filter api typecheck"
+      ]
+    },
+    {
+      "id": "B08-checkpoint-merge-fork-rollback",
+      "title": "Checkpoint/merge/fork/rollback services",
+      "goal": "Backend side of checkpoint, fork, rollback and merge.",
+      "inputs": [
+        "api-starter/src/services/taskService.ts",
+        "api-starter/src/services/gitWorktreeService.ts"
+      ],
+      "acceptance": [
+        "Checkpoint creates commit/patch.",
+        "Fork creates branch/worktree from checkpoint.",
+        "Rollback creates new task.",
+        "Squash merge tested."
+      ],
+      "verificationCommands": [
+        "pnpm --filter api test -- gitFlows",
+        "pnpm --filter api typecheck"
+      ]
+    }
+  ]
+}

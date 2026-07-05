@@ -1,0 +1,10 @@
+{
+  "name": "pi-agents-mobile-web-workspace",
+  "private": true,
+  "packageManager": "pnpm@latest",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  }
+}
