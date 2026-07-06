@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { app } from './server';
-import { CapabilitiesSchema } from '@pi-agents/contracts';
+import { createApp } from './server';
+import { createDb } from './db';
+import { CreateProjectInputSchema, CapabilitiesSchema } from '@pi-agents/contracts';
+
+const app = createApp(createDb(':memory:'));
 
 describe('GET /health', () => {
   it('returns ok status', async () => {
@@ -29,12 +32,31 @@ describe('GET /api/capabilities', () => {
 });
 
 describe('GET /api/projects', () => {
-  it('returns a parsed project list', async () => {
+  it('returns an empty array when db is fresh', async () => {
     const res = await app.request('/api/projects');
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body)).toBe(true);
-    expect(body[0].id).toBe('project-demo');
+    expect(body).toHaveLength(0);
+  });
+});
+
+describe('POST /api/projects', () => {
+  it('creates a project and returns 201', async () => {
+    const input = CreateProjectInputSchema.parse({
+      name: 'demo',
+      repoPath: '/repos/demo',
+      defaultBranch: 'main',
+    });
+    const res = await app.request('/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.id).toBeTruthy();
+    expect(body.name).toBe('demo');
   });
 });
 

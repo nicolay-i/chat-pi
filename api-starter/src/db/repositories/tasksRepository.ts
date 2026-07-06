@@ -39,6 +39,7 @@ export type TaskRecord = {
 };
 
 export type TaskInput = {
+  id?: string;
   projectId: string;
   sourceChatId?: string | null;
   title: string;
@@ -91,7 +92,7 @@ export function createTasksRepository(db: DatabaseSync): TasksRepository {
 
   return {
     create(input) {
-      const id = randomId();
+      const id = input.id ?? randomId();
       const now = nowIso();
       db.prepare(
         `INSERT INTO tasks (id, project_id, source_chat_id, title, mode, status, base_branch, base_sha, branch_name, worktree_path, pi_session_path, merge_target, current_head_sha, created_at, updated_at)
