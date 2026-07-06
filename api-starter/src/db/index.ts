@@ -20,6 +20,12 @@ export {
   type TasksRepository,
 } from './repositories/tasksRepository';
 export {
+  createCheckpointsRepository,
+  type CheckpointInput,
+  type CheckpointPatch,
+  type CheckpointsRepository,
+} from './repositories/checkpointsRepository';
+export {
   createEventsRepository,
   type ChatEventRow,
   type ChatEventInput,
