@@ -1,4 +1,6 @@
 import type { EventType, RealtimeEnvelope, SendMessageInput } from '@pi-agents/contracts';
+import { PiRpcClient } from './piRpcClient';
+import { mapPiEventToEnvelope } from './piEventMap';
 
 export type RuntimeEventHandler = (event: RealtimeEnvelope) => void;
 
@@ -13,9 +15,6 @@ export interface PiRuntime {
 }
 
 type SessionLock = { owner: string; acquiredAt: string };
-
-const PI_ADAPTER_ERROR =
-  'Pi runtime adapter not yet configured — set PI_BIN/PI_CONFIG';
 
 function newId(): string {
   return crypto.randomUUID();
@@ -133,26 +132,147 @@ export class FakePiRuntime extends BaseRuntime implements PiRuntime {
   }
 }
 
+export interface PiRuntimeAdapterOptions {
+  piBin?: string;
+  nodeBin?: string;
+  provider?: string;
+  model?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  defaultCwd?: string;
+}
+
+interface AdapterSessionState {
+  client: PiRpcClient;
+  started: Promise<void>;
+}
+
 /**
- * Placeholder for the real Pi CLI integration (B06 will flesh out JSONL sync).
- * Lock + subscription semantics mirror the fake runtime so orchestration glue
- * can be exercised; prompt/steer/followUp/abort throw until configured.
+ * Real Pi CLI integration backed by a per-session `pi --mode rpc` child process.
+ *
+ * - One rpc client (and therefore one writer) per session, gated by the lock
+ *   inherited from BaseRuntime (reentrant for owner 'runtime').
+ * - subscribe() is inherited and fans mapped RealtimeEnvelopes to handlers; the
+ *   raw pi events are translated via mapPiEventToEnvelope.
+ * - prompt() awaits pi's acknowledgement but does NOT block on agent_end — the
+ *   streamed content is delivered to subscribers as it arrives. Callers that
+ *   need to know the turn finished should listen for run.completed (or use the
+ *   client's waitForIdle when holding the lock directly).
+ * - releaseLock() tears the client down (the writer is done); dispose() stops
+ *   every session's client for shutdown/tests.
  */
 export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
-  async prompt(_sessionId: string, _input: SendMessageInput): Promise<void> {
-    throw new Error(PI_ADAPTER_ERROR);
+  private readonly sessions = new Map<string, AdapterSessionState>();
+  private readonly adapterOpts: PiRuntimeAdapterOptions;
+
+  constructor(opts?: PiRuntimeAdapterOptions) {
+    super();
+    this.adapterOpts = {
+      piBin: opts?.piBin ?? process.env.PI_BIN,
+      nodeBin: opts?.nodeBin ?? process.env.PI_NODE,
+      provider: opts?.provider ?? process.env.PI_PROVIDER,
+      model: opts?.model ?? process.env.PI_MODEL,
+      args: opts?.args,
+      env: opts?.env,
+      defaultCwd: opts?.defaultCwd ?? process.env.PI_CWD,
+    };
   }
-  async steer(_sessionId: string, _text: string): Promise<void> {
-    throw new Error(PI_ADAPTER_ERROR);
+
+  private ensureClient(sessionId: string, cwd?: string): AdapterSessionState {
+    const existing = this.sessions.get(sessionId);
+    if (existing) return existing;
+    const client = new PiRpcClient({
+      piBin: this.adapterOpts.piBin,
+      nodeBin: this.adapterOpts.nodeBin,
+      provider: this.adapterOpts.provider,
+      model: this.adapterOpts.model,
+      args: this.adapterOpts.args,
+      env: this.adapterOpts.env,
+      cwd: cwd ?? this.adapterOpts.defaultCwd,
+    });
+    client.onEvent((event) => {
+      const envelope = mapPiEventToEnvelope(event, { sessionId });
+      if (!envelope) return;
+      const set = this.subscribers.get(sessionId);
+      if (!set) return;
+      for (const handler of set) {
+        try {
+          handler(envelope);
+        } catch {
+          /* a listener must not break the fan-out */
+        }
+      }
+    });
+    const started = client.start();
+    const state: AdapterSessionState = { client, started };
+    this.sessions.set(sessionId, state);
+    return state;
   }
-  async followUp(_sessionId: string, _text: string): Promise<void> {
-    throw new Error(PI_ADAPTER_ERROR);
+
+  async prompt(sessionId: string, input: SendMessageInput): Promise<void> {
+    const state = this.ensureClient(sessionId);
+    await state.started;
+    if (!this.acquireLock(sessionId, 'runtime')) {
+      throw new Error('Task already running');
+    }
+    const imageUris = input.attachments
+      ?.filter((a) => a.kind === 'image')
+      .map((a) => a.uri);
+    const images = imageUris && imageUris.length > 0 ? imageUris : undefined;
+    try {
+      await state.client.prompt(input.text, images);
+    } catch (err) {
+      this.releaseLock(sessionId, 'runtime');
+      this.emit(sessionId, 'run.error', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   }
-  async abort(_sessionId: string, _reason?: string): Promise<void> {
-    throw new Error(PI_ADAPTER_ERROR);
+
+  async steer(sessionId: string, text: string): Promise<void> {
+    const state = this.ensureClient(sessionId);
+    await state.started;
+    await state.client.steer(text);
+  }
+
+  async followUp(sessionId: string, text: string): Promise<void> {
+    const state = this.ensureClient(sessionId);
+    await state.started;
+    await state.client.followUp(text);
+  }
+
+  async abort(sessionId: string, reason?: string): Promise<void> {
+    const state = this.sessions.get(sessionId);
+    if (state) {
+      try {
+        await state.client.abort();
+      } catch {
+        /* best-effort abort */
+      }
+    }
+    this.emit(sessionId, 'run.aborted', { reason: reason ?? 'aborted' });
+  }
+
+  releaseLock(sessionId: string, owner: string): boolean {
+    const ok = super.releaseLock(sessionId, owner);
+    if (!ok) return false;
+    const state = this.sessions.get(sessionId);
+    if (state) {
+      this.sessions.delete(sessionId);
+      void state.client.stop();
+    }
+    return true;
+  }
+
+  async dispose(): Promise<void> {
+    const states = [...this.sessions.values()];
+    this.sessions.clear();
+    await Promise.all(states.map((s) => s.client.stop()));
   }
 }
 
-export function createRuntime(mode: 'fake' | 'pi' = 'fake'): PiRuntime {
-  return mode === 'pi' ? new PiRuntimeAdapter() : new FakePiRuntime();
+export function createRuntime(mode?: 'fake' | 'pi'): PiRuntime {
+  const resolved = mode ?? (process.env.PI_MODE === 'pi' ? 'pi' : 'fake');
+  return resolved === 'pi' ? new PiRuntimeAdapter() : new FakePiRuntime();
 }

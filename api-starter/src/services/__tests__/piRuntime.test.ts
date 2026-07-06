@@ -111,23 +111,37 @@ describe('FakePiRuntime', () => {
 });
 
 describe('PiRuntimeAdapter', () => {
-  it('throws on prompt/steer/followUp/abort', async () => {
+  it('inherits lock semantics from BaseRuntime (reentrant for same owner)', () => {
     const adapter = new PiRuntimeAdapter();
-    await expect(adapter.prompt('s', baseInput)).rejects.toThrow(/PI_BIN/);
-    await expect(adapter.steer('s', 't')).rejects.toThrow(/PI_BIN/);
-    await expect(adapter.followUp('s', 't')).rejects.toThrow(/PI_BIN/);
-    await expect(adapter.abort('s')).rejects.toThrow(/PI_BIN/);
-  });
-
-  it('subscribe and lock semantics work like the fake runtime', async () => {
-    const adapter = new PiRuntimeAdapter();
-    const events = collect(adapter, 's1');
     expect(adapter.acquireLock('s1', 'a')).toBe(true);
     expect(adapter.acquireLock('s1', 'b')).toBe(false);
+    expect(adapter.acquireLock('s1', 'a')).toBe(true);
+    expect(adapter.releaseLock('s1', 'b')).toBe(false);
     expect(adapter.releaseLock('s1', 'a')).toBe(true);
+    expect(adapter.releaseLock('s1', 'a')).toBe(false);
+  });
 
-    await adapter.abort('s1').catch(() => {});
+  it('abort emits a local run.aborted envelope when no client is running', async () => {
+    const adapter = new PiRuntimeAdapter();
+    const events = collect(adapter, 's1');
+    await adapter.abort('s1', 'user');
+    const aborted = events.find((e) => e.type === 'run.aborted');
+    expect(aborted).toBeDefined();
+    expect(aborted?.payload).toEqual({ reason: 'user' });
+  });
+
+  it('unsubscribe stops delivery', async () => {
+    const adapter = new PiRuntimeAdapter();
+    const events: RealtimeEnvelope[] = [];
+    const unsub = adapter.subscribe('s1', (e) => events.push(e));
+    unsub();
+    await adapter.abort('s1', 'x');
     expect(events).toHaveLength(0);
+  });
+
+  it('dispose stops all clients without throwing', async () => {
+    const adapter = new PiRuntimeAdapter();
+    await expect(adapter.dispose()).resolves.toBeUndefined();
   });
 });
 
