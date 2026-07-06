@@ -27,3 +27,10 @@ export {
   eventRowToEnvelope,
   ulid,
 } from './repositories/eventsRepository';
+export {
+  createPiSessionsRepository,
+  type PiSessionRecord,
+  type PiSessionInput,
+  type PiSessionPatch,
+  type PiSessionsRepository,
+} from './repositories/piSessionsRepository';
