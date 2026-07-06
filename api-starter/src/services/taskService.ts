@@ -60,11 +60,10 @@ export function createTaskService(db: DatabaseSync, deps: TaskServiceDeps): Task
       const project = projects.getById(projectId);
       if (!project) throw new Error(`project not found: ${projectId}`);
       const taskId = crypto.randomUUID();
-      const baseSha = 'HEAD';
-      const { branchName, worktreePath } = await deps.worktree.createTaskWorktree({
+      const { branchName, worktreePath, baseSha } = await deps.worktree.createTaskWorktree({
         repoPath: project.repoPath,
         taskId,
-        baseSha,
+        baseBranch: project.defaultBranch,
         runtimePath: project.runtimeStatePath,
       });
       const piSessionPath = `${project.runtimeStatePath}/sessions/${taskId}`;

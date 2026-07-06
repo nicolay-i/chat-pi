@@ -13,9 +13,29 @@ import {
 } from '../taskStatus';
 import type { TaskStatus } from '@pi-agents/contracts';
 
+function makeFakeWorktree(): GitWorktreeService {
+  const fake = {
+    async createTaskWorktree(input: {
+      taskId: string;
+      runtimePath: string;
+    }): Promise<{
+      branchName: string;
+      worktreePath: string;
+      baseSha: string;
+    }> {
+      return {
+        branchName: `agents/task/${input.taskId}`,
+        worktreePath: `${input.runtimePath}/worktrees/${input.taskId}`,
+        baseSha: 'fakebase',
+      };
+    },
+  };
+  return fake as unknown as GitWorktreeService;
+}
+
 function setup() {
   const db: DatabaseSync = createDb(':memory:');
-  const worktree = new GitWorktreeService();
+  const worktree = makeFakeWorktree();
   const projects = createProjectService(db);
   const tasks = createTaskService(db, { worktree });
   const chats = createChatService(db, { tasks });
