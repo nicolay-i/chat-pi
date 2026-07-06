@@ -18,6 +18,8 @@ import { createProjectService } from './services/projectService';
 import { createChatService } from './services/chatService';
 import { createTaskService } from './services/taskService';
 import { GitWorktreeService } from './services/gitWorktreeService';
+import { createEventStore, type EventStream } from './realtime/eventStore';
+import { toSseResponse } from './realtime/sse';
 
 function sendApiError(
   c: Context,
@@ -35,6 +37,7 @@ export function createApp(db: DatabaseSync): Hono {
   const projectService = createProjectService(db);
   const taskService = createTaskService(db, { worktree });
   const chatService = createChatService(db, { tasks: taskService });
+  const eventStore = createEventStore(db);
 
   app.get('/health', (c) =>
     c.json(
@@ -185,33 +188,40 @@ export function createApp(db: DatabaseSync): Hono {
   });
 
   app.post('/api/chats/:chatId/messages', async (c) => {
+    const chatId = c.req.param('chatId');
     const body = SendMessageInputSchema.parse(await c.req.json());
-    return c.json({ ok: true, chatId: c.req.param('chatId'), accepted: body.behavior });
+    const chat = await chatService.get(chatId);
+    const projectId = chat?.projectId ?? chatId;
+    await eventStore.append({
+      stream: 'chat',
+      streamId: chatId,
+      projectId,
+      chatId,
+      type: 'message.created',
+      payload: { role: 'user', text: body.text, behavior: body.behavior },
+    });
+    return c.json({ ok: true, chatId, accepted: body.behavior });
   });
 
-  app.get('/api/chats/:chatId/events', (c) => {
-    const stream = new ReadableStream({
-      start(controller) {
-        const event = {
-          id: 'evt-demo-1',
-          stream: 'chat',
-          streamId: c.req.param('chatId'),
-          type: 'message.completed',
-          payload: { role: 'assistant', text: 'demo event' },
-          createdAt: new Date().toISOString(),
-        };
-        controller.enqueue(`data: ${JSON.stringify(event)}\n\n`);
-        controller.close();
-      },
+  const sseHandler = (stream: EventStream) => (c: Context): Response => {
+    const paramKey =
+      stream === 'chat' ? 'chatId' : stream === 'task' ? 'taskId' : 'projectId';
+    const streamId = c.req.param(paramKey);
+    if (streamId === undefined) {
+      return sendApiError(c, 400, 'invalid_input', `missing path param: ${paramKey}`);
+    }
+    const after = c.req.query('after');
+    const replay = eventStore.stream(stream, streamId, after);
+    return toSseResponse({
+      replay,
+      subscribe: (onChange) =>
+        eventStore.subscribe(stream, streamId, after, onChange),
     });
-    return new Response(stream, {
-      headers: {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        connection: 'keep-alive',
-      },
-    });
-  });
+  };
+
+  app.get('/api/chats/:chatId/events', sseHandler('chat'));
+  app.get('/api/tasks/:taskId/events', sseHandler('task'));
+  app.get('/api/projects/:projectId/events', sseHandler('project'));
 
   if (config.nodeEnv !== 'production') {
     app.get('/__throws', () => {
