@@ -41,7 +41,12 @@ function formatTime(iso: string): string {
 function ToolCardDemo() {
   const [expanded, setExpanded] = useState(true);
   return (
-    <Pressable testID="chat.thread.toolCardDemo" onPress={() => setExpanded((v) => !v)}>
+    <Pressable
+      testID="chat.thread.toolCardDemo"
+      accessibilityRole="button"
+      accessibilityLabel="Свернуть или развернуть инструмент"
+      onPress={() => setExpanded((v) => !v)}
+    >
       <ToolCard
         toolName="edit_file"
         filePath="src/utils/debounce.ts"

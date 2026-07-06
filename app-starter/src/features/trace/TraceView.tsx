@@ -106,6 +106,8 @@ function FilterChip({
   return (
     <Pressable
       testID={`trace.filter.${filter}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Filter ${FILTER_LABEL[filter]}`}
       onPress={onPress}
       style={{
         backgroundColor: active ? tokens.color.primary : tokens.color.surface,
@@ -153,6 +155,8 @@ function EventRow({
   return (
     <Pressable
       testID={`trace.row.${event.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Trace event ${event.type}`}
       onPress={onToggle}
       style={{
         backgroundColor: tokens.color.surface,
@@ -240,6 +244,8 @@ export function TraceView({ events }: { events: RealtimeEnvelope[] }) {
 
       <Pressable
         testID="trace.rawToggle"
+        accessibilityRole="button"
+        accessibilityLabel={`Raw JSON ${rawMode ? 'on' : 'off'}`}
         onPress={() => setRawMode((v) => !v)}
         style={{
           alignSelf: 'flex-start',

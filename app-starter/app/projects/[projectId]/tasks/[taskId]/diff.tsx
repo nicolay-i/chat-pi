@@ -63,6 +63,8 @@ export default function DiffReviewScreen() {
         <Text style={{ color: tokens.color.textMuted, marginTop: 4, textAlign: 'center' }}>{error}</Text>
         <Pressable
           testID="diff.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading diff"
           onPress={refetch}
           style={{
             marginTop: 12,
@@ -191,6 +193,8 @@ export default function DiffReviewScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
               <Pressable
                 testID="diff.confirm.cancel"
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
                 onPress={() => setConfirm(null)}
                 style={{ paddingVertical: 8, paddingHorizontal: 14, marginRight: 8 }}
               >
@@ -198,6 +202,8 @@ export default function DiffReviewScreen() {
               </Pressable>
               <Pressable
                 testID="diff.confirm.confirm"
+                accessibilityRole="button"
+                accessibilityLabel="Confirm"
                 onPress={handleConfirm}
                 disabled={pending}
                 style={{

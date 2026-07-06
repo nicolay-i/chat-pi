@@ -104,7 +104,13 @@ export default function ActionsScreen() {
       <View testID="actions.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load actions</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="actions.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="actions.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading actions"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -127,6 +133,8 @@ export default function ActionsScreen() {
           <Pressable
             key={action.id}
             testID={`actions.item.${action.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Run action ${action.label}`}
             style={[styles.chip, action.hasSideEffect ? styles.chipSideEffect : null]}
             onPress={() => handlePress(action)}
             disabled={running}
@@ -159,6 +167,8 @@ export default function ActionsScreen() {
             <View style={styles.modalActions}>
               <Pressable
                 testID="actions.confirm.cancel"
+                accessibilityRole="button"
+                accessibilityLabel="Отмена"
                 onPress={() => setPending(null)}
                 style={[styles.modalBtn, { backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border }]}
               >
@@ -166,6 +176,8 @@ export default function ActionsScreen() {
               </Pressable>
               <Pressable
                 testID="actions.confirm.ok"
+                accessibilityRole="button"
+                accessibilityLabel="Выполнить"
                 onPress={handleConfirm}
                 style={[styles.modalBtn, { backgroundColor: tokens.color.primary }]}
               >

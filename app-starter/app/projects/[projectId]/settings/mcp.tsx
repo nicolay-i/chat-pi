@@ -125,7 +125,13 @@ export default function McpScreen() {
       <View testID="mcp.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load MCP servers</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="mcp.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="mcp.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading MCP servers"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -142,6 +148,8 @@ export default function McpScreen() {
         <Text style={styles.title}>MCP servers</Text>
         <Pressable
           testID="mcp.add"
+          accessibilityRole="button"
+          accessibilityLabel="Add MCP server"
           style={styles.headerBtn}
           onPress={() => setAddOpen(true)}
         >
@@ -184,6 +192,8 @@ export default function McpScreen() {
             <View style={styles.actionRow}>
               <Pressable
                 testID={`mcp.edit.${server.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${server.id}`}
                 style={styles.outlineBtn}
                 onPress={() => setEditing(server)}
               >
@@ -191,6 +201,8 @@ export default function McpScreen() {
               </Pressable>
               <Pressable
                 testID={`mcp.test.${server.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Test ${server.id} tools`}
                 style={[styles.headerBtn, testingId === server.id ? styles.btnBusy : null]}
                 disabled={testingId === server.id}
                 onPress={() => handleTest(server.id)}
@@ -335,6 +347,8 @@ function McpForm({
           <Pressable
             key={t}
             testID={`mcp.transport.${t}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Transport ${t}`}
             onPress={() => setTransport(t)}
             style={[styles.kindPill, transport === t ? styles.kindPillActive : null]}
           >
@@ -371,10 +385,24 @@ function McpForm({
       {formError ? <Text style={styles.danger}>{formError}</Text> : null}
 
       <View style={styles.modalActions}>
-        <Pressable testID="mcp.cancel" style={styles.cancelBtn} onPress={onCancel} disabled={busy}>
+        <Pressable
+          testID="mcp.cancel"
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          style={styles.cancelBtn}
+          onPress={onCancel}
+          disabled={busy}
+        >
           <Text style={styles.cancelText}>Cancel</Text>
         </Pressable>
-        <Pressable testID="mcp.save" style={styles.saveBtn} onPress={handleSave} disabled={busy}>
+        <Pressable
+          testID="mcp.save"
+          accessibilityRole="button"
+          accessibilityLabel="Save server"
+          style={styles.saveBtn}
+          onPress={handleSave}
+          disabled={busy}
+        >
           {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Save</Text>}
         </Pressable>
       </View>

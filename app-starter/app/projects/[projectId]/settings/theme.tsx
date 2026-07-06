@@ -139,6 +139,8 @@ export default function ThemeScreen() {
             <Pressable
               key={preset.id}
               testID={`theme.preset.${preset.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Preset ${preset.label}`}
               style={styles.presetBtn}
               onPress={() => {
                 if (preset.id === 'default') {
@@ -337,6 +339,8 @@ export default function ThemeScreen() {
         <View style={styles.row}>
           <Pressable
             testID="theme.export"
+            accessibilityRole="button"
+            accessibilityLabel="Export JSON"
             style={[styles.btn, styles.btnSecondary]}
             onPress={() => setExportOpen(true)}
           >
@@ -353,6 +357,8 @@ export default function ThemeScreen() {
         />
         <Pressable
           testID="theme.import.apply"
+          accessibilityRole="button"
+          accessibilityLabel="Apply import"
           style={[styles.btn, styles.btnSecondary, { marginTop: 8 }]}
           onPress={handleImport}
         >
@@ -364,6 +370,8 @@ export default function ThemeScreen() {
       <View style={styles.section}>
         <Pressable
           testID="theme.save"
+          accessibilityRole="button"
+          accessibilityLabel="Save theme"
           style={[styles.btn, styles.btnPrimary]}
           onPress={handleSave}
         >
@@ -390,6 +398,8 @@ export default function ThemeScreen() {
             </Text>
             <Pressable
               testID="theme.export.close"
+              accessibilityRole="button"
+              accessibilityLabel="Close"
               style={[styles.btn, styles.btnPrimary, { marginTop: 12 }]}
               onPress={() => setExportOpen(false)}
             >

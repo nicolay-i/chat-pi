@@ -50,6 +50,8 @@ export default function MergeScreen() {
         <Text style={{ color: tokens.color.textMuted, marginTop: 4, textAlign: 'center' }}>{error}</Text>
         <Pressable
           testID="merge.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading task"
           onPress={refetch}
           style={{
             marginTop: 12,
@@ -107,6 +109,8 @@ export default function MergeScreen() {
         <Text style={{ color: tokens.color.successText, fontWeight: '700', fontSize: tokens.fontSize.lg }}>Слияние выполнено</Text>
         <Pressable
           testID="merge.done"
+          accessibilityRole="button"
+          accessibilityLabel="Готово"
           onPress={handleDone}
           style={{
             marginTop: 16,
@@ -272,6 +276,8 @@ export default function MergeScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
               <Pressable
                 testID="merge.confirm.cancel"
+                accessibilityRole="button"
+                accessibilityLabel="Отмена"
                 onPress={() => setConfirmOpen(false)}
                 disabled={pending}
                 style={{ paddingVertical: 8, paddingHorizontal: 14, marginRight: 8, opacity: pending ? 0.5 : 1 }}
@@ -280,6 +286,8 @@ export default function MergeScreen() {
               </Pressable>
               <Pressable
                 testID="merge.confirm"
+                accessibilityRole="button"
+                accessibilityLabel="Подтвердить"
                 onPress={handleConfirm}
                 disabled={pending}
                 style={{

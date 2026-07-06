@@ -90,7 +90,13 @@ export default function FilesScreen() {
         <View testID="files.error" style={styles.center}>
           <Text style={styles.danger}>Failed to load files</Text>
           <Text style={styles.muted}>{error}</Text>
-          <Pressable testID="files.retry" style={styles.retry} onPress={refetch}>
+          <Pressable
+          testID="files.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading files"
+          style={styles.retry}
+          onPress={refetch}
+        >
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -108,6 +114,8 @@ export default function FilesScreen() {
             <Pressable
               key={node.path}
               testID={rowTestID(node.path)}
+              accessibilityRole="button"
+              accessibilityLabel={node.type === 'file' ? `Open file ${node.name}` : node.name}
               style={[styles.row, { paddingLeft: 12 + node.depth * 16 }]}
               onPress={() => node.type === 'file' ? openFile(node.path) : undefined}
             >
@@ -144,6 +152,8 @@ export default function FilesScreen() {
                 <Pressable
                   key={`${r.path}:${r.line}:${i}`}
                   testID={`files.result.${i}`}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open result ${r.path}:${r.line}`}
                   style={styles.resultRow}
                   onPress={() => openFile(r.path)}
                 >

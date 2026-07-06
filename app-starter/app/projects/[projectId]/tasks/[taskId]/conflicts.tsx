@@ -56,6 +56,8 @@ export default function ConflictsScreen() {
         <Text style={{ color: tokens.color.textMuted, marginTop: 4, textAlign: 'center' }}>{error}</Text>
         <Pressable
           testID="conflict.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading task"
           onPress={refetch}
           style={{
             marginTop: 12,

@@ -103,6 +103,8 @@ export default function PackageInstallScreen() {
           <Pressable
             key={s.kind}
             testID={`packages.install.kind.${s.kind}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Source ${s.label}`}
             onPress={() => setSourceKind(s.kind)}
             style={[styles.kindPill, sourceKind === s.kind ? styles.kindPillActive : null]}
           >
@@ -128,6 +130,8 @@ export default function PackageInstallScreen() {
 
       <Pressable
         testID="packages.install.resolve"
+        accessibilityRole="button"
+        accessibilityLabel="Resolve package"
         style={[styles.outlineBtn, state.phase === 'loading' ? styles.btnBusy : null]}
         disabled={state.phase === 'loading'}
         onPress={handleResolve}
@@ -176,6 +180,8 @@ export default function PackageInstallScreen() {
 
       <Pressable
         testID="packages.install.install"
+        accessibilityRole="button"
+        accessibilityLabel="Install package"
         style={[styles.saveBtn, canInstall ? null : styles.btnDisabled]}
         disabled={!canInstall}
         onPress={handleInstall}

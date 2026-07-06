@@ -133,7 +133,13 @@ export default function PromptEditorScreen() {
       <View testID="promptEditor.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load template</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="promptEditor.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="promptEditor.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading template"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -164,6 +170,8 @@ export default function PromptEditorScreen() {
             <Pressable
               key={m}
               testID={`promptEditor.mode.${m}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Mode ${m}`}
               onPress={() => setMode(active ? null : m)}
               style={[
                 styles.modeChip,
@@ -218,6 +226,8 @@ export default function PromptEditorScreen() {
 
       <Pressable
         testID="promptEditor.save"
+        accessibilityRole="button"
+        accessibilityLabel="Save template"
         style={[styles.saveBtn, { opacity: saving ? 0.6 : 1 }]}
         onPress={handleSave}
         disabled={saving}

@@ -98,7 +98,13 @@ export default function ProvidersScreen() {
       <View testID="providers.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load providers</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="providers.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="providers.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading providers"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -115,6 +121,8 @@ export default function ProvidersScreen() {
         <Text style={styles.title}>Providers</Text>
         <Pressable
           testID="providers.add"
+          accessibilityRole="button"
+          accessibilityLabel="Add provider"
           style={styles.headerBtn}
           onPress={() => setAddOpen(true)}
         >
@@ -145,6 +153,8 @@ export default function ProvidersScreen() {
 
             <Pressable
               testID={`providers.test.${provider.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Test ${provider.type} connection`}
               style={[styles.headerBtn, { marginTop: 8, alignSelf: 'flex-start' }]}
               disabled={testingId === provider.id}
               onPress={() => handleTest(provider.id)}
@@ -244,6 +254,8 @@ function AddProviderForm({
           <Pressable
             key={t}
             testID={`providers.type.${t}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Type ${t}`}
             onPress={() => setType(t)}
             style={[styles.typePill, type === t ? styles.typePillActive : null]}
           >
@@ -281,10 +293,24 @@ function AddProviderForm({
       {formError ? <Text style={styles.danger}>{formError}</Text> : null}
 
       <View style={styles.modalActions}>
-        <Pressable testID="providers.cancel" style={styles.cancelBtn} onPress={onCancel} disabled={busy}>
+        <Pressable
+          testID="providers.cancel"
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          style={styles.cancelBtn}
+          onPress={onCancel}
+          disabled={busy}
+        >
           <Text style={styles.cancelText}>Cancel</Text>
         </Pressable>
-        <Pressable testID="providers.save" style={styles.saveBtn} onPress={handleSave} disabled={busy}>
+        <Pressable
+          testID="providers.save"
+          accessibilityRole="button"
+          accessibilityLabel="Save provider"
+          style={styles.saveBtn}
+          onPress={handleSave}
+          disabled={busy}
+        >
           {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Save</Text>}
         </Pressable>
       </View>

@@ -92,7 +92,13 @@ export default function PromptsScreen() {
       <View testID="prompts.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load prompts</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="prompts.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="prompts.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading prompts"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -119,6 +125,8 @@ export default function PromptsScreen() {
             <Pressable
               key={p.id}
               testID={`prompts.item.${p.id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Open prompt ${p.name}`}
               style={styles.row}
               onPress={() => router.push(`./prompts/${encodeURIComponent(p.id)}`)}
             >

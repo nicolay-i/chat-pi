@@ -136,7 +136,13 @@ export default function SkillEditorScreen() {
       <View testID="skillEditor.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load skill</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="skillEditor.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="skillEditor.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading skill"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -195,6 +201,8 @@ export default function SkillEditorScreen() {
       <View style={styles.actions}>
         <Pressable
           testID="skillEditor.test"
+          accessibilityRole="button"
+          accessibilityLabel="Test skill"
           style={[styles.actionBtn, { marginRight: 8, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.primary }]}
           onPress={handleTest}
           disabled={testing}
@@ -205,6 +213,8 @@ export default function SkillEditorScreen() {
         </Pressable>
         <Pressable
           testID="skillEditor.save"
+          accessibilityRole="button"
+          accessibilityLabel="Save skill"
           style={[styles.actionBtn, { backgroundColor: tokens.color.primary, opacity: saving ? 0.6 : 1 }]}
           onPress={handleSave}
           disabled={saving}

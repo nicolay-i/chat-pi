@@ -53,6 +53,7 @@ export default function ChatTreeScreen() {
         <Pressable
           testID="chatTree.backToChats"
           accessibilityRole="button"
+          accessibilityLabel="Назад к чатам"
           onPress={() => router.back()}
           style={{
             marginTop: 12,

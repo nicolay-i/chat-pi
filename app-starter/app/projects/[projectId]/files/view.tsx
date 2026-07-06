@@ -84,7 +84,13 @@ export default function FileViewScreen() {
       <View testID="files.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load file</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="files.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="files.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading file"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>

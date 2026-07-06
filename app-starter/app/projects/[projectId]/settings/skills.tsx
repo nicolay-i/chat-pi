@@ -82,7 +82,13 @@ export default function SkillsScreen() {
       <View testID="skills.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load skills</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="skills.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="skills.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading skills"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -96,12 +102,19 @@ export default function SkillsScreen() {
         <View style={styles.headerActions}>
           <Pressable
             testID="skills.create"
+            accessibilityRole="button"
+            accessibilityLabel="New skill"
             style={styles.headerBtn}
             onPress={() => router.push(`./skills/new`)}
           >
             <Text style={styles.headerBtnText}>+ New</Text>
           </Pressable>
-          <Pressable testID="skills.extract" style={[styles.headerBtn, { marginLeft: 8 }]}>
+          <Pressable
+            testID="skills.extract"
+            accessibilityRole="button"
+            accessibilityLabel="Extract skill from chat"
+            style={[styles.headerBtn, { marginLeft: 8 }]}
+          >
             <Text style={styles.headerBtnText}>Extract from chat</Text>
           </Pressable>
         </View>
@@ -154,6 +167,8 @@ function SkillGroup({
         <View key={skill.id} style={styles.row}>
           <Pressable
             testID={`skills.item.${skill.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Open skill ${skill.name}`}
             style={styles.rowMain}
             onPress={() => onOpen(skill.id)}
           >

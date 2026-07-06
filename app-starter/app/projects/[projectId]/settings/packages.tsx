@@ -108,7 +108,13 @@ export default function PackagesScreen() {
       <View testID="packages.error" style={styles.center}>
         <Text style={styles.danger}>Failed to load packages</Text>
         <Text style={styles.muted}>{error}</Text>
-        <Pressable testID="packages.retry" style={styles.retry} onPress={refetch}>
+        <Pressable
+          testID="packages.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading packages"
+          style={styles.retry}
+          onPress={refetch}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -125,6 +131,8 @@ export default function PackagesScreen() {
         <Text style={styles.title}>Packages</Text>
         <Pressable
           testID="packages.install"
+          accessibilityRole="button"
+          accessibilityLabel="Install package"
           style={styles.headerBtn}
           onPress={() => router.push(`./packages/install`)}
         >
@@ -179,6 +187,8 @@ export default function PackagesScreen() {
               </View>
               <Pressable
                 testID={`packages.remove.${pkg.name}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${pkg.name}`}
                 style={styles.removeBtn}
                 onPress={() => setRemoveTarget(pkg)}
               >
@@ -207,6 +217,8 @@ export default function PackagesScreen() {
             <View style={styles.modalActions}>
               <Pressable
                 testID="packages.removeConfirm.cancel"
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
                 onPress={() => setRemoveTarget(null)}
                 disabled={removing}
                 style={styles.cancelBtn}
@@ -215,6 +227,8 @@ export default function PackagesScreen() {
               </Pressable>
               <Pressable
                 testID="packages.removeConfirm.confirm"
+                accessibilityRole="button"
+                accessibilityLabel="Remove package"
                 onPress={handleConfirmRemove}
                 disabled={removing}
                 style={styles.dangerBtn}

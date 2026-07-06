@@ -117,6 +117,8 @@ export default function CheckpointsScreen() {
         <Text style={{ color: tokens.color.textMuted, marginTop: 4, textAlign: 'center' }}>{error}</Text>
         <Pressable
           testID="checkpoint.retry"
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading checkpoints"
           onPress={refetch}
           style={{
             marginTop: 12,
@@ -214,6 +216,8 @@ export default function CheckpointsScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
               <Pressable
                 testID="checkpoint.create.cancel"
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
                 onPress={() => setCreateOpen(false)}
                 disabled={creating}
                 style={{ paddingVertical: 8, paddingHorizontal: 14, marginRight: 8, opacity: creating ? 0.5 : 1 }}
@@ -223,6 +227,7 @@ export default function CheckpointsScreen() {
               <Pressable
                 testID="checkpoint.create.confirm"
                 accessibilityRole="button"
+                accessibilityLabel="Create checkpoint"
                 onPress={handleCreate}
                 disabled={creating || !message.trim()}
                 style={{
@@ -260,6 +265,8 @@ export default function CheckpointsScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
               <Pressable
                 testID="checkpoint.confirm.cancel"
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
                 onPress={() => setConfirm(null)}
                 disabled={pending}
                 style={{ paddingVertical: 8, paddingHorizontal: 14, marginRight: 8, opacity: pending ? 0.5 : 1 }}
@@ -269,6 +276,7 @@ export default function CheckpointsScreen() {
               <Pressable
                 testID="checkpoint.confirm.confirm"
                 accessibilityRole="button"
+                accessibilityLabel={confirm?.kind === 'fork' ? 'Fork' : 'Rollback'}
                 onPress={handleConfirm}
                 disabled={pending}
                 style={{
@@ -342,6 +350,8 @@ export default function CheckpointsScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
               <Pressable
                 testID="checkpoint.diff.close"
+                accessibilityRole="button"
+                accessibilityLabel="Close"
                 onPress={() => setDiffFor(null)}
                 style={{
                   paddingVertical: 8,
