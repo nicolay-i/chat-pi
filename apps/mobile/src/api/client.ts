@@ -162,6 +162,12 @@ export class ApiClient {
     return ChatSchema.parse(await res.json());
   }
 
+  async bootstrapChat(): Promise<Chat> {
+    const res = await fetch(`${this.baseUrl}/api/chats/bootstrap`, { method: 'POST' });
+    if (!res.ok) throw await this.toError(res);
+    return ChatSchema.parse(await res.json());
+  }
+
   async updateChat(chatId: string, patch: Partial<Chat>): Promise<Chat> {
     const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}`, {
       method: 'PATCH',

@@ -1,5 +1,3 @@
 packages:
   - "apps/*"
   - "packages/*"
-  - "app-starter"
-  - "api-starter"

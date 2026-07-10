@@ -13,6 +13,7 @@ jest.mock('@/state/backendStorage', () => ({
 
 import { router } from 'expo-router';
 import SetupScreen from '../setup';
+import { rootStore } from '@/stores/rootStore';
 
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -50,6 +51,16 @@ const typeUrl = async (
 };
 
 describe('SetupScreen', () => {
+  beforeEach(() => {
+    rootStore.chat.close();
+    jest.spyOn(rootStore.chat, 'open').mockImplementation(() => undefined);
+    rootStore.backend.baseUrl = null;
+    rootStore.backend.capabilities = null;
+    rootStore.backend.status = 'idle';
+    rootStore.backend.latencyMs = null;
+    rootStore.backend.error = null;
+  });
+
   afterEach(() => {
     restoreFetch();
     jest.clearAllMocks();
@@ -66,6 +77,15 @@ describe('SetupScreen', () => {
       const u = typeof input === 'string' ? input : input.toString();
       if (u.endsWith('/health')) return jsonRes({ ok: true, time: '2026-01-01T00:00:00Z' });
       if (u.endsWith('/api/capabilities')) return jsonRes(VALID_CAPABILITIES);
+      if (u.endsWith('/api/chats/bootstrap')) {
+        return jsonRes({
+          id: 'chat-1',
+          projectId: 'project-1',
+          title: 'Новый чат',
+          mode: 'discussion',
+          updatedAt: '2026-01-01T00:00:00Z',
+        });
+      }
       throw new Error(`unexpected fetch ${u}`);
     });
     setFetch(fetchMock);
@@ -79,10 +99,8 @@ describe('SetupScreen', () => {
 
     expect(await findByText(/Версия API: 1\.2\.3/)).toBeTruthy();
 
-    await act(async () => {
-      fireEvent.press(getByTestId('setup.continue'));
-    });
-    expect(router.replace).toHaveBeenCalledWith('/projects');
+    fireEvent.press(getByTestId('setup.continue'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/chat/chat-1'));
   });
 
   it('shows server-unreachable error when fetch rejects', async () => {

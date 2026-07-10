@@ -4,8 +4,8 @@
 клиент на Expo Router, Hono backend на Node, типизированные контракты через общие
 Zod-схемы, git worktree как средство изоляции параллельных writable-задач.
 
-- **Frontend** (`mobile`): Expo Router (React Native + Web), TypeScript strict, jest-expo.
-- **Backend** (`api`): Hono на Node 24, `node:sqlite`, vitest, реальный git worktree.
+- **Frontend** (`@pi-agents/mobile`): Expo Router (React Native + Web), TypeScript strict, jest-expo.
+- **Backend** (`@pi-agents/api`): Hono на Node 24, `node:sqlite`, vitest, реальный git worktree.
 - **Contracts** (`@pi-agents/contracts`): общие Zod-схемы и типы.
 - `.agents/` — системная папка проекта (манифест задач, промпты, skills).
 
@@ -51,11 +51,11 @@ pnpm -r lint        # tsc в api/contracts, expo lint в mobile
 ### Run API
 
 ```bash
-pnpm --filter api dev     # tsx watch src/index.ts
+pnpm dev:api              # tsx watch src/index.ts
 ```
 
 По умолчанию поднимается на `http://localhost:8787`. Переменные окружения
-(читаются в `api-starter/src/config.ts` и `api-starter/src/db/db.ts`):
+(читаются в `apps/api/src/config.ts` и `apps/api/src/db/db.ts`):
 
 | Переменная   | По умолчанию    | Описание                                                            |
 | ------------ | --------------- | ------------------------------------------------------------------ |
@@ -63,6 +63,13 @@ pnpm --filter api dev     # tsx watch src/index.ts
 | `NODE_ENV`   | `development`   | Режим работы.                                                       |
 | `LOG_LEVEL`  | `info`          | Уровень логирования.                                                |
 | `DB_PATH`    | `.data/app.db`  | Путь к файлу SQLite (создаётся при первом запуске). `:memory:` — в RAM. |
+| `AGENT_RUNTIME` | `fake` | Runtime агента: `fake` для UI-разработки, `pi` для локального Pi CLI. |
+| `PI_CWD` | текущая директория API | Рабочая директория Pi-сессий. |
+| `PI_BIN` / `PI_NODE` | `pi.cmd` / Node из PATH | Явный путь к Pi CLI или Node для запуска его JS entry. |
+| `PI_PROVIDER` / `PI_MODEL` | Pi default | Явно выбранный провайдер и модель для Pi. |
+
+Для запуска с локальным Pi в PowerShell задайте `AGENT_RUNTIME=pi` до команды
+`pnpm dev:api`; пример значений лежит в `apps/api/.env.example`.
 
 > **Замечание:** `node:sqlite` в Node 24 — experimental API. Предупреждение
 > `ExperimentalWarning: node:sqlite is an experimental feature` выводится в
@@ -71,20 +78,22 @@ pnpm --filter api dev     # tsx watch src/index.ts
 ### Run mobile / web
 
 ```bash
-pnpm --filter mobile start   # Expo Dev UI
+pnpm --filter @pi-agents/mobile start   # Expo Dev UI
 # в интерактивном меню: w — web, либо отсканировать QR для Expo Go
 # либо сразу web-only:
-pnpm --filter mobile web
+pnpm dev:web
 ```
+
+Для проверки с устройства в Tailnet: `pnpm dev:tailscale`, затем открыть web URL
+и в setup указать Tailscale URL API.
 
 ### First-run flow
 
-1. Запустить API: `pnpm --filter api dev`.
+1. Запустить API: `pnpm dev:api`.
 2. В приложении открыть экран `/setup`.
 3. Ввести backend URL (например `http://localhost:8787`) → **Test connection**
    → **Save**.
-4. Происходит редирект на `/projects`. Дальнейшая навигация — из дашборда проекта
-   (chats / tasks / files / settings).
+4. Приложение создаёт или переиспользует локальный чат и открывает `/chat/[chatId]`.
 
 ---
 
@@ -96,10 +105,10 @@ pnpm --filter mobile web
 
 ```text
 chat-pi/
-├── app-starter/            # пакет `mobile`  — Expo Router (RN + Web)
+├── apps/mobile/            # пакет `mobile`  — Expo Router (RN + Web)
 │   ├── app/                # 22 файловых маршрута Expo Router
 │   └── src/{api,components,features,state,theme,mocks}
-├── api-starter/            # пакет `api`     — Hono backend
+├── apps/api/               # пакет `api`     — Hono backend
 │   └── src/{config,server,index,db,realtime,services}
 ├── packages/contracts/     # `@pi-agents/contracts` — Zod-схемы и типы
 │   └── src/{index,schemas}
@@ -133,7 +142,7 @@ eventReducer (чистый, детерминированный) → zustand stor
 
 ### Структура проекта (реализовано)
 
-**`app-starter/app/`** — маршруты Expo Router:
+**`apps/mobile/app/`** — маршруты Expo Router:
 
 ```text
 _layout.tsx · index.tsx · setup.tsx · projects.tsx · approvals.tsx · settings.tsx
@@ -150,7 +159,7 @@ projects/
                        prompts/,skills,skills/}.tsx
 ```
 
-**`app-starter/src/`**:
+**`apps/mobile/src/`**:
 
 ```text
 api/        ApiClient (~40 методов, ApiClientError), eventStream, ApiClient tests
@@ -165,7 +174,7 @@ theme/      design tokens + themeStore (zustand override layer)
 mocks/      фикстуры для UI-тестов и офлайн-режима
 ```
 
-**`api-starter/src/`**:
+**`apps/api/src/`**:
 
 ```text
 config.ts     PORT / NODE_ENV / LOG_LEVEL (с валидацией порта)

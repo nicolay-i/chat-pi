@@ -10,7 +10,7 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@pi-agents/contracts": ["../packages/contracts/src"]
+      "@pi-agents/contracts": ["../../packages/contracts/src"]
     }
   },
   "include": ["src"]

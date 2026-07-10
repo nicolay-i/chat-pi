@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { observer } from '@/lib/observer';
 import { tokens } from '@/theme/tokens';
-import { ApiClient } from '@/api/client';
 import type { Capabilities } from '@pi-agents/contracts';
-import { backendActions, persistBaseUrl } from '@/state/backendStore';
-import { clearBackendUrl, saveBackendUrl } from '@/state/backendStorage';
+import { rootStore } from '@/stores/rootStore';
 
 type Phase =
   | 'idle'
@@ -35,12 +34,12 @@ const CAPABILITY_ROWS: ReadonlyArray<{ key: keyof Capabilities; label: string }>
 function isValidBackendUrl(value: string): boolean {
   const trimmed = value.trim();
   if (!/^https?:\/\//i.test(trimmed)) return false;
-  const hostPattern = /^(?:[a-z0-9-]+(?:\.[a-z0-9-]+)+|localhost)(?::\d+)?(?:\/.*)?$/i;
+  const hostPattern = /^(?:(?:[a-z0-9-]+(?:\.[a-z0-9-]+)+)|localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?(?:\/.*)?$/i;
   const afterProtocol = trimmed.replace(/^https?:\/\//i, '');
   return hostPattern.test(afterProtocol);
 }
 
-export default function SetupScreen() {
+export default observer(function SetupScreen() {
   const [url, setUrl] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
@@ -55,35 +54,32 @@ export default function SetupScreen() {
       return;
     }
     setPhase('checking');
-    try {
-      const client = new ApiClient(trimmed);
-      const t0 = Date.now();
-      await client.getHealth();
-      const latencyMs = Date.now() - t0;
-      const capabilities = await client.getCapabilities();
-      setDiagnostics({ latencyMs, apiVersion: capabilities.apiVersion, capabilities });
+    await rootStore.backend.connect(trimmed);
+    if (rootStore.backend.status === 'connected' && rootStore.backend.capabilities) {
+      setDiagnostics({
+        latencyMs: rootStore.backend.latencyMs ?? 0,
+        apiVersion: rootStore.backend.capabilities.apiVersion,
+        capabilities: rootStore.backend.capabilities,
+      });
       setPhase('connected');
-      backendActions.setBaseUrl(trimmed);
-      backendActions.setCapabilities(capabilities);
-      backendActions.setStatus('connected');
-      void saveBackendUrl(trimmed);
+    } else {
+      setPhase('serverUnreachable');
+      setError(rootStore.backend.error ?? 'Не удалось подключиться к backend');
+    }
+  };
+
+  const handleContinue = async (): Promise<void> => {
+    try {
+      const chat = await rootStore.chat.bootstrap();
+      router.replace(`/chat/${chat.id}`);
     } catch (e) {
       setPhase('serverUnreachable');
       setError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const handleContinue = () => {
-    const trimmed = url.trim();
-    void persistBaseUrl(trimmed);
-    router.replace('/projects');
-  };
-
-  const handleReset = () => {
-    void clearBackendUrl();
-    backendActions.setBaseUrl(null);
-    backendActions.setCapabilities(null);
-    backendActions.setStatus('idle');
+  const handleReset = async (): Promise<void> => {
+    await rootStore.backend.reset();
     setUrl('');
     setDiagnostics(null);
     setError(null);
@@ -235,4 +231,4 @@ export default function SetupScreen() {
       </Pressable>
     </ScrollView>
   );
-}
+});

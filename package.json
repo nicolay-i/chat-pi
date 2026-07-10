@@ -5,6 +5,9 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "dev:api": "pnpm --filter @pi-agents/api dev",
+    "dev:web": "pnpm --filter @pi-agents/mobile web",
+    "dev:tailscale": "pnpm --parallel --filter @pi-agents/api --filter @pi-agents/mobile dev"
   }
 }

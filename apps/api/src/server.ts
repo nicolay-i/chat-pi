@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { cors } from 'hono/cors';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { DatabaseSync } from 'node:sqlite';
 import {
@@ -20,6 +21,7 @@ import { createTaskService } from './services/taskService';
 import { GitWorktreeService } from './services/gitWorktreeService';
 import { createEventStore, type EventStream } from './realtime/eventStore';
 import { toSseResponse } from './realtime/sse';
+import { createChatRuntime, type ChatRuntime } from './services/chatRuntime';
 
 function sendApiError(
   c: Context,
@@ -31,13 +33,33 @@ function sendApiError(
   return c.json(body, status);
 }
 
-export function createApp(db: DatabaseSync): Hono {
+export type CreateAppOptions = {
+  chatRuntime?: ChatRuntime;
+};
+
+export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): Hono {
   const app = new Hono();
   const worktree = new GitWorktreeService();
   const projectService = createProjectService(db);
   const taskService = createTaskService(db, { worktree });
   const chatService = createChatService(db, { tasks: taskService });
   const eventStore = createEventStore(db);
+  const chatRuntime = options.chatRuntime ?? createChatRuntime(config.agentRuntime, {
+    cwd: config.agentCwd,
+    piBin: config.piBin,
+    nodeBin: config.piNode,
+    provider: config.piProvider,
+    model: config.piModel,
+  });
+
+  app.use(
+    '*',
+    cors({
+      origin: '*',
+      allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['content-type'],
+    }),
+  );
 
   app.get('/health', (c) =>
     c.json(
@@ -49,7 +71,7 @@ export function createApp(db: DatabaseSync): Hono {
     c.json(
       CapabilitiesSchema.parse({
         apiVersion: '0.0.0',
-        piAvailable: false,
+        piAvailable: config.agentRuntime === 'pi',
         gitAvailable: true,
         supportsWorktrees: true,
         supportsSse: true,
@@ -153,6 +175,24 @@ export function createApp(db: DatabaseSync): Hono {
     }
   });
 
+  app.post('/api/chats/bootstrap', async (c) => {
+    const repoPath = config.agentCwd ?? process.cwd();
+    let project = (await projectService.list()).find((item) => item.repoPath === repoPath);
+    if (!project) {
+      project = await projectService.create({
+        name: 'Local workspace',
+        repoPath,
+        defaultBranch: 'main',
+      });
+    }
+    const existing = await chatService.list(project.id);
+    const chat = existing[0] ?? (await chatService.create(project.id, {
+      title: 'Новый чат',
+      mode: 'discussion',
+    }));
+    return c.json(chat, 201);
+  });
+
   app.get('/api/projects/:id/tasks', async (c) => {
     const items = await taskService.listByProject(c.req.param('id'));
     return c.json(items);
@@ -192,14 +232,47 @@ export function createApp(db: DatabaseSync): Hono {
     const body = SendMessageInputSchema.parse(await c.req.json());
     const chat = await chatService.get(chatId);
     const projectId = chat?.projectId ?? chatId;
+    const userMessageId = crypto.randomUUID();
+    const userCreatedAt = new Date().toISOString();
     await eventStore.append({
       stream: 'chat',
       streamId: chatId,
       projectId,
       chatId,
       type: 'message.created',
-      payload: { role: 'user', text: body.text, behavior: body.behavior },
+      payload: {
+        chatId,
+        id: userMessageId,
+        role: 'user',
+        text: body.text,
+        createdAt: userCreatedAt,
+        behavior: body.behavior,
+      },
     });
+
+    void chatRuntime.send(chatId, body, (type, payload) => {
+      void eventStore.append({
+        stream: 'chat',
+        streamId: chatId,
+        projectId,
+        chatId,
+        type,
+        payload,
+      });
+    }).catch((error: unknown) => {
+      void eventStore.append({
+        stream: 'chat',
+        streamId: chatId,
+        projectId,
+        chatId,
+        type: 'run.error',
+        payload: {
+          chatId,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    });
+
     return c.json({ ok: true, chatId, accepted: body.behavior });
   });
 

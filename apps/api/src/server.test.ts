@@ -41,6 +41,21 @@ describe('GET /api/projects', () => {
   });
 });
 
+describe('POST /api/chats/bootstrap', () => {
+  it('creates and reuses a local chat', async () => {
+    const first = await app.request('/api/chats/bootstrap', { method: 'POST' });
+    expect(first.status).toBe(201);
+    const firstChat = await first.json();
+    expect(firstChat.id).toBeTruthy();
+    expect(firstChat.mode).toBe('discussion');
+
+    const second = await app.request('/api/chats/bootstrap', { method: 'POST' });
+    expect(second.status).toBe(201);
+    const secondChat = await second.json();
+    expect(secondChat.id).toBe(firstChat.id);
+  });
+});
+
 describe('POST /api/projects', () => {
   it('creates a project and returns 201', async () => {
     const input = CreateProjectInputSchema.parse({

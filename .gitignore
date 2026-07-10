@@ -60,3 +60,4 @@ coverage/
 # Runtime / tmp
 tmp/
 .temp/
+apps/api/.data/

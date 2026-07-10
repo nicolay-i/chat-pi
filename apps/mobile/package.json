@@ -1,16 +1,17 @@
 {
-  "name": "mobile",
+  "name": "@pi-agents/mobile",
   "version": "0.0.0",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "dev": "expo start --web",
     "web": "expo start --web",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "test": "jest --watchAll=false"
+    "test": "jest --watchAll=false --runInBand"
   },
   "dependencies": {
     "@pi-agents/contracts": "workspace:*",
@@ -24,6 +25,8 @@
     "expo-secure-store": "latest",
     "expo-status-bar": "latest",
     "lucide-react-native": "latest",
+    "mobx": "^6.16.1",
+    "mobx-react-lite": "^4.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
@@ -42,6 +45,6 @@
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.0",
     "jest-expo": "latest",
-    "typescript": "latest"
+    "typescript": "^6.0.3"
   }
 }
