@@ -177,7 +177,7 @@ After registering the target repository in the application, the containerized
 verifier performs that check and discards its temporary Task afterwards:
 
 ```powershell
-docker compose exec -T -e VERIFY_PROJECT_REPO_PATH=/projects/my-repository api pnpm --filter @pi-agents/api verify:vps-bwrap
+docker compose exec -T -e VERIFY_PROJECT_REPO_PATH=/projects/my-repository api node --import tsx src/scripts/verifyBwrapRuntime.ts
 ```
 
 The command requires working provider credentials in `/data/pi-agent` (or the

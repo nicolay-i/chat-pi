@@ -120,6 +120,15 @@ async function run(): Promise<void> {
     }));
   } catch (error) {
     primaryError = error;
+    if (taskId) {
+      const process = await waitForAudit(db, taskId);
+      console.error(JSON.stringify({
+        taskId,
+        sandboxMode: process.sandbox_mode,
+        processStatus: process.status,
+        exitReason: process.exit_reason,
+      }));
+    }
     throw error;
   } finally {
     if (taskId) {
