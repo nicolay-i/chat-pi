@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPiRpcArgs } from '../piRpcClient';
+import { buildPiRpcArgs, getPiAgentEndError } from '../piRpcClient';
 
 describe('buildPiRpcArgs', () => {
   it('opens a task-owned JSONL file before the RPC session starts', () => {
@@ -16,5 +16,21 @@ describe('buildPiRpcArgs', () => {
       '--session-dir', 'C:/runtime/sessions',
       '--no-tools',
     ]);
+  });
+});
+
+describe('getPiAgentEndError', () => {
+  it('turns a provider failure in agent_end into a rejected turn', () => {
+    expect(getPiAgentEndError({
+      type: 'agent_end',
+      messages: [{ role: 'assistant', stopReason: 'error', errorMessage: '401: CreditsError' }],
+    })?.message).toBe('Pi agent turn failed: 401: CreditsError');
+  });
+
+  it('does not reject a completed agent turn', () => {
+    expect(getPiAgentEndError({
+      type: 'agent_end',
+      messages: [{ role: 'assistant', stopReason: 'stop' }],
+    })).toBeUndefined();
   });
 });

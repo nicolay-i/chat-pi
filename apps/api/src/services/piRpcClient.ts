@@ -64,6 +64,27 @@ export function attachJsonlReader(
 
 export type PiEventListener = (event: Record<string, unknown>) => void;
 
+type IdleResolver = (error?: Error) => void;
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+/** Converts a provider failure embedded in Pi's terminal event into a rejected turn. */
+export function getPiAgentEndError(event: Record<string, unknown>): Error | undefined {
+  if (event.type !== 'agent_end' || !Array.isArray(event.messages)) return undefined;
+
+  for (const entry of [...event.messages].reverse()) {
+    const message = asRecord(entry);
+    if (!message || message.stopReason !== 'error') continue;
+    const detail = typeof message.errorMessage === 'string' ? message.errorMessage.trim() : '';
+    return new Error(detail ? `Pi agent turn failed: ${detail}` : 'Pi agent turn failed');
+  }
+  return undefined;
+}
+
 export interface PiRpcClientOptions {
   /** Path to the pi CLI. When nodeBin is set this is the JS entry; otherwise the spawn target. */
   piBin?: string;
@@ -207,7 +228,7 @@ export class PiRpcClient {
   private stopReader: (() => void) | null = null;
   private stderrBuffer = '';
   private readonly listeners = new Set<PiEventListener>();
-  private idleResolvers: Array<() => void> = [];
+  private idleResolvers: IdleResolver[] = [];
   private exited = false;
   private processInfo: PiProcessInfo | null = null;
 
@@ -319,11 +340,12 @@ export class PiRpcClient {
       return;
     }
     if (record.type === 'agent_end') {
+      const error = getPiAgentEndError(record);
       const resolvers = this.idleResolvers;
       this.idleResolvers = [];
       for (const r of resolvers) {
         try {
-          r();
+          r(error);
         } catch {
           /* ignore */
         }
@@ -438,7 +460,10 @@ export class PiRpcClient {
         fn();
       };
       const timer = setTimeout(() => finish(() => rejectFn(new Error(`waitForIdle timed out after ${timeout}ms`))), timeout);
-      const resolver = (): void => finish(() => resolveFn());
+      const resolver: IdleResolver = (error) => finish(() => {
+        if (error) rejectFn(error);
+        else resolveFn();
+      });
       this.idleResolvers.push(resolver);
     });
   }
