@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
 import { createDb } from '../../db';
-import { createTasksRepository } from '../../db';
+import { createTasksRepository, createPiSessionsRepository } from '../../db';
 import { createProjectService } from '../projectService';
 import { createChatService } from '../chatService';
 import { createTaskService } from '../taskService';
@@ -44,7 +44,7 @@ function setup() {
 
 describe('taskStatus', () => {
   it('reports the full set of valid statuses', () => {
-    expect(VALID_STATUSES.size).toBe(15);
+    expect(VALID_STATUSES.size).toBe(20);
     expect(VALID_STATUSES.has('created')).toBe(true);
     expect(VALID_STATUSES.has('archived')).toBe(true);
   });
@@ -94,6 +94,15 @@ describe('projectService', () => {
     expect(await projects.get(created.id)).toBeUndefined();
     expect(await projects.list()).toHaveLength(0);
   });
+
+  it('restricts repositories to the configured container project root', async () => {
+    const restricted = createProjectService(createDb(':memory:'), { projectsRoot: '/projects' });
+
+    await expect(restricted.create({ name: 'allowed', repoPath: '/projects/demo', defaultBranch: 'main' }))
+      .resolves.toMatchObject({ repoPath: '/projects/demo' });
+    await expect(restricted.create({ name: 'outside', repoPath: '/etc', defaultBranch: 'main' }))
+      .rejects.toThrow('PI_PROJECTS_ROOT');
+  });
 });
 
 describe('chatService', () => {
@@ -114,6 +123,12 @@ describe('chatService', () => {
     const chat = await chats.create(project.id, { mode: 'discussion' });
 
     expect(chat.activeTaskId).toBeUndefined();
+    expect(chat.piSessionId).toBeTruthy();
+    expect(chat.activeLeafEntryId).toBeNull();
+    expect(createPiSessionsRepository(db).getByChatId(chat.id)).toMatchObject({
+      id: chat.piSessionId,
+      cwd: '/r',
+    });
     const taskList = await tasks.listByProject(project.id);
     expect(taskList).toHaveLength(0);
     const rawTasks = createTasksRepository(db).listByProject(project.id);
@@ -156,6 +171,11 @@ describe('chatService', () => {
     expect(chat.activeTaskId).toBe(task.id);
     expect(['created', 'idle']).toContain(task.status);
     expect(task.mode).toBe('implementation');
+    expect(task.piSessionId).toBe(chat.piSessionId);
+    await expect(tasks.createForChat(project.id, chat.id, {
+      title: 'second writable task',
+      mode: 'implementation',
+    })).rejects.toThrow(/already has an active writable task/);
   });
 
   it('planning chat does not create a task even with createTask set', async () => {

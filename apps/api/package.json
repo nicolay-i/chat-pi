@@ -9,6 +9,7 @@
     "backup": "tsx src/scripts/backup.ts",
     "restore": "tsx src/scripts/restore.ts",
     "restore:activate": "tsx src/scripts/restoreActivate.ts",
+    "verify:vps-bwrap": "tsx src/scripts/verifyBwrapRuntime.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "tsc --noEmit"

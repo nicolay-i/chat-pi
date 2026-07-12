@@ -2,6 +2,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { Task, RunMode, TaskStatus } from '@pi-agents/contracts';
 import {
   createTasksRepository,
+  createChatsRepository,
+  createPiSessionsRepository,
   createProjectsRepository,
   type TaskRecord,
 } from '../db';
@@ -18,6 +20,9 @@ export type TaskPatch = {
   baseSha?: string;
   currentHeadSha?: string | null;
   mergeTarget?: string;
+  startPiEntryId?: string | null;
+  endPiEntryId?: string | null;
+  lastRunId?: string | null;
 };
 
 export interface TaskServiceDeps {
@@ -45,8 +50,13 @@ function toTask(rec: TaskRecord): Task {
     title: rec.title,
     mode: rec.mode,
     status: rec.status,
+    piSessionId: rec.piSessionId ?? '',
     branchName: rec.branchName,
     worktreePath: rec.worktreePath,
+    baseSha: rec.baseSha,
+    currentHeadSha: rec.currentHeadSha,
+    startPiEntryId: rec.startPiEntryId,
+    endPiEntryId: rec.endPiEntryId,
     changedFiles: 0,
     updatedAt: rec.updatedAt,
   };
@@ -54,11 +64,25 @@ function toTask(rec: TaskRecord): Task {
 
 export function createTaskService(db: DatabaseSync, deps: TaskServiceDeps): TaskService {
   const tasks = createTasksRepository(db);
+  const chats = createChatsRepository(db);
+  const piSessions = createPiSessionsRepository(db);
   const projects = createProjectsRepository(db);
   return {
     async createForChat(projectId, chatId, input) {
       const project = projects.getById(projectId);
       if (!project) throw new Error(`project not found: ${projectId}`);
+      const chat = chats.getById(chatId);
+      if (!chat || chat.projectId !== projectId) throw new Error(`chat not found: ${chatId}`);
+      const sessionId = chat.piSessionId ?? chat.activePiSessionId;
+      if (!sessionId) throw new Error(`chat ${chatId} has no PiSession`);
+      const session = piSessions.getById(sessionId);
+      if (!session || session.chatId !== chatId) throw new Error(`PiSession for chat ${chatId} not found`);
+      const writableStatuses: TaskStatus[] = [
+        'created', 'creating_worktree', 'idle', 'queued', 'running', 'aborting',
+        'paused_clean', 'paused_dirty', 'paused_after_restart',
+      ];
+      const activeTask = tasks.listByChatId(chatId).find((task) => writableStatuses.includes(task.status));
+      if (activeTask) throw new Error(`chat ${chatId} already has an active writable task: ${activeTask.id}`);
       const taskId = crypto.randomUUID();
       const { branchName, worktreePath, baseSha } = await deps.worktree.createTaskWorktree({
         repoPath: project.repoPath,
@@ -66,7 +90,6 @@ export function createTaskService(db: DatabaseSync, deps: TaskServiceDeps): Task
         baseBranch: project.defaultBranch,
         runtimePath: project.runtimeStatePath,
       });
-      const piSessionPath = `${project.runtimeStatePath}/sessions/${taskId}.jsonl`;
       const rec = tasks.create({
         id: taskId,
         projectId,
@@ -78,8 +101,10 @@ export function createTaskService(db: DatabaseSync, deps: TaskServiceDeps): Task
         baseSha,
         branchName,
         worktreePath,
-        piSessionPath,
+        piSessionPath: session.path,
+        piSessionId: session.id,
         mergeTarget: project.defaultBranch,
+        currentHeadSha: baseSha,
       });
       return toTask(rec);
     },

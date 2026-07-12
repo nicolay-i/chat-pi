@@ -10,7 +10,7 @@ export function createHealthRoutes(): Hono {
   routes.get('/api/capabilities', (c) => c.json(CapabilitiesSchema.parse({
     apiVersion: '0.0.0', piAvailable: config.agentRuntime === 'pi', gitAvailable: true,
     supportsWorktrees: true, supportsSse: true, supportsWebSocket: false,
-    supportsPackageInstall: true, supportsVscodeWeb: false, supportsIgnis: false,
+    supportsPackageInstall: true, supportsVscodeWeb: false, supportsIgnis: true,
   })));
   return routes;
 }

@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { createDb, migrate } from '../../db';
 import { createTasksRepository, createProjectsRepository } from '../../db';
+import { createChatsRepository } from '../../db/repositories/chatsRepository';
+import { createQueuedMessagesRepository } from '../../db/repositories/queuedMessagesRepository';
+import { createPiSessionsRepository } from '../../db/repositories/piSessionsRepository';
 import { createCheckpointsRepository } from '../../db/repositories/checkpointsRepository';
 import { createEventStore } from '../../realtime/eventStore';
 import { GitWorktreeService } from '../gitWorktreeService';
@@ -15,6 +18,8 @@ import { createForkService } from '../forkService';
 import { createRollbackService } from '../rollbackService';
 import { createMergeService } from '../mergeService';
 import { createGitTaskService } from '../gitTaskService';
+import { createTaskCancellationService } from '../taskCancellationService';
+import { createProjectRemoteSyncService } from '../projectRemoteSyncService';
 import { isValidStatusTransition } from '../taskStatus';
 
 function git(cwd: string, args: string[]): string {
@@ -196,6 +201,37 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
 
     const taskAfter = env.tasks.getById(taskId);
     expect(taskAfter?.currentHeadSha).toBe(cp.sha);
+    expect(cp.hasFileChanges).toBe(true);
+    expect(cp.beforeSha).toBe(seed.baseSha);
+    expect(cp.afterSha).toBe(cp.sha);
+  });
+
+  it('creates a stable checkpoint without an empty Git commit when files are unchanged', async () => {
+    const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
+    const taskId = 'task-cp-clean';
+    const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    const checkpointService = createCheckpointService(env.db, {
+      worktree: env.worktree,
+      events: env.events,
+      tasks: env.tasks,
+    });
+
+    const beforeLogCount = git(seed.worktreePath, ['rev-list', '--count', 'HEAD']);
+    const cp = await checkpointService.createCheckpoint({
+      taskId,
+      message: 'discussion only',
+      repoPath: repo.repoPath,
+      worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
+    });
+
+    expect(cp.hasFileChanges).toBe(false);
+    expect(cp.changedFiles).toBe(0);
+    expect(cp.beforeSha).toBe(seed.baseSha);
+    expect(cp.afterSha).toBe(seed.baseSha);
+    expect(cp.patchPath).toBeNull();
+    expect(git(seed.worktreePath, ['rev-list', '--count', 'HEAD'])).toBe(beforeLogCount);
+    expect(git(seed.worktreePath, ['status', '--porcelain'])).toBe('');
   });
 
   it('fork creates a new branch + worktree from the checkpoint sha', async () => {
@@ -304,6 +340,86 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
     expect(originalBranch).toContain(seed.branchName);
   });
 
+  it('rollback preserves the Chat PiSession while creating an isolated worktree from its checkpoint', async () => {
+    const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
+    const taskId = 'task-rb-shared-session';
+    const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    moveStatus(env, taskId, 'idle');
+    const chats = createChatsRepository(env.db);
+    const chat = chats.create({ projectId, title: 'rollback chat', mode: 'implementation', activeTaskId: taskId });
+    const sessions = createPiSessionsRepository(env.db);
+    const session = sessions.create({
+      projectId,
+      chatId: chat.id,
+      path: join(repo.runtimePath, 'sessions', `${chat.id}.jsonl`),
+      cwd: seed.worktreePath,
+    });
+    chats.update(chat.id, { piSessionId: session.id, activePiSessionId: session.id });
+    env.tasks.update(taskId, { sourceChatId: chat.id, piSessionId: session.id, piSessionPath: session.path });
+    mkdirSync(dirname(session.path), { recursive: true });
+    writeFileSync(session.path, [
+      JSON.stringify({ type: 'session', version: 3, id: 'source-session', timestamp: '2026-07-12T00:00:00.000Z', cwd: seed.worktreePath }),
+      JSON.stringify({ type: 'message', id: 'entry-c1', parentId: null, timestamp: '2026-07-12T00:00:01.000Z', message: { role: 'user', content: 'first step' } }),
+      JSON.stringify({ type: 'message', id: 'entry-c2', parentId: 'entry-c1', timestamp: '2026-07-12T00:00:02.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'checkpoint answer' }] } }),
+      JSON.stringify({ type: 'message', id: 'entry-after', parentId: 'entry-c2', timestamp: '2026-07-12T00:00:03.000Z', message: { role: 'user', content: 'later branch' } }),
+    ].join('\n'), 'utf8');
+
+    writeFileSync(join(seed.worktreePath, 'checkpoint.txt'), 'checkpoint state\n');
+    const checkpointService = createCheckpointService(env.db, {
+      worktree: env.worktree,
+      events: env.events,
+      tasks: env.tasks,
+    });
+    const checkpoint = await checkpointService.createCheckpoint({
+      taskId,
+      chatId: chat.id,
+      runId: 'run-rb',
+      piSessionId: session.id,
+      piEntryId: 'entry-c2',
+      message: 'checkpoint C2',
+      repoPath: repo.repoPath,
+      worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
+    });
+    writeFileSync(join(seed.worktreePath, 'after-checkpoint.txt'), 'must remain only in task A\n');
+
+    const forkService = createForkService(env.db, {
+      worktree: env.worktree,
+      events: env.events,
+      tasks: env.tasks,
+    });
+    const rollbackService = createRollbackService(env.db, {
+      forkService,
+      events: env.events,
+      tasks: env.tasks,
+      chats,
+      piSessions: sessions,
+    });
+    const result = await rollbackService.rollbackToCheckpoint({
+      taskId,
+      checkpointId: checkpoint.id,
+      repoPath: repo.repoPath,
+      runtimePath: repo.runtimePath,
+    });
+
+    const rolledBack = env.tasks.getById(result.newTaskId)!;
+    expect(rolledBack.sourceChatId).toBe(chat.id);
+    expect(rolledBack.piSessionId).toBe(session.id);
+    expect(rolledBack.piSessionPath).not.toBe(session.path);
+    expect(rolledBack.baseSha).toBe(checkpoint.afterSha);
+    expect(rolledBack.worktreePath).not.toBe(seed.worktreePath);
+    expect(existsSync(join(rolledBack.worktreePath, 'checkpoint.txt'))).toBe(true);
+    expect(existsSync(join(rolledBack.worktreePath, 'after-checkpoint.txt'))).toBe(false);
+    expect(existsSync(join(seed.worktreePath, 'after-checkpoint.txt'))).toBe(true);
+    expect(chats.getById(chat.id)).toMatchObject({ activeTaskId: result.newTaskId, activeLeafEntryId: 'entry-c2' });
+    expect(sessions.getById(session.id)).toMatchObject({ path: rolledBack.piSessionPath, activeLeafEntryId: 'entry-c2' });
+    const branchLines = readFileSync(rolledBack.piSessionPath, 'utf8').trim().split(/\r?\n/).map((line) => JSON.parse(line));
+    expect(branchLines.map((entry: { id?: string }) => entry.id)).toEqual(expect.arrayContaining(['entry-c1', 'entry-c2']));
+    expect(branchLines.some((entry: { id?: string }) => entry.id === 'entry-after')).toBe(false);
+    expect(branchLines[0].id).not.toBe('source-session');
+    expect(branchLines[0].cwd).toBe(rolledBack.worktreePath);
+  });
+
   it('squash merge advances main and marks task merged', async () => {
     const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
     const taskId = 'task-mg-1';
@@ -356,6 +472,72 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
     expect(existsSync(join(repo.runtimePath, 'integration', taskId))).toBe(false);
   }, 15_000);
 
+  it('archives or discards a stopped task only through an explicit cancellation mode', async () => {
+    const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
+    const archived = await seedTask({ env, projectId, taskId: 'task-cancel-archive', repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    const discarded = await seedTask({ env, projectId, taskId: 'task-cancel-discard', repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    const chats = createChatsRepository(env.db);
+    const chat = chats.create({ projectId, title: 'cancel', mode: 'implementation', activeTaskId: archived.taskId });
+    env.tasks.update(archived.taskId, { sourceChatId: chat.id });
+    const queuedMessages = createQueuedMessagesRepository(env.db);
+    queuedMessages.enqueue({ chatId: chat.id, taskId: archived.taskId, text: 'do not run after cancellation' });
+    const cancellation = createTaskCancellationService({
+      tasks: env.tasks,
+      projects: env.projects,
+      chats,
+      worktree: env.worktree,
+      events: env.events,
+      queuedMessages,
+    });
+
+    await expect(cancellation.cancel(archived.taskId, 'archive')).resolves.toMatchObject({ status: 'cancelled_archived' });
+    expect(existsSync(archived.worktreePath)).toBe(true);
+    expect(chats.getById(chat.id)?.activeTaskId).toBeNull();
+    expect(queuedMessages.listPending(chat.id)).toHaveLength(0);
+
+    await expect(cancellation.cancel(discarded.taskId, 'discard')).resolves.toMatchObject({ status: 'cancelled_discarded' });
+    expect(existsSync(discarded.worktreePath)).toBe(false);
+    expect(git(repo.repoPath, ['branch', '--list', discarded.branchName])).toBe('');
+  });
+
+  it('updates the primary repository only after an explicit project remote-sync apply', async () => {
+    const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
+    const taskId = 'task-remote-sync';
+    const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    moveStatus(env, taskId, 'idle');
+    const root = dirname(repo.repoPath);
+    const remotePath = join(root, 'origin.git');
+    const upstreamPath = join(root, 'upstream');
+    git(root, ['init', '--bare', remotePath]);
+    git(repo.repoPath, ['remote', 'add', 'origin', remotePath]);
+    git(repo.repoPath, ['push', '--set-upstream', 'origin', 'main']);
+    git(root, ['clone', '--branch', 'main', remotePath, upstreamPath]);
+    git(upstreamPath, ['config', 'user.name', 'Upstream Test']);
+    git(upstreamPath, ['config', 'user.email', 'upstream@test.local']);
+    writeFileSync(join(upstreamPath, 'remote.txt'), 'new remote target\n');
+    git(upstreamPath, ['add', 'remote.txt']);
+    git(upstreamPath, ['commit', '-m', 'advance remote main']);
+    git(upstreamPath, ['push', 'origin', 'main']);
+
+    const sync = createProjectRemoteSyncService({
+      projects: env.projects,
+      tasks: env.tasks,
+      events: env.events,
+    });
+    const primaryBefore = git(repo.repoPath, ['rev-parse', 'main']);
+    const inspected = await sync.sync(projectId, 'inspect');
+    expect(inspected.status).toBe('fast_forward_available');
+    expect(git(repo.repoPath, ['rev-parse', 'main'])).toBe(primaryBefore);
+    expect(env.tasks.getById(taskId)?.status).toBe('idle');
+
+    const applied = await sync.sync(projectId, 'apply');
+    expect(applied.status).toBe('fast_forward_applied');
+    expect(applied.staleTaskIds).toContain(taskId);
+    expect(git(repo.repoPath, ['rev-parse', 'main'])).toBe(applied.remoteSha);
+    expect(env.tasks.getById(taskId)?.status).toBe('stale');
+    expect(git(seed.worktreePath, ['rev-parse', 'HEAD'])).toBe(seed.baseSha);
+  });
+
   it('diff and rebase preserve task changes while advancing the base', async () => {
     const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
     const taskId = 'task-rebase-1';
@@ -383,23 +565,26 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
     const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
     const taskId = 'task-revert-1';
     const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
-    moveStatus(env, taskId, 'idle');
-    writeFileSync(join(seed.worktreePath, 'README.md'), '# changed\n');
-    writeFileSync(join(seed.worktreePath, 'added.txt'), 'added\n');
-    git(seed.worktreePath, ['add', 'added.txt']);
+      moveStatus(env, taskId, 'idle');
+      writeFileSync(join(seed.worktreePath, 'README.md'), '# changed\n');
+      writeFileSync(join(seed.worktreePath, 'added.txt'), 'added\n');
 
-    const service = createGitTaskService({ tasks: env.tasks, events: env.events });
-    expect((await service.listDiff(taskId)).map((entry) => entry.path)).toEqual(
-      expect.arrayContaining(['README.md', 'added.txt']),
-    );
+      const service = createGitTaskService({ tasks: env.tasks, events: env.events });
+      expect((await service.listDiff(taskId)).map((entry) => entry.path)).toEqual(
+        expect.arrayContaining(['README.md', 'added.txt']),
+      );
+      expect(await service.getDiffFile(taskId, 'added.txt')).toMatchObject({
+        hunks: [expect.objectContaining({ header: 'new file: added.txt' })],
+      });
 
-    await service.revertFile(taskId, 'README.md');
-    await service.revertFile(taskId, 'added.txt');
+      await service.revertFile(taskId, 'README.md');
+      await service.revertFile(taskId, 'added.txt');
 
     expect(readFileSync(join(seed.worktreePath, 'README.md'), 'utf8').trim()).toBe('# demo');
-    expect(existsSync(join(seed.worktreePath, 'added.txt'))).toBe(false);
-    expect(await service.listDiff(taskId)).toEqual([]);
-    await expect(service.revertFile(taskId, '../README.md')).rejects.toThrow(/repository-relative/);
+      expect(existsSync(join(seed.worktreePath, 'added.txt'))).toBe(false);
+      expect(await service.listDiff(taskId)).toEqual([]);
+      await expect(service.revertFile(taskId, '../README.md')).rejects.toThrow(/repository-relative/);
+      await expect(service.getDiffFile(taskId, '../README.md')).rejects.toThrow(/repository-relative/);
   });
 
   it('no-ff merge creates a merge commit on target', async () => {

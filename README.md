@@ -1,9 +1,9 @@
 # Pi Agents Mobile/Web
 
-Кроссплатформенный клиент для работы с LLM-агентом через Web, Android и iOS.
+Кроссплатформенный клиент управления LLM-агентом через Web, Android и iOS.
 Репозиторий содержит Expo/React Native приложение, Hono API и общие типизированные
-контракты. Записи агента всегда изолированы: `Task = branch + worktree + Pi
-session + event stream + checkpoints`.
+контракты. Выполнение находится на VPS: `Chat = одна постоянная PiSession`, а
+`Task = branch + worktree + диапазон session entries + checkpoints`.
 
 ## Состояние проекта
 
@@ -11,19 +11,22 @@ session + event stream + checkpoints`.
 - **Навигация:** явный React Navigation native stack и централизованный registry в
   `apps/mobile/src/navigation/`, без файловой навигации Expo Router.
 - **API:** Hono, SQLite, SSE, общие Zod-схемы и machine-readable API registry.
-- **Agent runtime:** локальный Pi CLI запускается на backend через `AgentRuntime`;
-  для разработки доступен детерминированный `fake` runtime.
+- **Agent runtime:** Pi, Git, worktrees, session files и checkpoints запускаются
+  только Hono backend на VPS. Web/Android/iOS не запускают Pi и не получают
+  доступ к файловой системе репозиториев. Для unit-тестов доступен `fake` runtime.
 - **Git workflow:** реальные worktree, persistent Pi sessions, checkpoint, fork,
   rollback, rebase/stale detection и squash/no-ff merge.
 
 Детальный статус и оставшиеся ограничения: `docs/IMPLEMENTATION-STATUS.md`.
+Проверяемые сценарии из нормативного плана: `docs/ACCEPTANCE-MATRIX.md`.
 
 ## Требования
 
 - Node.js 24+.
 - pnpm 9.15.1 (`corepack enable`).
 - Git в `PATH`.
-- Для реальных agent turns: локальный Pi CLI и его авторизация.
+- Для локального opt-in smoke-теста Pi: CLI и его авторизация. Это не является
+  пользовательским execution mode и не заменяет VPS runtime.
 - Для запуска на Android/iOS: Expo Go либо локальная native-сборка.
 
 ## Установка и проверка
@@ -56,7 +59,7 @@ pnpm dev:web
 явная навигация синхронизирует route с адресной строкой; на iOS/Android тот же
 route registry преобразуется в native stack.
 
-### Локальный Pi
+### Локальный Pi smoke-тест
 
 `apps/api/.env.example` содержит шаблон. В PowerShell:
 
@@ -68,9 +71,10 @@ $env:PI_MODEL = ''    # optional
 pnpm dev:api
 ```
 
-Первый запуск Pi может занять заметное время. Для implementation-задачи runtime
-получает именно task worktree и persistent session path; общий checkout не
-выдаётся агенту для записи.
+Первый запуск Pi может занять заметное время. Этот режим нужен только для
+разработки backend и проверки интеграции. В целевой эксплуатации Pi запускается
+на VPS; для implementation-задачи он получает task worktree, а discussion и
+planning получают основной repo только с read-only tools.
 
 ## Настройки API
 
@@ -136,22 +140,73 @@ fetch or overwrite Git repositories. Backup excludes `.env`, credentials,
 
 ## Docker / VPS
 
-The repository contains a production-oriented API compose file. It persists
-SQLite in a named volume, mounts managed Git repositories separately, runs Git
-inside the container and keeps the HTTP port bound to localhost by default.
+The repository contains a VPS-oriented API compose file. It persists SQLite,
+Pi agent state and managed Git repositories on the VPS. The container runs Git
+and Pi; clients connect only through the Tailnet. The HTTP port remains bound
+to localhost by default until a specific Tailnet IP is configured.
+
+In production compose, each Pi child is launched through Linux `bubblewrap`.
+The child receives only its Task worktree, the Chat JSONL session directory and
+the dedicated Pi state directory; discussion/planning mounts the primary repo
+read-only. The API accepts repository paths only below container path
+`/projects`, and records each real Pi child PID, cwd, sandbox mode and terminal
+status in SQLite. The VPS must permit unprivileged user namespaces. Docker's
+default seccomp profile blocks `unshare()`, so the supplied compose file uses
+`PI_DOCKER_SECCOMP_PROFILE=unconfined` together with `no-new-privileges` and
+all Linux capabilities dropped; replace it with a reviewed custom profile that
+permits the bwrap syscalls when one is available. Provider network access
+remains enabled, while host networking and the Docker socket are not passed
+into the Pi child.
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
 # Set CORS_ORIGINS and PROJECTS_ROOT in .env.docker.
+# PROJECTS_ROOT is the host directory mounted inside the API as /projects.
 docker compose --env-file .env.docker up --build -d
 docker compose --env-file .env.docker logs -f api
 ```
 
-To expose API to an authenticated Tailnet device, set `API_BIND_ADDRESS` to the
-host Tailscale IP and include the Web origin in `CORS_ORIGINS`. Do not expose
-the unauthenticated API to the public internet. The supplied image runs the
-fake runtime by default. `AGENT_RUNTIME=pi` requires the Pi CLI to be installed
-inside a derived image and `PI_BIN` to point to that executable.
+To expose API to a Tailnet device, set `API_BIND_ADDRESS` to the host Tailscale
+IP and include the Web origin in `CORS_ORIGINS`. Do not expose the
+unauthenticated API to the public internet. The supplied image already contains
+the pinned Pi CLI and runs Pi by default; provider credentials must be
+provisioned in `/data/pi-agent` or as the minimal provider-specific environment.
+Before accepting a VPS deployment, run a real bwrap Pi turn and confirm its
+`runtime_processes` record has `sandbox_mode = 'bwrap'` and a completed status.
+After registering the target repository in the application, the containerized
+verifier performs that check and discards its temporary Task afterwards:
+
+```powershell
+docker compose exec -T -e VERIFY_PROJECT_REPO_PATH=/projects/my-repository api pnpm --filter @pi-agents/api verify:vps-bwrap
+```
+
+The command requires working provider credentials in `/data/pi-agent` (or the
+minimal provider environment allowed by `PI_SANDBOX_ENV_ALLOWLIST`). It refuses
+paths outside `/projects` and does not create a Project implicitly.
+
+### Deploy from Git
+
+The VPS checkout must be a clean clone of `origin/main`; configuration and
+volumes are deliberately not committed. Clone it once, create the protected
+`.env.docker`, then use the versioned deployment script for each update:
+
+```bash
+git clone https://github.com/nicolay-i/chat-pi.git /srv/chat-pi
+cd /srv/chat-pi
+cp .env.docker.example .env.docker
+# Set CORS_ORIGINS and PROJECTS_ROOT=/srv/projects; keep secrets out of Git.
+./scripts/deploy-vps.sh
+```
+
+To update the VPS after pushing a commit to `main`, run only:
+
+```bash
+cd /srv/chat-pi && ./scripts/deploy-vps.sh
+```
+
+The script refuses uncommitted or untracked files in the server checkout and
+only accepts a fast-forward from `origin/main`. This keeps deployment state
+reproducible from Git while preserving `.env.docker` and Docker volumes.
 
 ## Architecture
 
@@ -161,10 +216,10 @@ React Native Web / Android / iOS
                  |
                  | typed ApiClient + SSE
                  v
-Hono API + SQLite + shared Zod contracts
+Hono API on VPS + SQLite + shared Zod contracts
                  |
                  v
-Task worktree + AgentRuntime (Pi or fake) + event stream
+one Chat PiSession + task worktree + AgentRuntime (Pi or fake) + event stream
 ```
 
 The contract registry in `packages/contracts/src/apiOperations.ts` connects
@@ -174,13 +229,14 @@ operation from silently losing its server route.
 ## Limitations
 
 - Authentication and pairing are intentionally postponed; the current backend
-  is suitable only for a trusted local/Tailnet environment.
+  is suitable only for a trusted Tailnet environment.
 - Provider connection tests and package resolution are still local/synthetic;
   provider secrets are not yet stored by the backend.
 - MCP configuration is persisted, but validation deliberately does not execute
   arbitrary commands.
-- Docker compose structure is validated; image build/run requires a running
-  Docker engine on the host.
+- Docker image build, Compose API health and a local `bwrap` Pi CLI smoke test
+  are verified. A real provider-backed sandbox turn on the Linux VPS remains a
+  release gate.
 - Device-level QA and a complete browser-to-Pi end-to-end flow remain final
   release gates.
 

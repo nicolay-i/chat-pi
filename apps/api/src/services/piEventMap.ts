@@ -16,6 +16,8 @@ function asString(v: unknown): string | undefined {
   return typeof v === 'string' ? v : undefined;
 }
 
+const MAX_RAW_PI_EVENT_BYTES = 64 * 1024;
+
 /** Pull the first `text` part out of a message content array. */
 function firstText(content: unknown): string {
   if (!Array.isArray(content)) return '';
@@ -28,7 +30,18 @@ function firstText(content: unknown): string {
 }
 
 function withRawPiEvent(event: Record<string, unknown>, payload: Record<string, unknown>): Record<string, unknown> {
-  return { ...payload, rawPiEvent: event };
+  const serialized = JSON.stringify(event);
+  if (Buffer.byteLength(serialized, 'utf8') <= MAX_RAW_PI_EVENT_BYTES) {
+    return { ...payload, rawPiEvent: event };
+  }
+  return {
+    ...payload,
+    rawPiEvent: {
+      type: asString(event.type) ?? 'unknown',
+      truncated: true,
+      byteLength: Buffer.byteLength(serialized, 'utf8'),
+    },
+  };
 }
 
 /**

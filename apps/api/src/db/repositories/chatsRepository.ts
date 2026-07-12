@@ -9,6 +9,9 @@ export type ChatRow = {
   mode: string;
   active_task_id: string | null;
   active_pi_session_id: string | null;
+  pi_session_id: string | null;
+  parent_chat_id: string | null;
+  active_leaf_entry_id: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
@@ -21,6 +24,9 @@ export type ChatRecord = {
   mode: RunMode;
   activeTaskId: string | null;
   activePiSessionId: string | null;
+  piSessionId: string | null;
+  parentChatId: string | null;
+  activeLeafEntryId: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -32,6 +38,9 @@ export type ChatInput = {
   mode: RunMode;
   activeTaskId?: string | null;
   activePiSessionId?: string | null;
+  piSessionId?: string | null;
+  parentChatId?: string | null;
+  activeLeafEntryId?: string | null;
 };
 
 export type ChatPatch = Partial<Omit<ChatInput, 'projectId'>>;
@@ -44,6 +53,9 @@ function rowToChat(row: ChatRow): ChatRecord {
     mode: row.mode as RunMode,
     activeTaskId: row.active_task_id,
     activePiSessionId: row.active_pi_session_id,
+    piSessionId: row.pi_session_id,
+    parentChatId: row.parent_chat_id,
+    activeLeafEntryId: row.active_leaf_entry_id,
     archivedAt: row.archived_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -54,6 +66,7 @@ export type ChatsRepository = {
   create(input: ChatInput): ChatRecord;
   getById(id: string): ChatRecord | undefined;
   listByProject(projectId: string): ChatRecord[];
+  listByParentChatId(parentChatId: string): ChatRecord[];
   update(id: string, patch: ChatPatch): ChatRecord | undefined;
   archive(id: string): ChatRecord | undefined;
 };
@@ -64,8 +77,8 @@ export function createChatsRepository(db: DatabaseSync): ChatsRepository {
       const id = randomId();
       const now = nowIso();
       db.prepare(
-        `INSERT INTO chats (id, project_id, title, mode, active_task_id, active_pi_session_id, archived_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO chats (id, project_id, title, mode, active_task_id, active_pi_session_id, pi_session_id, parent_chat_id, active_leaf_entry_id, archived_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         input.projectId,
@@ -73,6 +86,9 @@ export function createChatsRepository(db: DatabaseSync): ChatsRepository {
         input.mode,
         input.activeTaskId ?? null,
         input.activePiSessionId ?? null,
+        input.piSessionId ?? input.activePiSessionId ?? null,
+        input.parentChatId ?? null,
+        input.activeLeafEntryId ?? null,
         null,
         now,
         now,
@@ -84,6 +100,9 @@ export function createChatsRepository(db: DatabaseSync): ChatsRepository {
         mode: input.mode,
         activeTaskId: input.activeTaskId ?? null,
         activePiSessionId: input.activePiSessionId ?? null,
+        piSessionId: input.piSessionId ?? input.activePiSessionId ?? null,
+        parentChatId: input.parentChatId ?? null,
+        activeLeafEntryId: input.activeLeafEntryId ?? null,
         archivedAt: null,
         createdAt: now,
         updatedAt: now,
@@ -97,6 +116,12 @@ export function createChatsRepository(db: DatabaseSync): ChatsRepository {
       const rows = db
         .prepare('SELECT * FROM chats WHERE project_id = ? AND archived_at IS NULL ORDER BY created_at ASC')
         .all(projectId) as unknown as ChatRow[];
+      return rows.map(rowToChat);
+    },
+    listByParentChatId(parentChatId) {
+      const rows = db
+        .prepare('SELECT * FROM chats WHERE parent_chat_id = ? AND archived_at IS NULL ORDER BY created_at ASC')
+        .all(parentChatId) as unknown as ChatRow[];
       return rows.map(rowToChat);
     },
     update(id, patch) {

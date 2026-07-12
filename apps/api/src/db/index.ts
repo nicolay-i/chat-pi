@@ -41,6 +41,17 @@ export {
   type PiSessionsRepository,
 } from './repositories/piSessionsRepository';
 export {
+  createQueuedMessagesRepository,
+  type QueuedMessageRecord,
+  type QueuedMessagesRepository,
+} from './repositories/queuedMessagesRepository';
+export {
+  createRuntimeProcessesRepository,
+  type RuntimeProcessRecord,
+  type RuntimeProcessStatus,
+  type RuntimeProcessesRepository,
+} from './repositories/runtimeProcessesRepository';
+export {
   createPackagesRepository,
   type PackageRecord,
   type PackageInput,

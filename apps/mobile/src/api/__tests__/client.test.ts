@@ -111,7 +111,9 @@ describe('ApiClient', () => {
   it('revertFile sends the explicit confirmation accepted by the task route', async () => {
     fetchMock.mockResolvedValue(mockResponse({
       id: 'task-1', projectId: 'project-1', title: 'Task', mode: 'implementation', status: 'idle',
-      branchName: 'agents/task-1', worktreePath: '/repo/.worktrees/task-1', changedFiles: 0, updatedAt: '2026-01-01T00:00:00.000Z',
+      piSessionId: 'session-1', branchName: 'agents/task-1', worktreePath: '/repo/.worktrees/task-1',
+      baseSha: 'base-sha', currentHeadSha: 'head-sha', startPiEntryId: null, endPiEntryId: null,
+      changedFiles: 0, updatedAt: '2026-01-01T00:00:00.000Z',
     }));
 
     const client = new ApiClient('https://api.example.com');

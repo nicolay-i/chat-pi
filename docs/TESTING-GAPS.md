@@ -30,8 +30,9 @@ yet proven by automated tests and remain release gates.
   It has not yet been added to the Expo bundle or tested on iOS/Android.
 - There is no visual-regression suite for React Native Web, responsive layout,
   dark theme or screen-reader traversal.
-- VSCode Web and Obsidian/Ignis have no end-to-end product flow yet because the
-  corresponding backend capabilities are absent.
+- VSCode Web remains unsupported. Ignis has a configured Tailnet URL and a
+  web/native launch surface, but no end-to-end editing flow against a live
+  Ignis host has been verified.
 - Current React 19 tests still emit several `act(...)` warnings. They do not
   fail the suite, but each affected interaction should be cleaned up.
 
@@ -47,9 +48,16 @@ yet proven by automated tests and remain release gates.
   still review-only and must remain trust-gated when real fetch/install support
   is added.
 - MCP configuration test intentionally does not spawn the configured process.
-- The Docker image installs the pinned Pi CLI and compose is syntax-validated;
-  a complete image build and Pi start/healthcheck test requires a running
-  Docker engine and configured provider credentials.
+- The Docker image builds locally, Compose starts the API with a healthy
+  `/health` response, and its pinned Pi CLI (`0.80.3`) runs inside the
+  configured `bubblewrap` namespaces with only the expected writable mounts.
+  A provider-backed sandbox turn still requires a Linux VPS and configured
+  provider credentials. `pnpm --filter @pi-agents/api verify:vps-bwrap` runs
+  the target verification inside the API container, checks its
+  `runtime_processes` record and discards its temporary Task. The supplied
+  compose profile is `unconfined` because Docker's default profile blocks
+  `unshare()`; replace it with a
+  reviewed custom profile before a hardened deployment.
 
 ## Security and operations
 

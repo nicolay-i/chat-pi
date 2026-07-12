@@ -1,3 +1,5 @@
+import type { PiSandboxMode } from './services/piSandbox';
+
 function parsePort(value: string | undefined, fallback: number): number {
   if (value === undefined || value === '') return fallback;
   const n = Number.parseInt(value, 10);
@@ -46,6 +48,10 @@ function optionalString(value: string | undefined): string | undefined {
   return normalized || undefined;
 }
 
+function parseCsv(value: string | undefined): string[] {
+  return value?.split(',').map((item) => item.trim()).filter(Boolean) ?? [];
+}
+
 function parseCorsOrigins(value: string | undefined): string[] {
   if (value === undefined || value.trim() === '') return [];
 
@@ -82,6 +88,11 @@ export type Config = {
   piProvider: string | undefined;
   piModel: string | undefined;
   piAgentDir: string | undefined;
+  piSandboxMode: PiSandboxMode;
+  piSandboxBin: string | undefined;
+  piSandboxEnvAllowlist: string[];
+  piRunTimeoutMs: number;
+  piProjectsRoot: string | undefined;
   corsOrigins: string[];
   maxBodyBytes: number;
   packageResolveRateLimit: number;
@@ -95,6 +106,12 @@ function parseAgentRuntime(value: string | undefined): 'fake' | 'pi' {
   if (value === undefined || value === '') return 'fake';
   if (value === 'fake' || value === 'pi') return value;
   throw new Error(`Invalid AGENT_RUNTIME env var: ${value}`);
+}
+
+function parsePiSandboxMode(value: string | undefined): PiSandboxMode {
+  if (value === undefined || value === '') return 'none';
+  if (value === 'none' || value === 'bwrap') return value;
+  throw new Error(`Invalid PI_SANDBOX_MODE env var: ${value}`);
 }
 
 export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -116,6 +133,11 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
     piProvider: optionalString(env.PI_PROVIDER),
     piModel: optionalString(env.PI_MODEL),
     piAgentDir: optionalString(env.PI_AGENT_DIR),
+    piSandboxMode: parsePiSandboxMode(env.PI_SANDBOX_MODE),
+    piSandboxBin: optionalString(env.PI_SANDBOX_BIN),
+    piSandboxEnvAllowlist: parseCsv(env.PI_SANDBOX_ENV_ALLOWLIST),
+    piRunTimeoutMs: parsePositiveInteger(env.PI_RUN_TIMEOUT_SECONDS, 1_200, 'PI_RUN_TIMEOUT_SECONDS', 86_400) * 1_000,
+    piProjectsRoot: optionalString(env.PI_PROJECTS_ROOT),
     corsOrigins,
     maxBodyBytes: parseByteLimit(env.MAX_BODY_BYTES, 1024 * 1024),
     packageResolveRateLimit: parsePositiveInteger(env.PACKAGE_RESOLVE_RATE_LIMIT, 10, 'PACKAGE_RESOLVE_RATE_LIMIT', 10_000),

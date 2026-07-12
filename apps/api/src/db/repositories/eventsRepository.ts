@@ -122,10 +122,10 @@ export function createEventsRepository(db: DatabaseSync): EventsRepository {
       };
     },
     listByChat(chatId, afterSequence) {
-      return listEvents('chat_id = ?', [chatId], afterSequence);
+      return listEvents("source = 'chat' AND chat_id = ?", [chatId], afterSequence);
     },
     listByTask(taskId, afterSequence) {
-      return listEvents('task_id = ?', [taskId], afterSequence);
+      return listEvents("source = 'task' AND task_id = ?", [taskId], afterSequence);
     },
     listByProject(projectId, afterSequence) {
       return listEvents('project_id = ?', [projectId], afterSequence);

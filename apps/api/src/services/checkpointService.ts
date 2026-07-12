@@ -21,6 +21,8 @@ export type CreateCheckpointInput = {
   runtimeStatePath: string;
   piSessionId?: string | null;
   piEntryId?: string | null;
+  chatId?: string | null;
+  runId?: string | null;
 };
 
 export type CheckpointService = {
@@ -42,59 +44,70 @@ export function createCheckpointService(
   return {
     async createCheckpoint(input) {
       const { taskId, message, worktreePath } = input;
-
+      const task = deps.tasks.getById(taskId);
+      if (!task) throw new Error(`task not found: ${taskId}`);
       const beforeSha = git(['rev-parse', 'HEAD'], { cwd: worktreePath }).stdout;
+      const changedPaths = git(['status', '--porcelain'], { cwd: worktreePath }).stdout
+        .split('\n')
+        .filter(Boolean);
+      const changedFiles = changedPaths.length;
+      const hasFileChanges = changedFiles > 0;
 
-      git(['add', '-A'], { cwd: worktreePath });
-      git(
-        [
-          '-c',
-          `user.email=${GIT_AUTHOR_EMAIL}`,
-          '-c',
-          `user.name=${GIT_AUTHOR_NAME}`,
-          'commit',
-          '-m',
-          message,
-          '--allow-empty',
-        ],
-        { cwd: worktreePath },
-      );
+      if (hasFileChanges) {
+        git(['add', '-A'], { cwd: worktreePath });
+        git(
+          [
+            '-c',
+            `user.email=${GIT_AUTHOR_EMAIL}`,
+            '-c',
+            `user.name=${GIT_AUTHOR_NAME}`,
+            'commit',
+            '-m',
+            message,
+          ],
+          { cwd: worktreePath },
+        );
+      }
 
-      const afterSha = git(['rev-parse', 'HEAD'], { cwd: worktreePath }).stdout;
-
-      const checkpointsDir = join(input.runtimeStatePath, 'checkpoints', taskId);
-      mkdirSync(checkpointsDir, { recursive: true });
+      const afterSha = hasFileChanges
+        ? git(['rev-parse', 'HEAD'], { cwd: worktreePath }).stdout
+        : beforeSha;
+      const existingSteps = checkpoints.listByTask(taskId).length;
+      const chatId = input.chatId ?? task.sourceChatId ?? '';
+      const runId = input.runId ?? crypto.randomUUID();
 
       const created = checkpoints.create({
         taskId,
+        chatId,
+        runId,
+        stepNumber: existingSteps + 1,
         piSessionId: input.piSessionId ?? null,
         piEntryId: input.piEntryId ?? null,
         beforeSha,
         afterSha,
         summary: message,
+        hasFileChanges,
+        changedFiles,
       });
 
-      const patchPath = join(checkpointsDir, `${created.id}.patch`);
-      const patchText = git(['diff', beforeSha, afterSha], { cwd: worktreePath }).stdout;
-      writeFileSync(patchPath, patchText, 'utf8');
+      let final = created;
+      if (hasFileChanges) {
+        const checkpointsDir = join(input.runtimeStatePath, 'checkpoints', taskId);
+        mkdirSync(checkpointsDir, { recursive: true });
+        const patchPath = join(checkpointsDir, `${created.id}.patch`);
+        const patchText = git(['diff', beforeSha, afterSha], { cwd: worktreePath }).stdout;
+        writeFileSync(patchPath, patchText, 'utf8');
+        final = checkpoints.update(created.id, { patchPath }) ?? created;
+      }
+      const cp: Checkpoint = final as Checkpoint;
 
-      const final = checkpoints.update(created.id, { patchPath }) ?? created;
-      const cp: Checkpoint = {
-        id: final.id,
-        taskId,
-        message,
-        sha: afterSha,
-        changedFiles: 0,
-        createdAt: final.createdAt,
-      };
-
-      deps.tasks.update(taskId, { currentHeadSha: afterSha });
+      deps.tasks.update(taskId, { currentHeadSha: afterSha, endPiEntryId: input.piEntryId ?? null, lastRunId: runId });
 
       await deps.events.append({
         stream: 'task',
         streamId: taskId,
         type: 'checkpoint.created',
-        payload: { id: final.id, message, sha: afterSha },
+        payload: cp,
       });
 
       return cp;

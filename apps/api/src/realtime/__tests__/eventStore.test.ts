@@ -80,6 +80,20 @@ describe('eventStore.append + stream', () => {
     expect(store.stream('chat', 'B')).toHaveLength(2);
   });
 
+  it('does not mix Chat and Task streams when they share the same task metadata', async () => {
+    const taskEvent = await store.append({
+      stream: 'task', streamId: 'task-1', projectId, chatId: 'chat-1', taskId: 'task-1',
+      type: 'run.started', payload: { taskId: 'task-1' },
+    });
+    const chatEvent = await store.append({
+      stream: 'chat', streamId: 'chat-1', projectId, chatId: 'chat-1', taskId: 'task-1',
+      type: 'run.started', payload: { taskId: 'task-1' },
+    });
+
+    expect(store.stream('task', 'task-1').map((event) => event.id)).toEqual([taskEvent.id]);
+    expect(store.stream('chat', 'chat-1').map((event) => event.id)).toEqual([chatEvent.id]);
+  });
+
   it('preserves append order across interleaved streams', async () => {
     const a1 = await appendChat(store, projectId, 'A');
     const b1 = await appendChat(store, projectId, 'B');

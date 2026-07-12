@@ -9,6 +9,7 @@ export type ProjectFormValues = {
   repoPath: string;
   defaultBranch: string;
   agentsDir: string;
+  ignisUrl: string;
   initGitIfMissing: boolean;
   scanVault: boolean;
 };
@@ -18,6 +19,7 @@ export const DEFAULT_PROJECT_FORM_VALUES: ProjectFormValues = {
   repoPath: '',
   defaultBranch: 'main',
   agentsDir: '.agents',
+  ignisUrl: '',
   initGitIfMissing: false,
   scanVault: false,
 };
@@ -95,6 +97,7 @@ export function ProjectForm({ initialValues, submitLabel, busy, onSubmit }: Proj
         repoPath: values.repoPath.trim(),
         defaultBranch: values.defaultBranch.trim(),
         agentsDir: values.agentsDir.trim() || undefined,
+        ignisUrl: values.ignisUrl.trim() || undefined,
         initGitIfMissing: values.initGitIfMissing,
         scanVault: values.scanVault,
       };
@@ -159,6 +162,19 @@ export function ProjectForm({ initialValues, submitLabel, busy, onSubmit }: Proj
           value={values.agentsDir}
           onChangeText={(v) => setValues((s) => ({ ...s, agentsDir: v }))}
           placeholder=".agents"
+          placeholderTextColor={tokens.color.textMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
+        <Text style={labelStyle}>Ignis URL on Tailnet</Text>
+        <TextInput
+          testID="project.ignisUrl"
+          accessibilityLabel="Ignis URL"
+          style={inputStyle}
+          value={values.ignisUrl}
+          onChangeText={(v) => setValues((s) => ({ ...s, ignisUrl: v }))}
+          placeholder="https://ignis.example.ts.net"
           placeholderTextColor={tokens.color.textMuted}
           autoCapitalize="none"
           autoCorrect={false}

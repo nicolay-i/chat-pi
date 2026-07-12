@@ -76,6 +76,7 @@ export type PiSessionsRepository = {
   create(input: PiSessionInput): PiSessionRecord;
   getById(id: string): PiSessionRecord | undefined;
   getByPath(path: string): PiSessionRecord | undefined;
+  getByChatId(chatId: string): PiSessionRecord | undefined;
   getByTaskId(taskId: string): PiSessionRecord | undefined;
   update(id: string, patch: PiSessionPatch): PiSessionRecord | undefined;
   acquireLock(id: string, owner: string, staleAfterMs?: number): boolean;
@@ -142,6 +143,12 @@ export function createPiSessionsRepository(
       const row = db
         .prepare('SELECT * FROM pi_sessions WHERE path = ?')
         .get(path) as PiSessionRow | undefined;
+      return row ? rowToRecord(row) : undefined;
+    },
+    getByChatId(chatId) {
+      const row = db
+        .prepare('SELECT * FROM pi_sessions WHERE chat_id = ? ORDER BY created_at ASC LIMIT 1')
+        .get(chatId) as PiSessionRow | undefined;
       return row ? rowToRecord(row) : undefined;
     },
     getByTaskId(taskId) {

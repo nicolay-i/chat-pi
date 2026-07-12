@@ -1,21 +1,54 @@
 import { Hono } from 'hono';
-import { SendMessageInputSchema, TaskStatusSchema } from '@pi-agents/contracts';
+import { join } from 'node:path';
+import { SendMessageInputSchema, TaskCancelInputSchema, TaskStatusSchema } from '@pi-agents/contracts';
 import { sendApiError } from '../app/apiError';
 import type { ServiceContainer } from '../app/serviceContainer';
 
 export const taskRouteOperationIds = [
   'tasks.list', 'tasks.get', 'tasks.steer', 'tasks.followUp', 'tasks.abort', 'tasks.abortAndReplace',
-  'tasks.fork', 'tasks.rollback', 'tasks.archive', 'checkpoints.list', 'checkpoints.create',
-  'checkpoints.fork', 'checkpoints.rollback', 'tasks.merge', 'diff.list', 'checkpoints.diff',
+  'tasks.fork', 'tasks.rollback', 'tasks.archive', 'tasks.cancel', 'checkpoints.list', 'checkpoints.create',
+  'checkpoints.fork', 'checkpoints.rollback', 'tasks.fetch', 'tasks.push', 'tasks.merge', 'diff.list', 'checkpoints.diff',
   'diff.file', 'tasks.rebase', 'diff.revertFile', 'tasks.trace',
 ] as const;
 
-export function createTaskRoutes({ taskService, runtimeManager, taskRecords, projectRecords, checkpointService, forkService, rollbackService, mergeService, gitTaskService, eventStore }: ServiceContainer): Hono {
+export function createTaskRoutes({ taskService, chatService, runtimeManager, taskRecords, projectRecords, piSessionRecords, checkpointService, forkService, rollbackService, mergeService, taskCancellationService, gitTaskService, eventStore }: ServiceContainer): Hono {
   const routes = new Hono();
   const contextFor = (taskId: string) => {
     const task = taskRecords.getById(taskId);
     const project = task ? projectRecords.getById(task.projectId) : undefined;
     return task && project ? { task, project } : undefined;
+  };
+  const forkIntoNewChat = async (taskId: string, checkpointId?: string) => {
+    const context = contextFor(taskId);
+    if (!context) throw new Error('task not found');
+    if (['queued', 'running', 'aborting', 'merge_running'].includes(context.task.status)) {
+      throw new Error(`fork disabled while task is ${context.task.status}`);
+    }
+    const checkpoint = checkpointId
+      ? checkpointService.getCheckpoint(context.task.id, checkpointId)
+      : checkpointService.listCheckpoints(context.task.id).at(-1);
+    if (!checkpoint) throw new Error('fork requires a stable checkpoint');
+    const chat = await chatService.create(context.project.id, {
+      title: `${context.task.title} (fork)`,
+      mode: 'implementation',
+    });
+    const sourceSessionPath = (context.task.piSessionId
+      ? piSessionRecords.getById(context.task.piSessionId)?.path
+      : undefined) ?? context.task.piSessionPath;
+    const result = await forkService.forkFromCheckpoint({
+      taskId: context.task.id,
+      checkpointId: checkpoint.id,
+      newTaskId: crypto.randomUUID(),
+      repoPath: context.project.repoPath,
+      runtimePath: context.project.runtimeStatePath,
+      sourceChatId: chat.id,
+      piSessionId: chat.piSessionId,
+      piSessionPath: join(context.project.runtimeStatePath, 'sessions', `${chat.id}.jsonl`),
+      clonePiSessionPath: sourceSessionPath,
+      pendingPiForkEntryId: checkpoint.piEntryId,
+    });
+    await chatService.update(chat.id, { activeTaskId: result.task.id });
+    return result.task;
   };
   routes.get('/api/projects/:id/tasks', async (c) => c.json(await taskService.listByProject(c.req.param('id'))));
   routes.get('/api/tasks/:id', async (c) => {
@@ -63,21 +96,11 @@ export function createTaskRoutes({ taskService, runtimeManager, taskRecords, pro
     return c.json({ ok: true });
   });
   routes.post('/api/tasks/:id/fork', async (c) => {
-    const context = contextFor(c.req.param('id'));
-    if (!context) return sendApiError(c, 404, 'not_found', 'task not found');
-    const checkpoint = checkpointService.listCheckpoints(context.task.id).at(-1);
-    if (!checkpoint) return sendApiError(c, 409, 'checkpoint_required', 'fork requires a stable checkpoint');
     try {
-      const result = await forkService.forkFromCheckpoint({
-        taskId: context.task.id,
-        checkpointId: checkpoint.id,
-        newTaskId: crypto.randomUUID(),
-        repoPath: context.project.repoPath,
-        runtimePath: context.project.runtimeStatePath,
-      });
-      return c.json(result.task, 201);
+      return c.json(await forkIntoNewChat(c.req.param('id')), 201);
     } catch (error) {
-      return sendApiError(c, 409, 'fork_failed', (error as Error).message);
+      const message = error instanceof Error ? error.message : String(error);
+      return sendApiError(c, message === 'task not found' ? 404 : 409, 'fork_failed', message);
     }
   });
   routes.post('/api/tasks/:id/rollback', async (c) => {
@@ -113,6 +136,15 @@ export function createTaskRoutes({ taskService, runtimeManager, taskRecords, pro
       return sendApiError(c, 409, 'archive_failed', (error as Error).message);
     }
   });
+  routes.post('/api/tasks/:id/cancel', async (c) => {
+    const input = TaskCancelInputSchema.safeParse(await c.req.json().catch(() => null));
+    if (!input.success) return sendApiError(c, 400, 'invalid_input', input.error.message);
+    try { return c.json(await taskCancellationService.cancel(c.req.param('id'), input.data.mode)); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return sendApiError(c, message.startsWith('task not found') ? 404 : 409, 'cancel_failed', message);
+    }
+  });
   routes.get('/api/tasks/:id/checkpoints', (c) => c.json(checkpointService.listCheckpoints(c.req.param('id'))));
   routes.post('/api/tasks/:id/checkpoints', async (c) => {
     const body = await c.req.json().catch(() => null) as { message?: unknown } | null;
@@ -123,10 +155,11 @@ export function createTaskRoutes({ taskService, runtimeManager, taskRecords, pro
     catch (error) { return sendApiError(c, 409, 'checkpoint_failed', (error as Error).message); }
   });
   routes.post('/api/tasks/:id/checkpoints/:checkpointId/fork', async (c) => {
-    const context = contextFor(c.req.param('id'));
-    if (!context) return sendApiError(c, 404, 'not_found', 'task not found');
-    try { const result = await forkService.forkFromCheckpoint({ taskId: context.task.id, checkpointId: c.req.param('checkpointId'), newTaskId: crypto.randomUUID(), repoPath: context.project.repoPath, runtimePath: context.project.runtimeStatePath }); return c.json(result.task, 201); }
-    catch (error) { return sendApiError(c, 409, 'fork_failed', (error as Error).message); }
+    try { return c.json(await forkIntoNewChat(c.req.param('id'), c.req.param('checkpointId')), 201); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return sendApiError(c, message === 'task not found' ? 404 : 409, 'fork_failed', message);
+    }
   });
   routes.post('/api/tasks/:id/checkpoints/:checkpointId/rollback', async (c) => {
     const context = contextFor(c.req.param('id'));
@@ -163,6 +196,14 @@ export function createTaskRoutes({ taskService, runtimeManager, taskRecords, pro
   routes.post('/api/tasks/:id/rebase', async (c) => {
     try { await gitTaskService.rebase(c.req.param('id')); return c.json(await taskService.get(c.req.param('id'))); }
     catch (error) { return sendApiError(c, 409, 'rebase_failed', (error as Error).message); }
+  });
+  routes.post('/api/tasks/:id/fetch', async (c) => {
+    try { await gitTaskService.fetch(c.req.param('id')); return c.json(await taskService.get(c.req.param('id'))); }
+    catch (error) { return sendApiError(c, 409, 'fetch_failed', (error as Error).message); }
+  });
+  routes.post('/api/tasks/:id/push', async (c) => {
+    try { await gitTaskService.push(c.req.param('id')); return c.json(await taskService.get(c.req.param('id'))); }
+    catch (error) { return sendApiError(c, 409, 'push_failed', (error as Error).message); }
   });
   routes.post('/api/tasks/:id/revert-file', async (c) => {
     const body = await c.req.json().catch(() => null) as { path?: unknown; confirm?: unknown } | null;

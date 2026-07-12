@@ -7,6 +7,7 @@ export type ProjectRow = {
   repo_path: string;
   default_branch: string;
   agents_dir: string;
+  ignis_url: string | null;
   runtime_state_path: string;
   default_model_id: string | null;
   theme_id: string | null;
@@ -20,6 +21,7 @@ export type ProjectRecord = {
   repoPath: string;
   defaultBranch: string;
   agentsDir: string;
+  ignisUrl: string | null;
   runtimeStatePath: string;
   defaultModelId: string | null;
   themeId: string | null;
@@ -32,6 +34,7 @@ export type ProjectInput = {
   repoPath: string;
   defaultBranch: string;
   agentsDir?: string;
+  ignisUrl?: string | null;
   runtimeStatePath: string;
   defaultModelId?: string | null;
   themeId?: string | null;
@@ -44,6 +47,7 @@ function rowToProject(row: ProjectRow): ProjectRecord {
     repoPath: row.repo_path,
     defaultBranch: row.default_branch,
     agentsDir: row.agents_dir,
+    ignisUrl: row.ignis_url,
     runtimeStatePath: row.runtime_state_path,
     defaultModelId: row.default_model_id,
     themeId: row.theme_id,
@@ -66,14 +70,15 @@ export function createProjectsRepository(db: DatabaseSync): ProjectsRepository {
       const id = randomId();
       const now = nowIso();
       db.prepare(
-        `INSERT INTO projects (id, name, repo_path, default_branch, agents_dir, runtime_state_path, default_model_id, theme_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, name, repo_path, default_branch, agents_dir, ignis_url, runtime_state_path, default_model_id, theme_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         input.name,
         input.repoPath,
         input.defaultBranch,
         input.agentsDir ?? '.agents',
+        input.ignisUrl ?? null,
         input.runtimeStatePath,
         input.defaultModelId ?? null,
         input.themeId ?? null,
@@ -86,6 +91,7 @@ export function createProjectsRepository(db: DatabaseSync): ProjectsRepository {
         repoPath: input.repoPath,
         defaultBranch: input.defaultBranch,
         agentsDir: input.agentsDir ?? '.agents',
+        ignisUrl: input.ignisUrl ?? null,
         runtimeStatePath: input.runtimeStatePath,
         defaultModelId: input.defaultModelId ?? null,
         themeId: input.themeId ?? null,

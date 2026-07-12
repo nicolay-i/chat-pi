@@ -23,12 +23,19 @@ export function serializeJsonLine(obj: unknown): string {
 export function attachJsonlReader(
   stream: NodeJS.ReadableStream,
   onLine: (line: string) => void,
+  options: { maxBufferedBytes?: number; onLimitExceeded?: (bytes: number) => void } = {},
 ): () => void {
   const decoder = new StringDecoder('utf8');
   let buffer = '';
 
   const onData = (chunk: Buffer | string): void => {
     buffer += decoder.write(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    const bufferedBytes = Buffer.byteLength(buffer, 'utf8');
+    if (options.maxBufferedBytes !== undefined && bufferedBytes > options.maxBufferedBytes) {
+      buffer = '';
+      options.onLimitExceeded?.(bufferedBytes);
+      return;
+    }
     let idx: number;
     while ((idx = buffer.indexOf('\n')) >= 0) {
       let line = buffer.slice(0, idx);
@@ -74,7 +81,17 @@ export interface PiRpcClientOptions {
   sessionPath?: string;
   /** Extra CLI args appended after --mode rpc. */
   args?: string[];
+  /** Optional process wrapper, such as bubblewrap. Pi itself remains the child command. */
+  command?: string;
+  commandArgs?: string[];
 }
+
+export type PiProcessInfo = {
+  pid: number | null;
+  command: string;
+  cwd: string;
+  sandboxed: boolean;
+};
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -83,10 +100,33 @@ interface PendingRequest {
 }
 
 const RESPONSE_TIMEOUT_MS = 30_000;
+const MAX_STDERR_BYTES = 64 * 1024;
+const MAX_STDOUT_BUFFER_BYTES = 1024 * 1024;
 const PI_PACKAGE_CLI = ['node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'cli.js'];
 
 function defaultPiBin(): string {
   return process.platform === 'win32' ? 'pi.cmd' : 'pi';
+}
+
+async function terminateProcessTree(child: ChildProcess): Promise<void> {
+  const pid = child.pid;
+  if (!pid) return;
+  if (process.platform === 'win32') {
+    await new Promise<void>((resolve) => {
+      const killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      killer.once('error', () => resolve());
+      killer.once('exit', () => resolve());
+    });
+    return;
+  }
+  try {
+    process.kill(-pid, 'SIGTERM');
+  } catch {
+    try { child.kill('SIGTERM'); } catch { /* best effort */ }
+  }
 }
 
 export function buildPiRpcArgs(options: Pick<PiRpcClientOptions, 'provider' | 'model' | 'sessionPath' | 'args'>): string[] {
@@ -169,25 +209,33 @@ export class PiRpcClient {
   private readonly listeners = new Set<PiEventListener>();
   private idleResolvers: Array<() => void> = [];
   private exited = false;
+  private processInfo: PiProcessInfo | null = null;
 
   constructor(private readonly opts: PiRpcClientOptions = {}) {}
 
   private resolveSpawnTarget(): { command: string; args: string[] } {
     const rpcArgs = buildPiRpcArgs(this.opts);
 
+    let target: { command: string; args: string[] };
     if (this.opts.nodeBin) {
       const cliPath = this.opts.piBin ?? defaultPiBin();
-      return { command: this.opts.nodeBin, args: [cliPath, ...rpcArgs] };
-    }
-
-    const bin = this.opts.piBin ?? defaultPiBin();
-    if (process.platform === 'win32' && /\.cmd$/i.test(bin)) {
-      const cliJs = resolvePiEntry(bin);
-      if (cliJs) {
-        return { command: process.execPath, args: [cliJs, ...rpcArgs] };
+      target = { command: this.opts.nodeBin, args: [cliPath, ...rpcArgs] };
+    } else {
+      const bin = this.opts.piBin ?? defaultPiBin();
+      if (process.platform === 'win32' && /\.cmd$/i.test(bin)) {
+        const cliJs = resolvePiEntry(bin);
+        if (cliJs) {
+          target = { command: process.execPath, args: [cliJs, ...rpcArgs] };
+        } else {
+          target = { command: bin, args: rpcArgs };
+        }
+      } else {
+        target = { command: bin, args: rpcArgs };
       }
     }
-    return { command: bin, args: rpcArgs };
+    return this.opts.command
+      ? { command: this.opts.command, args: [...(this.opts.commandArgs ?? []), '--', target.command, ...target.args] }
+      : target;
   }
 
   async start(): Promise<void> {
@@ -204,6 +252,7 @@ export class PiRpcClient {
           ...(this.opts.agentDir ? { PI_CODING_AGENT_DIR: this.opts.agentDir } : {}),
         },
         stdio: ['pipe', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
       });
     } catch (err) {
       throw new Error(
@@ -211,17 +260,29 @@ export class PiRpcClient {
       );
     }
     this.child = child;
+    this.processInfo = {
+      pid: child.pid ?? null,
+      command,
+      cwd: this.opts.cwd ?? process.cwd(),
+      sandboxed: Boolean(this.opts.command),
+    };
 
     child.on('error', (err) => this.handleFatal(err));
     child.on('exit', (code, signal) => this.handleExit(code, signal));
 
     if (child.stderr) {
       child.stderr.on('data', (chunk: Buffer) => {
-        this.stderrBuffer += chunk.toString('utf8');
+        this.stderrBuffer = (this.stderrBuffer + chunk.toString('utf8')).slice(-MAX_STDERR_BYTES);
       });
     }
     if (child.stdout) {
-      this.stopReader = attachJsonlReader(child.stdout, (line) => this.handleLine(line));
+      this.stopReader = attachJsonlReader(child.stdout, (line) => this.handleLine(line), {
+        maxBufferedBytes: MAX_STDOUT_BUFFER_BYTES,
+        onLimitExceeded: (bytes) => {
+          this.handleFatal(new Error(`pi stdout line exceeded ${MAX_STDOUT_BUFFER_BYTES} bytes (${bytes} bytes observed)`));
+          void this.stop();
+        },
+      });
     }
 
     // Give the process a moment to either come alive or fail fast (ENOENT etc).
@@ -308,6 +369,10 @@ export class PiRpcClient {
     };
   }
 
+  getProcessInfo(): PiProcessInfo | null {
+    return this.processInfo;
+  }
+
   /**
    * Send a command object. Assigns `id: 'req_<n>'` and resolves with the full
    * `{type:'response', id, success, ...}` object (or rejects on failure /
@@ -357,9 +422,6 @@ export class PiRpcClient {
   newSession(parentSession?: string): Promise<unknown> {
     return this.send(parentSession ? { type: 'new_session', parentSession } : { type: 'new_session' });
   }
-  fork(entryId: string): Promise<unknown> {
-    return this.send({ type: 'fork', entryId });
-  }
   getEntries(since?: number): Promise<unknown> {
     return this.send(since !== undefined ? { type: 'get_entries', since } : { type: 'get_entries' });
   }
@@ -398,18 +460,20 @@ export class PiRpcClient {
         done = true;
         resolveStop();
       };
-      child.once('exit', finalize);
+      const forceTreeTimer = setTimeout(() => {
+        if (!child.killed) void terminateProcessTree(child);
+      }, 500);
+      child.once('exit', () => {
+        clearTimeout(forceTreeTimer);
+        finalize();
+      });
       try {
         child.kill('SIGTERM');
       } catch {
         /* ignore */
       }
       setTimeout(() => {
-        try {
-          if (!child.killed) child.kill('SIGKILL');
-        } catch {
-          /* ignore */
-        }
+        if (!child.killed) void terminateProcessTree(child);
         finalize();
       }, 1000);
     });

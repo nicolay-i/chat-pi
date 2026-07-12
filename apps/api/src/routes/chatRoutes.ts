@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { CreateChatInputSchema, RunModeSchema, SendMessageInputSchema } from '@pi-agents/contracts';
+import { CreateChatInputSchema, ManagedImplementationSchema, RunModeSchema, SendMessageInputSchema, TaskSchema } from '@pi-agents/contracts';
 import { z } from 'zod';
 import { sendApiError } from '../app/apiError';
 import type { ServiceContainer } from '../app/serviceContainer';
@@ -8,6 +8,9 @@ import { config } from '../config';
 export const chatRouteOperationIds = [
   'chats.list', 'chats.create', 'chats.bootstrap', 'chats.get', 'chats.update', 'chats.archive',
   'chats.export', 'chats.tree', 'chats.trace', 'messages.send', 'chats.abort',
+  'orchestration.listManaged', 'orchestration.createTask',
+  'tasks.createForChat',
+  'queue.list', 'queue.reorder', 'queue.remove', 'queue.clear',
 ] as const;
 
 const UpdateChatInputSchema = z.object({
@@ -16,7 +19,7 @@ const UpdateChatInputSchema = z.object({
   activeTaskId: z.string().nullable().optional(),
 }).refine((value) => Object.keys(value).length > 0, 'at least one field is required');
 
-export function createChatRoutes({ projectService, chatService, taskService, eventStore, chatRuntime, runtimeManager }: ServiceContainer): Hono {
+export function createChatRoutes({ projectService, chatService, taskService, eventStore, runtimeManager, queuedMessages }: ServiceContainer): Hono {
   const routes = new Hono();
   routes.get('/api/projects/:id/chats', async (c) => c.json(await chatService.list(c.req.param('id'))));
   routes.post('/api/projects/:id/chats', async (c) => {
@@ -53,10 +56,67 @@ export function createChatRoutes({ projectService, chatService, taskService, eve
     const tasks = await taskService.listByProject(chat.projectId);
     return c.json(tasks.filter((task) => task.sourceChatId === chat.id));
   });
+  routes.get('/api/chats/:id/managed-implementations', async (c) => {
+    try { return c.json((await chatService.listManagedImplementations(c.req.param('id'))).map((item) => ManagedImplementationSchema.parse(item))); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return sendApiError(c, message.startsWith('orchestration chat not found') ? 404 : 409, 'orchestration_failed', message);
+    }
+  });
+  routes.post('/api/chats/:id/implementation-tasks', async (c) => {
+    const input = z.object({ title: z.string().min(1) }).safeParse(await c.req.json().catch(() => null));
+    if (!input.success) return sendApiError(c, 400, 'invalid_input', input.error.message);
+    try { return c.json(ManagedImplementationSchema.parse(await chatService.createManagedImplementation(c.req.param('id'), input.data.title)), 201); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return sendApiError(c, message.startsWith('orchestration chat not found') ? 404 : 409, 'orchestration_failed', message);
+    }
+  });
+  routes.post('/api/chats/:id/tasks', async (c) => {
+    const chat = await chatService.get(c.req.param('id'));
+    if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
+    const input = z.object({ title: z.string().min(1), mode: RunModeSchema.default('implementation') })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!input.success || input.data.mode !== 'implementation') {
+      return sendApiError(c, 400, 'invalid_input', 'implementation title is required');
+    }
+    try {
+      const task = await taskService.createForChat(chat.projectId, chat.id, input.data);
+      await chatService.update(chat.id, { activeTaskId: task.id });
+      return c.json(TaskSchema.parse(task), 201);
+    } catch (error) {
+      return sendApiError(c, 409, 'task_create_failed', error instanceof Error ? error.message : String(error));
+    }
+  });
   routes.get('/api/chats/:id/trace', async (c) => {
     const chat = await chatService.get(c.req.param('id'));
     if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
     return c.json(eventStore.stream('chat', chat.id));
+  });
+  routes.get('/api/chats/:id/queue', async (c) => {
+    const chat = await chatService.get(c.req.param('id'));
+    return chat ? c.json(queuedMessages.listPending(chat.id)) : sendApiError(c, 404, 'not_found', 'chat not found');
+  });
+  routes.patch('/api/chats/:id/queue', async (c) => {
+    const chat = await chatService.get(c.req.param('id'));
+    if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
+    const input = z.object({ ids: z.array(z.string().min(1)) }).safeParse(await c.req.json().catch(() => null));
+    if (!input.success) return sendApiError(c, 400, 'invalid_input', input.error.message);
+    try { return c.json(queuedMessages.reorder(chat.id, input.data.ids)); }
+    catch (error) { return sendApiError(c, 409, 'queue_reorder_failed', error instanceof Error ? error.message : String(error)); }
+  });
+  routes.delete('/api/chats/:chatId/queue/:itemId', async (c) => {
+    const chat = await chatService.get(c.req.param('chatId'));
+    if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
+    return queuedMessages.remove(chat.id, c.req.param('itemId'))
+      ? c.json({ ok: true })
+      : sendApiError(c, 404, 'not_found', 'pending queue item not found');
+  });
+  routes.post('/api/chats/:id/queue/clear', async (c) => {
+    const chat = await chatService.get(c.req.param('id'));
+    if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
+    queuedMessages.clear(chat.id);
+    return c.json({ ok: true });
   });
   routes.post('/api/chats/:id/export', async (c) => {
     const chat = await chatService.get(c.req.param('id'));
@@ -100,9 +160,7 @@ export function createChatRoutes({ projectService, chatService, taskService, eve
       });
       return c.json({ ok: true, chatId, accepted: input.behavior, taskId: task.id });
     }
-    void chatRuntime.send(chatId, input, (type, payload) => {
-      void eventStore.append({ stream: 'chat', streamId: chatId, projectId, chatId, type, payload });
-    }).catch((error: unknown) => {
+    void runtimeManager.runChat({ id: chatId, projectId }, input).catch((error: unknown) => {
       void eventStore.append({
         stream: 'chat', streamId: chatId, projectId, chatId, type: 'run.error',
         payload: { chatId, message: error instanceof Error ? error.message : String(error) },
@@ -119,9 +177,8 @@ export function createChatRoutes({ projectService, chatService, taskService, eve
       catch (error) { return sendApiError(c, 409, 'task_not_running', (error as Error).message); }
       return c.json({ ok: true });
     }
-    await chatRuntime.abort(chatId, (type, payload) => {
-      void eventStore.append({ stream: 'chat', streamId: chatId, projectId: chat.projectId, chatId, type, payload });
-    });
+    try { await runtimeManager.abort(chatId, 'user'); }
+    catch (error) { return sendApiError(c, 409, 'chat_not_running', (error as Error).message); }
     return c.json({ ok: true });
   });
   return routes;

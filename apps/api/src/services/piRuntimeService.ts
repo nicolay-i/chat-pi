@@ -1,8 +1,12 @@
 import type { EventType, SendMessageInput } from '@pi-agents/contracts';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { RealtimeEventDraft } from '../realtime/eventStore';
-import { PiRpcClient } from './piRpcClient';
+import { PiRpcClient, type PiProcessInfo } from './piRpcClient';
 import { mapPiEventToEnvelope } from './piEventMap';
 import { piResourceArgs } from './piResources';
+import { createPiSandboxLaunch, type PiSandboxOptions } from './piSandbox';
+import { updatePiSessionCwd } from './piSessionBranch';
 
 export type RuntimeEventHandler = (event: RealtimeEventDraft) => void;
 
@@ -12,7 +16,10 @@ export type RuntimeSessionContext = {
   sessionPath: string;
   resourceRoot?: string;
   agentsDir?: string;
+  allowedTools?: string[];
 };
+
+export type RuntimeProcessInfo = PiProcessInfo;
 
 export interface PiRuntime {
   prepare(session: RuntimeSessionContext): Promise<void>;
@@ -23,6 +30,7 @@ export interface PiRuntime {
   subscribe(sessionId: string, handler: RuntimeEventHandler): () => void;
   acquireLock(sessionId: string, owner: string): boolean;
   releaseLock(sessionId: string, owner: string): boolean;
+  getProcessInfo?(sessionId: string): RuntimeProcessInfo | null;
   dispose?(): Promise<void>;
 }
 
@@ -149,6 +157,7 @@ export class FakePiRuntime extends BaseRuntime implements PiRuntime {
   async abort(sessionId: string, reason?: string): Promise<void> {
     this.emit(sessionId, 'run.aborted', { reason: reason ?? 'aborted' });
   }
+
 }
 
 export interface PiRuntimeAdapterOptions {
@@ -160,6 +169,7 @@ export interface PiRuntimeAdapterOptions {
   env?: Record<string, string>;
   agentDir?: string;
   defaultCwd?: string;
+  sandbox?: PiSandboxOptions;
 }
 
 interface AdapterSessionState {
@@ -194,6 +204,7 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       env: opts?.env,
       agentDir: opts?.agentDir ?? process.env.PI_AGENT_DIR,
       defaultCwd: opts?.defaultCwd ?? process.env.PI_CWD,
+      sandbox: opts?.sandbox,
     };
   }
 
@@ -203,19 +214,41 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
     agentsDir?: string,
     sessionPath?: string,
     resourceRoot?: string,
+    allowedTools?: string[],
   ): AdapterSessionState {
     const existing = this.sessions.get(sessionId);
     if (existing) return existing;
+    if (this.adapterOpts.sandbox?.mode === 'bwrap') {
+      // bwrap bind-mounts these paths before Pi can create them itself.
+      if (sessionPath) mkdirSync(dirname(sessionPath), { recursive: true });
+      if (this.adapterOpts.agentDir) mkdirSync(this.adapterOpts.agentDir, { recursive: true });
+    }
+    const sandbox = createPiSandboxLaunch(this.adapterOpts.sandbox, {
+      cwd: cwd ?? this.adapterOpts.defaultCwd ?? process.cwd(),
+      sessionPath: sessionPath ?? '',
+      agentDir: this.adapterOpts.agentDir,
+      readOnlyWorkspace: Boolean(allowedTools),
+    });
+    // Pi resolves an existing session's cwd from its JSONL header. Keep it in
+    // sync with the current worktree (or /workspace inside bwrap) before Pi
+    // opens the session, otherwise a later Task can silently use the prior cwd.
+    if (sessionPath) updatePiSessionCwd(sessionPath, sandbox.cwd);
     const client = new PiRpcClient({
       piBin: this.adapterOpts.piBin,
       nodeBin: this.adapterOpts.nodeBin,
       provider: this.adapterOpts.provider,
       model: this.adapterOpts.model,
-      sessionPath,
-      args: [...piResourceArgs(resourceRoot ?? cwd, agentsDir), ...(this.adapterOpts.args ?? [])],
+      sessionPath: sandbox.sessionPath,
+      args: [
+        ...piResourceArgs(sandbox.resourceRoot, agentsDir),
+        ...(allowedTools ? ['--tools', allowedTools.join(',')] : []),
+        ...(this.adapterOpts.args ?? []),
+      ],
       env: this.adapterOpts.env,
-      agentDir: this.adapterOpts.agentDir,
-      cwd: cwd ?? this.adapterOpts.defaultCwd,
+      agentDir: sandbox.agentDir,
+      cwd: sandbox.cwd,
+      command: sandbox.command,
+      commandArgs: sandbox.commandArgs,
     });
     client.onEvent((event) => {
       const envelope = mapPiEventToEnvelope(event, { sessionId });
@@ -243,8 +276,13 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       session.agentsDir,
       session.sessionPath,
       session.resourceRoot,
+      session.allowedTools,
     );
     await state.started;
+  }
+
+  getProcessInfo(sessionId: string): RuntimeProcessInfo | null {
+    return this.sessions.get(sessionId)?.client.getProcessInfo() ?? null;
   }
 
   async prompt(sessionId: string, input: SendMessageInput): Promise<void> {
@@ -284,8 +322,9 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
     if (state) {
       try {
         await state.client.abort();
+        await state.client.waitForIdle(10_000).catch(async () => state.client.stop());
       } catch {
-        /* best-effort abort */
+        await state.client.stop().catch(() => undefined);
       }
     }
     this.emit(sessionId, 'run.aborted', { reason: reason ?? 'aborted' });

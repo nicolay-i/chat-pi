@@ -109,6 +109,18 @@ describe('mapPiEventToEnvelope', () => {
     expect(env?.payload).toMatchObject({ rawPiEvent: { type: 'agent_end', willRetry: false } });
   });
 
+  it('caps oversized raw Pi events before they enter the realtime event store', () => {
+    const env = mapPiEventToEnvelope(
+      { type: 'tool_result', tool: 'read_file', output: 'x'.repeat(70 * 1024) },
+      ctx,
+    );
+
+    expect(env?.payload).toMatchObject({
+      tool: 'read_file',
+      rawPiEvent: { type: 'tool_result', truncated: true },
+    });
+  });
+
   it('returns null for an unknown event type', () => {
     expect(mapPiEventToEnvelope({ type: 'extension_ui_request', id: 'x' }, ctx)).toBeNull();
     expect(mapPiEventToEnvelope({ type: 'turn_start' }, ctx)).toBeNull();

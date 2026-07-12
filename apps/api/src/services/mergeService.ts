@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { TasksRepository } from '../db';
+import type { ChatsRepository } from '../db/repositories/chatsRepository';
 import type { EventStore } from '../realtime/eventStore';
 import { runGit, type RunGit } from './gitExec';
 import type { GitWorktreeService } from './gitWorktreeService';
@@ -12,6 +13,7 @@ export type MergeDeps = {
   worktree: GitWorktreeService;
   events: EventStore;
   tasks: TasksRepository;
+  chats?: ChatsRepository;
   operations?: ProjectOperationMutex;
 };
 
@@ -110,6 +112,10 @@ export function createMergeService(
 
           deps.tasks.update(taskId, { currentHeadSha: mergedSha });
           deps.tasks.updateStatus(taskId, 'merged');
+          if (task.sourceChatId) {
+            const chat = deps.chats?.getById(task.sourceChatId);
+            if (chat?.activeTaskId === taskId) deps.chats?.update(chat.id, { activeTaskId: null });
+          }
 
           await deps.events.append({
             stream: 'task', streamId: taskId, type: 'merge.completed',

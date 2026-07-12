@@ -17,6 +17,11 @@ export const TaskStatusSchema = z.enum([
   'merge_running',
   'merge_conflict',
   'merged',
+  'paused_clean',
+  'paused_dirty',
+  'paused_after_restart',
+  'cancelled_archived',
+  'cancelled_discarded',
   'failed',
   'archived',
 ]);
@@ -28,10 +33,32 @@ export const ProjectSchema = z.object({
   repoPath: z.string(),
   defaultBranch: z.string(),
   agentsDir: z.string().default('.agents'),
+  ignisUrl: z.string().url().nullable().default(null),
   activeTaskCount: z.number().int().nonnegative().default(0),
   updatedAt: z.string(),
 });
 export type Project = z.infer<typeof ProjectSchema>;
+
+export const ProjectRemoteSyncInputSchema = z.object({
+  mode: z.enum(['inspect', 'apply']).default('inspect'),
+});
+export type ProjectRemoteSyncInput = z.infer<typeof ProjectRemoteSyncInputSchema>;
+
+export const ProjectRemoteSyncSchema = z.object({
+  projectId: z.string(),
+  status: z.enum(['up_to_date', 'fast_forward_available', 'fast_forward_applied', 'local_ahead', 'diverged']),
+  localSha: z.string(),
+  remoteSha: z.string(),
+  targetRef: z.string(),
+  staleTaskIds: z.array(z.string()),
+});
+export type ProjectRemoteSync = z.infer<typeof ProjectRemoteSyncSchema>;
+
+export const IgnisAccessSchema = z.object({
+  url: z.string().url().nullable(),
+  activeTaskCount: z.number().int().nonnegative(),
+});
+export type IgnisAccess = z.infer<typeof IgnisAccessSchema>;
 
 export const ChatSchema = z.object({
   id: z.string(),
@@ -39,6 +66,9 @@ export const ChatSchema = z.object({
   title: z.string(),
   mode: RunModeSchema,
   activeTaskId: z.string().optional(),
+  piSessionId: z.string().default(''),
+  parentChatId: z.string().nullable().default(null),
+  activeLeafEntryId: z.string().nullable().default(null),
   lastMessagePreview: z.string().optional(),
   updatedAt: z.string(),
 });
@@ -51,12 +81,23 @@ export const TaskSchema = z.object({
   title: z.string(),
   mode: RunModeSchema,
   status: TaskStatusSchema,
+  piSessionId: z.string().default(''),
   branchName: z.string(),
   worktreePath: z.string(),
+  baseSha: z.string().default(''),
+  currentHeadSha: z.string().nullable().default(null),
+  startPiEntryId: z.string().nullable().default(null),
+  endPiEntryId: z.string().nullable().default(null),
   changedFiles: z.number().int().nonnegative().default(0),
   updatedAt: z.string(),
 });
 export type Task = z.infer<typeof TaskSchema>;
+
+export const ManagedImplementationSchema = z.object({
+  chat: ChatSchema,
+  task: TaskSchema,
+});
+export type ManagedImplementation = z.infer<typeof ManagedImplementationSchema>;
 
 export const EventTypeSchema = z.enum([
   'message.created',
@@ -70,6 +111,7 @@ export const EventTypeSchema = z.enum([
   'tool.output',
   'tool.completed',
   'queue.updated',
+  'workspace_context_changed',
   'checkpoint.created',
   'diff.updated',
   'task.status.changed',
@@ -101,6 +143,19 @@ export const AttachmentRefSchema = z.object({
 });
 export type AttachmentRef = z.infer<typeof AttachmentRefSchema>;
 
+export const QueuedMessageSchema = z.object({
+  id: z.string(),
+  chatId: z.string().default(''),
+  taskId: z.string().nullable(),
+  kind: z.literal('follow_up'),
+  text: z.string(),
+  position: z.number().int().positive(),
+  status: z.enum(['pending', 'delivered', 'removed']),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type QueuedMessage = z.infer<typeof QueuedMessageSchema>;
+
 export const SendMessageInputSchema = z.object({
   text: z.string().min(1),
   behavior: z.enum(['send', 'follow_up', 'steer', 'abort_and_replace']),
@@ -112,6 +167,11 @@ export const SendMessageInputSchema = z.object({
   attachments: z.array(AttachmentRefSchema).optional(),
 });
 export type SendMessageInput = z.infer<typeof SendMessageInputSchema>;
+
+export const TaskCancelInputSchema = z.object({
+  mode: z.enum(['archive', 'discard']),
+});
+export type TaskCancelInput = z.infer<typeof TaskCancelInputSchema>;
 
 export const ApiErrorSchema = z.object({
   code: z.string(),
@@ -146,6 +206,7 @@ export const CreateProjectInputSchema = z.object({
   repoPath: z.string().min(1),
   defaultBranch: z.string().min(1),
   agentsDir: z.string().optional(),
+  ignisUrl: z.string().url().optional(),
   initGitIfMissing: z.boolean().optional(),
   scanVault: z.boolean().optional(),
 });
@@ -183,8 +244,17 @@ export type CreateChatInput = z.infer<typeof CreateChatInputSchema>;
 // --- Checkpoints ---
 export const CheckpointSchema = z.object({
   id: z.string(),
+  chatId: z.string().default(''),
   taskId: z.string(),
+  runId: z.string().default(''),
+  stepNumber: z.number().int().positive().default(1),
+  piEntryId: z.string().nullable().default(null),
+  beforeSha: z.string().default(''),
+  afterSha: z.string().default(''),
+  hasFileChanges: z.boolean().default(false),
+  patchPath: z.string().nullable().default(null),
   message: z.string(),
+  // Compatibility alias for older diff/fork clients. New code uses afterSha.
   sha: z.string().optional(),
   changedFiles: z.number().int().nonnegative(),
   createdAt: z.string(),

@@ -14,6 +14,7 @@ RUN pnpm install --frozen-lockfile
 FROM dependencies AS verify
 
 COPY apps/api apps/api
+COPY apps/mobile apps/mobile
 COPY packages/contracts packages/contracts
 
 RUN pnpm --filter @pi-agents/contracts typecheck \
@@ -26,12 +27,12 @@ WORKDIR /app
 ARG PI_VERSION=0.80.3
 
 RUN apt-get update \
-  && apt-get install --no-install-recommends -y git \
+  && apt-get install --no-install-recommends -y bubblewrap git \
   && rm -rf /var/lib/apt/lists/* \
   && corepack enable \
   && npm install --global --no-audit --no-fund "@earendil-works/pi-coding-agent@${PI_VERSION}" \
   && pi --version \
-  && mkdir -p /data /projects \
+  && mkdir -p /data/pi-agent /projects \
   && chown -R node:node /data /projects
 
 COPY --from=verify --chown=node:node /app /app

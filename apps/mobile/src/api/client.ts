@@ -12,11 +12,14 @@ import {
   FileContentSchema,
   FileNodeSchema,
   HealthResponseSchema,
+  IgnisAccessSchema,
   PackageInstallResultSchema,
   PackageManifestSchema,
+  QueuedMessageSchema,
   PromptTemplateSchema,
   RealtimeEnvelopeSchema,
   ProjectSchema,
+  ProjectRemoteSyncSchema,
   ProviderSchema,
   ProviderTestResultSchema,
   SearchResultSchema,
@@ -27,6 +30,7 @@ import {
   ValidateRepoInputSchema,
   ValidateRepoResultSchema,
   McpServerSchema,
+  ManagedImplementationSchema,
   apiClientOperationIds,
   type Action,
   type ActionRun,
@@ -40,8 +44,10 @@ import {
   type FileContent,
   type FileNode,
   type HealthResponse,
+  type IgnisAccess,
   type PackageInstallResult,
   type PackageManifest,
+  type QueuedMessage,
   type PromptTemplate,
   type RealtimeEnvelope,
   type Project,
@@ -55,6 +61,7 @@ import {
   type ValidateRepoInput,
   type ValidateRepoResult,
   type McpServer,
+  type ManagedImplementation,
 } from '@pi-agents/contracts';
 import type { ApiError } from '@pi-agents/contracts';
 import { z } from 'zod';
@@ -144,6 +151,22 @@ export class ApiClient {
     return ValidateRepoResultSchema.parse(await res.json());
   }
 
+  async syncProjectRemote(projectId: string, mode: 'inspect' | 'apply' = 'inspect') {
+    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/remote-sync`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+    if (!res.ok) throw await this.toError(res);
+    return ProjectRemoteSyncSchema.parse(await res.json());
+  }
+
+  async getIgnisAccess(projectId: string): Promise<IgnisAccess> {
+    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/ignis`);
+    if (!res.ok) throw await this.toError(res);
+    return IgnisAccessSchema.parse(await res.json());
+  }
+
   // --- Chats ---
   async getChats(projectId: string): Promise<Chat[]> {
     const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/chats`);
@@ -209,6 +232,62 @@ export class ApiClient {
     const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/trace`);
     if (!res.ok) throw await this.toError(res);
     return TraceResultSchema.parse(await res.json());
+  }
+
+  async getManagedImplementations(chatId: string): Promise<ManagedImplementation[]> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/managed-implementations`);
+    if (!res.ok) throw await this.toError(res);
+    return ManagedImplementationSchema.array().parse(await res.json());
+  }
+
+  async createImplementationTask(chatId: string, title: string): Promise<ManagedImplementation> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/implementation-tasks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) throw await this.toError(res);
+    return ManagedImplementationSchema.parse(await res.json());
+  }
+
+  async getQueue(chatId: string): Promise<QueuedMessage[]> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue`);
+    if (!res.ok) throw await this.toError(res);
+    return QueuedMessageSchema.array().parse(await res.json());
+  }
+
+  async reorderQueue(chatId: string, ids: string[]): Promise<QueuedMessage[]> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) throw await this.toError(res);
+    return QueuedMessageSchema.array().parse(await res.json());
+  }
+
+  async removeQueueItem(chatId: string, itemId: string): Promise<{ ok: true }> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue/${encodeURIComponent(itemId)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw await this.toError(res);
+    return { ok: true };
+  }
+
+  async clearQueue(chatId: string): Promise<{ ok: true }> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue/clear`, { method: 'POST' });
+    if (!res.ok) throw await this.toError(res);
+    return { ok: true };
+  }
+
+  async createTaskForChat(chatId: string, input: { title: string; mode?: 'implementation' }): Promise<Task> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/tasks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw await this.toError(res);
+    return TaskSchema.parse(await res.json());
   }
 
   // --- Messages / queue ---
@@ -330,6 +409,28 @@ export class ApiClient {
     const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/archive`, {
       method: 'POST',
     });
+    if (!res.ok) throw await this.toError(res);
+    return TaskSchema.parse(await res.json());
+  }
+
+  async cancelTask(taskId: string, mode: 'archive' | 'discard'): Promise<Task> {
+    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/cancel`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+    if (!res.ok) throw await this.toError(res);
+    return TaskSchema.parse(await res.json());
+  }
+
+  async fetchTask(taskId: string): Promise<Task> {
+    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/fetch`, { method: 'POST' });
+    if (!res.ok) throw await this.toError(res);
+    return TaskSchema.parse(await res.json());
+  }
+
+  async pushTask(taskId: string): Promise<Task> {
+    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/push`, { method: 'POST' });
     if (!res.ok) throw await this.toError(res);
     return TaskSchema.parse(await res.json());
   }

@@ -18,6 +18,11 @@ const STATUS_STYLES: Record<TaskStatus, BadgeStyle> = {
   merge_running: { bg: '#E8F1FF', text: '#2563EB' },
   merge_conflict: { bg: '#FFECEC', text: tokens.color.danger },
   merged: { bg: tokens.color.successBg, text: tokens.color.successText },
+  paused_clean: { bg: '#FFF3E0', text: '#B45309' },
+  paused_dirty: { bg: '#FFECEC', text: '#C2410C' },
+  paused_after_restart: { bg: '#F3E8FF', text: '#7C3AED' },
+  cancelled_archived: { bg: tokens.color.surfaceMuted, text: tokens.color.textMuted },
+  cancelled_discarded: { bg: tokens.color.surfaceMuted, text: tokens.color.textMuted },
   failed: { bg: '#FFECEC', text: tokens.color.danger },
   archived: { bg: tokens.color.surfaceMuted, text: tokens.color.textMuted },
 };

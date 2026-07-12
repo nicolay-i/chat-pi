@@ -24,6 +24,11 @@ describe('createConfig', () => {
     expect(() => createConfig({ CORS_ORIGINS: 'file:///app' })).toThrow('http or https');
   });
 
+  it('accepts only supported Pi sandbox modes', () => {
+    expect(createConfig({ PI_SANDBOX_MODE: 'bwrap' }).piSandboxMode).toBe('bwrap');
+    expect(() => createConfig({ PI_SANDBOX_MODE: 'container' })).toThrow('PI_SANDBOX_MODE');
+  });
+
   it('accepts a bounded request-body limit', () => {
     expect(createConfig({ MAX_BODY_BYTES: '2048' }).maxBodyBytes).toBe(2048);
     expect(() => createConfig({ MAX_BODY_BYTES: '0' })).toThrow('MAX_BODY_BYTES');
@@ -59,7 +64,7 @@ describe('createConfig', () => {
 
   it('treats blank Pi settings as absent so runtime defaults remain available', () => {
     const config = createConfig({
-      PI_CWD: '  ', PI_BIN: '', PI_NODE: ' ', PI_PROVIDER: '', PI_MODEL: '  ', PI_AGENT_DIR: '',
+      PI_CWD: '  ', PI_BIN: '', PI_NODE: ' ', PI_PROVIDER: '', PI_MODEL: '  ', PI_AGENT_DIR: '', PI_PROJECTS_ROOT: ' ',
     });
 
     expect(config.agentCwd).toBeUndefined();
@@ -68,5 +73,10 @@ describe('createConfig', () => {
     expect(config.piProvider).toBeUndefined();
     expect(config.piModel).toBeUndefined();
     expect(config.piAgentDir).toBeUndefined();
+    expect(config.piProjectsRoot).toBeUndefined();
+  });
+
+  it('keeps an explicit container project root for worktree isolation', () => {
+    expect(createConfig({ PI_PROJECTS_ROOT: '/projects' }).piProjectsRoot).toBe('/projects');
   });
 });

@@ -86,6 +86,8 @@ describe('SetupScreen', () => {
           projectId: 'project-1',
           title: 'Новый чат',
           mode: 'discussion',
+          piSessionId: 'session-1',
+          activeLeafEntryId: null,
           updatedAt: '2026-01-01T00:00:00Z',
         });
       }

@@ -16,10 +16,21 @@ services:
       DISK_WARNING_FREE_BYTES: ${DISK_WARNING_FREE_BYTES:-1073741824}
       DISK_CHECK_INTERVAL_SECONDS: ${DISK_CHECK_INTERVAL_SECONDS:-300}
       CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env.docker}
-      AGENT_RUNTIME: ${AGENT_RUNTIME:-fake}
-      PI_BIN: ${PI_BIN:-}
+      # Production execution belongs to this VPS container. `fake` is only an
+      # explicit test override, never the normal deployment mode.
+      AGENT_RUNTIME: ${AGENT_RUNTIME:-pi}
+      PI_BIN: ${PI_BIN:-/usr/local/bin/pi}
       PI_PROVIDER: ${PI_PROVIDER:-}
       PI_MODEL: ${PI_MODEL:-}
+      # bwrap isolates every Pi child to its selected worktree, JSONL session
+      # directory and Pi state. It needs Linux user namespaces on the VPS.
+      PI_SANDBOX_MODE: ${PI_SANDBOX_MODE:-bwrap}
+      PI_SANDBOX_BIN: ${PI_SANDBOX_BIN:-/usr/bin/bwrap}
+      PI_SANDBOX_ENV_ALLOWLIST: ${PI_SANDBOX_ENV_ALLOWLIST:-}
+      PI_RUN_TIMEOUT_SECONDS: ${PI_RUN_TIMEOUT_SECONDS:-1200}
+      PI_AGENT_DIR: /data/pi-agent
+      # Container-visible root. Repo paths submitted to the API must stay here.
+      PI_PROJECTS_ROOT: /projects
     ports:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8787}:8787"
     volumes:
@@ -27,6 +38,13 @@ services:
       - type: bind
         source: ${PROJECTS_ROOT:?Set PROJECTS_ROOT to the host directory containing managed repositories}
         target: /projects
+    # Docker's default seccomp profile blocks unshare(), which bwrap requires
+    # for a nested user/PID/mount namespace. A custom profile may replace this.
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=${PI_DOCKER_SECCOMP_PROFILE:-unconfined}
+    cap_drop:
+      - ALL
     restart: unless-stopped
     init: true
 

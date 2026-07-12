@@ -1,12 +1,13 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Task, RunMode } from '@pi-agents/contracts';
+import type { Checkpoint, Task, RunMode } from '@pi-agents/contracts';
 import type { TasksRepository } from '../db';
 import { createCheckpointsRepository } from '../db/repositories/checkpointsRepository';
 import type { EventStore } from '../realtime/eventStore';
 import { runGit, type RunGit } from './gitExec';
 import type { GitWorktreeService, WorktreeRef } from './gitWorktreeService';
+import { createPiSessionBranch } from './piSessionBranch';
 
 export type ForkDeps = {
   worktree: GitWorktreeService;
@@ -21,12 +22,18 @@ export type ForkFromCheckpointInput = {
   repoPath: string;
   runtimePath: string;
   title?: string;
+  piSessionId?: string | null;
+  piSessionPath?: string;
+  sourceChatId?: string | null;
+  clonePiSessionPath?: string;
+  pendingPiForkEntryId?: string | null;
 };
 
 export type ForkResult = { task: Task; worktree: WorktreeRef };
 
 export type ForkService = {
   forkFromCheckpoint(input: ForkFromCheckpointInput): Promise<ForkResult>;
+  getCheckpoint(checkpointId: string): Checkpoint | undefined;
 };
 
 export function createForkService(
@@ -38,6 +45,9 @@ export function createForkService(
   const tasks = deps.tasks;
 
   return {
+    getCheckpoint(checkpointId) {
+      return checkpoints.getById(checkpointId);
+    },
     async forkFromCheckpoint(input) {
       const { taskId, checkpointId, newTaskId, repoPath, runtimePath } = input;
 
@@ -60,12 +70,27 @@ export function createForkService(
       const baseBranch = sourceTask.baseBranch;
       const mergeTarget = sourceTask.mergeTarget;
       const title = input.title ?? `${sourceTask.title} (fork @ ${cp.id.slice(0, 8)})`;
-      const piSessionPath = join(runtimePath, 'sessions', `${newTaskId}.jsonl`);
+      const piSessionPath = input.piSessionPath ?? join(runtimePath, 'sessions', `${newTaskId}.jsonl`);
+      if (input.clonePiSessionPath && existsSync(input.clonePiSessionPath)) {
+        mkdirSync(join(runtimePath, 'sessions'), { recursive: true });
+        if (input.pendingPiForkEntryId) {
+          if (!createPiSessionBranch({
+            sourcePath: input.clonePiSessionPath,
+            destinationPath: piSessionPath,
+            leafEntryId: input.pendingPiForkEntryId,
+            cwd: worktreePath,
+          })) {
+            throw new Error(`checkpoint Pi entry ${input.pendingPiForkEntryId} is not present in session history`);
+          }
+        } else {
+          copyFileSync(input.clonePiSessionPath, piSessionPath);
+        }
+      }
 
       const rec = tasks.create({
         id: newTaskId,
         projectId: sourceTask.projectId,
-        sourceChatId: sourceTask.sourceChatId,
+        sourceChatId: input.sourceChatId ?? sourceTask.sourceChatId,
         title,
         mode: sourceTask.mode as RunMode,
         status: 'created',
@@ -74,6 +99,13 @@ export function createForkService(
         branchName,
         worktreePath,
         piSessionPath,
+        piSessionId: input.piSessionId ?? sourceTask.piSessionId,
+        startPiEntryId: cp.piEntryId,
+        endPiEntryId: cp.piEntryId,
+        // The JSONL branch is already positioned at the checkpoint leaf. Pi
+        // RPC `fork` only branches before a user message, which is unsuitable
+        // for a completed checkpoint after an assistant response.
+        pendingPiForkEntryId: null,
         mergeTarget,
         currentHeadSha: afterSha,
       });
@@ -85,8 +117,13 @@ export function createForkService(
         title: rec.title,
         mode: rec.mode,
         status: rec.status,
+        piSessionId: rec.piSessionId ?? '',
         branchName: rec.branchName,
         worktreePath: rec.worktreePath,
+        baseSha: rec.baseSha,
+        currentHeadSha: rec.currentHeadSha,
+        startPiEntryId: rec.startPiEntryId,
+        endPiEntryId: rec.endPiEntryId,
         changedFiles: 0,
         updatedAt: rec.updatedAt,
       };

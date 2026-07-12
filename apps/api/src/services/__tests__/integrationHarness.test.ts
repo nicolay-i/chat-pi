@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { join } from 'node:path';
-import { PiRpcClient } from '../piRpcClient';
+import { PassThrough } from 'node:stream';
+import { attachJsonlReader, PiRpcClient } from '../piRpcClient';
 import { FakePiRuntime } from '../piRuntimeService';
 import { RuntimeManager } from '../runtimeManager';
 import { createDb } from '../../db';
@@ -12,6 +13,20 @@ import { TemporaryGitRepository } from '../../test/harness/TemporaryGitRepositor
 import { FakePiRpcProcess } from '../../test/harness/FakePiRpcProcess';
 
 describe('integration harness', () => {
+  it('bounds an unterminated Pi RPC stdout line', () => {
+    const stream = new PassThrough();
+    let observedBytes = 0;
+    const stop = attachJsonlReader(stream, () => undefined, {
+      maxBufferedBytes: 16,
+      onLimitExceeded: (bytes) => { observedBytes = bytes; },
+    });
+
+    stream.write('x'.repeat(17));
+
+    expect(observedBytes).toBe(17);
+    stop();
+  });
+
   it('creates isolated worktrees and exposes a real rebase conflict', () => {
     const repo = new TemporaryGitRepository();
     try {
@@ -87,9 +102,10 @@ describe('integration harness', () => {
         manager.runTask({ id: second.id, projectId: project.id }, { text: 'second task', behavior: 'send' }),
       ]);
       expect(runtime.prepared).toEqual(expect.arrayContaining([
-        expect.objectContaining({ sessionId: first.id, cwd: firstWorktree, sessionPath: first.piSessionPath }),
-        expect.objectContaining({ sessionId: second.id, cwd: secondWorktree, sessionPath: second.piSessionPath }),
+        expect.objectContaining({ cwd: firstWorktree, sessionPath: first.piSessionPath }),
+        expect.objectContaining({ cwd: secondWorktree, sessionPath: second.piSessionPath }),
       ]));
+      expect(new Set(runtime.prepared.map((item) => item.sessionId)).size).toBe(2);
       expect(createPiSessionsRepository(db).getByTaskId(first.id)?.path).not.toBe(createPiSessionsRepository(db).getByTaskId(second.id)?.path);
       expect(tasks.getById(first.id)?.worktreePath).not.toBe(tasks.getById(second.id)?.worktreePath);
     } finally { repo.dispose(); }
@@ -108,7 +124,7 @@ describe('integration harness', () => {
       expect(sessions.acquireLock(session.id, 'runtime')).toBe(true);
       const recoveredManager = new RuntimeManager({ runtime: new FakePiRuntime(), eventStore: createEventStore(db), tasks, piSessions: sessions });
       expect(await recoveredManager.recoverInterruptedRuns()).toBe(1);
-      expect(tasks.getById(task.id)?.status).toBe('failed');
+      expect(tasks.getById(task.id)?.status).toBe('paused_after_restart');
       expect(sessions.getById(session.id)?.lockOwner).toBeNull();
     } finally { repo.dispose(); }
   });

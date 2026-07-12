@@ -9,22 +9,25 @@ This file describes the current worktree, not the earlier generated scaffold.
 | Cross-platform navigation | Explicit React Navigation adapter and route registry in `apps/mobile/src/navigation/`; URL and native stack share the same route definitions. |
 | State | MobX `RootStore`, chat/task/theme stores, real `mobx-react-lite` observers and store integration tests. `RootStoreProvider` creates/disposes its own store per mount; production code has no global backend-store adapter. Screen tests inject an isolated store through the same Provider. |
 | Typed API | Shared Zod contracts plus `apiOperations.ts`, backend route operation IDs and `apiParity.test.ts`; an isolated provider domain also has an oRPC transport mounted in Hono. |
-| Chat/task runtime | Message, steer, follow-up, abort, SSE events, persistent task Pi sessions and runtime recovery. |
-| Git workflow | Worktree isolation, checkpoints, diff, fork, rollback, rebase/stale detection and merge flows tested against temporary Git repositories. New projects keep runtime state beside, rather than inside, the canonical Git checkout; checkpoint patches live under `runtimeStatePath/checkpoints/<taskId>` and merge/rebase are serialized per project. |
+| Chat/task runtime | One persistent PiSession is created for each Chat. Discussion/planning run it in the primary repo with Pi read-only tools; writable Tasks reuse it in their own worktrees. PiSession locks are writer-scoped, checkpoints are created for completed Task steps, and follow-up queue entries persist across restart. Fork/rollback create a new Pi JSONL branch through the selected checkpoint ancestry and update its header cwd before Pi opens the next worktree. |
+| Git workflow | Worktree isolation, checkpoints without empty commits, explicit archive/discard cancellation, diff, rollback within a Chat, fork into a separate Chat, manual fetch/rebase/push and merge flows are tested against temporary Git repositories. New projects keep runtime state beside, rather than inside, the canonical Git checkout; checkpoint patches live under `runtimeStatePath/checkpoints/<taskId>` and merge/rebase are serialized per project. |
 | Project configuration | Files, actions, skills, prompts, packages, providers, MCP and theme routes have client, Hono route and persistence paths. MCP configuration persists in `.agents/mcp.json`; trusted local packages are copied to `.agents/packages` and recorded in `packages.lock.json`. |
 | CI baseline | Pinned pnpm, frozen-lockfile install, typecheck/test/lint and Web export in GitHub Actions. |
 | Deployment baseline | Production CORS allowlist, explicit loopback bind for standalone API, request body cap, per-client package-resolve rate limit, structured lifecycle logs, disk monitoring, graceful Pi-child cleanup, pinned Pi CLI in Dockerfile, compose, SQLite volume and private-by-default port binding. |
+| Pi sandbox | `PI_SANDBOX_MODE=bwrap` launches Pi in Linux user/PID/IPC/UTS namespaces. It mounts only the active worktree, JSONL session directory and dedicated Pi state; discussion/planning mounts the primary repo read-only. `/data/pi-agent` and session directories are created before the first launch. |
+| Process audit | Every real Pi child is recorded in `runtime_processes` with PID, command, cwd, sandbox mode, Chat/Task/PiSession and terminal status. Raw Pi events are capped before they enter SQLite/SSE. |
 | Backup baseline | SQLite `VACUUM INTO`, allowed `.agents` artifacts, Pi sessions plus prompt/theme runtime state, Git refs, SHA-256 manifest and integrity-checked staging restore. A guarded activation command validates exact task refs in explicit clean checkouts, recreates worktrees and rebinds staged SQLite paths. Task worktree files are deliberately excluded. |
 
 ## Verified integration gates
 
-- Two parallel task runtimes use separate worktrees and separate persistent
-  Pi-session paths. The public Hono API test creates both tasks, checkpoints
-  them, merges one and marks its sibling stale.
+- A public Hono integration test creates two Chats, checkpoints their Tasks,
+  merges one and marks its sibling stale; it then creates another Task in the
+  first Chat, proving a new worktree with the same PiSession and session path.
 - A completed implementation run creates a checkpoint and moves task state to
   review.
-- Recovery after a backend restart releases stale locks and updates interrupted
-  work appropriately.
+- Recovery after a backend restart releases stale locks, moves interrupted
+  Tasks to `paused_after_restart`, retains pending follow-ups and requires a
+  recovery context before a new run.
 - API registry parity verifies all current ApiClient operation IDs have Hono
   route registration.
 - The experimental provider oRPC client creates, lists and tests a provider
@@ -57,12 +60,20 @@ This file describes the current worktree, not the earlier generated scaffold.
    configuration is a production feature.
 3. **Packages and MCP.** Package resolution does not fetch arbitrary remote code.
    MCP test checks configuration but never executes configured commands.
-4. **Unsupported product surfaces.** VSCode Web and Obsidian/Ignis routes are
-   present only as unsupported placeholders because capabilities and backend
-   transports do not exist.
-5. **Release validation.** Android/iOS device QA and Docker image build/run
-   remain required. HTTP availability of the current Web and API processes
-   was checked on 2026-07-11; a browser smoke test remains required.
+4. **External product surfaces.** VSCode Web remains unsupported. Ignis is a
+   configured Tailnet URL with web iframe/native external opening; deployment
+   and end-to-end editing against a real Ignis host remain release gates.
+5. **Release validation.** Android/iOS device QA, Docker image build/run and a
+   real provider-backed `bwrap` Pi turn on the target VPS remain required. The
+   Docker image now builds locally, Compose starts the API with a healthy
+   `/health` response, and its `bwrap` namespace/mount smoke test runs Pi 0.80.3
+   successfully. `pnpm --filter @pi-agents/api verify:vps-bwrap` is available
+   inside the container to prove a real provider turn and its audit record. The
+   VPS must allow unprivileged user namespaces;
+   otherwise the API must stay in an explicit non-production
+   `PI_SANDBOX_MODE=none` development mode. Docker's default seccomp blocks
+   bwrap's `unshare()`, so the supplied profile must be verified on the target
+   host before declaring the sandbox operational.
 6. **oRPC decision.** The provider experiment proves Hono transport and
    server/client type inference, but it has not yet been bundled into the Expo
    application or evaluated for OpenAPI generation. Existing `/api/*` routes

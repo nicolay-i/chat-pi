@@ -7,10 +7,13 @@ export type PiJsonlEntryKind =
   | 'tool_result'
   | 'run'
   | 'checkpoint'
-  | 'error';
+  | 'error'
+  | 'session_meta';
 
 /**
- * A Pi session file is one JSON object per line (JSONL). Assumed shape:
+ * A Pi session file is one JSON object per line (JSONL). The application keeps
+ * a normalized shape, accepting both the early app fixture format and Pi's
+ * native SessionManager entries (`type`, `timestamp`, `parentId`, `message`).
  *
  *   { id, ts, kind, role?, text?, tool?, args?, output?, status?, parent? }
  *
@@ -29,6 +32,65 @@ export type PiJsonlEntry = {
   status?: string;
   parent?: string;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function textFromContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter(isRecord)
+    .map((part) => typeof part.text === 'string' ? part.text : '')
+    .join('');
+}
+
+function normalizeNativeEntry(entry: Record<string, unknown>): PiJsonlEntry | null {
+  const type = typeof entry.type === 'string' ? entry.type : undefined;
+  const id = typeof entry.id === 'string' ? entry.id : undefined;
+  const timestamp = typeof entry.timestamp === 'string' ? entry.timestamp : undefined;
+  if (!type || !id || !timestamp || type === 'session') return null;
+  const parent = typeof entry.parentId === 'string' ? entry.parentId : undefined;
+
+  if (type === 'message' && isRecord(entry.message)) {
+    const role = entry.message.role === 'user' || entry.message.role === 'assistant' || entry.message.role === 'system'
+      ? entry.message.role
+      : undefined;
+    return {
+      id,
+      ts: timestamp,
+      kind: 'message',
+      role,
+      text: textFromContent(entry.message.content),
+      parent,
+    };
+  }
+
+  if (type === 'compaction') {
+    return {
+      id,
+      ts: timestamp,
+      kind: 'message',
+      role: 'system',
+      text: typeof entry.summary === 'string' ? entry.summary : '',
+      parent,
+    };
+  }
+
+  if (type === 'custom_message') {
+    return {
+      id,
+      ts: timestamp,
+      kind: 'message',
+      role: 'system',
+      text: textFromContent(entry.content),
+      parent,
+    };
+  }
+
+  return { id, ts: timestamp, kind: 'session_meta', text: type, parent, output: entry };
+}
 
 export type MapEntryContext = {
   projectId: string;
@@ -55,13 +117,15 @@ export function parseJsonl(text: string): PiJsonlEntry[] {
     } catch {
       continue;
     }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+    if (!isRecord(parsed)) continue;
     const obj = parsed as Partial<PiJsonlEntry>;
     if (
       typeof obj.id !== 'string' ||
       typeof obj.ts !== 'string' ||
       typeof obj.kind !== 'string'
     ) {
+      const native = normalizeNativeEntry(parsed);
+      if (native) entries.push(native);
       continue;
     }
     entries.push(obj as PiJsonlEntry);

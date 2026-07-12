@@ -66,6 +66,21 @@ describe('parseJsonl', () => {
     ].join('\n');
     expect(parseJsonl(text).map((e) => e.id)).toEqual(['e1', 'e2']);
   });
+
+  it('normalizes native Pi SessionManager entries and excludes the session header', () => {
+    const out = parseJsonl([
+      JSON.stringify({ type: 'session', version: 3, id: 'session-1', timestamp: '2026-07-12T00:00:00.000Z', cwd: '/repo' }),
+      JSON.stringify({ type: 'message', id: 'u1', parentId: null, timestamp: '2026-07-12T00:00:01.000Z', message: { role: 'user', content: 'hello' } }),
+      JSON.stringify({ type: 'message', id: 'a1', parentId: 'u1', timestamp: '2026-07-12T00:00:02.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'world' }] } }),
+      JSON.stringify({ type: 'compaction', id: 'c1', parentId: 'a1', timestamp: '2026-07-12T00:00:03.000Z', summary: 'compact context' }),
+    ].join('\n'));
+
+    expect(out).toEqual([
+      expect.objectContaining({ id: 'u1', kind: 'message', role: 'user', text: 'hello', parent: undefined }),
+      expect.objectContaining({ id: 'a1', kind: 'message', role: 'assistant', text: 'world', parent: 'u1' }),
+      expect.objectContaining({ id: 'c1', kind: 'message', role: 'system', text: 'compact context', parent: 'a1' }),
+    ]);
+  });
 });
 
 describe('mapEntryToEvent', () => {

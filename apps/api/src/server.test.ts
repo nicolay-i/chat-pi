@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { createApp } from './server';
 import { createDb } from './db';
@@ -15,6 +16,14 @@ import { TemporaryGitRepository } from './test/harness/TemporaryGitRepository';
 import { FixedWindowRateLimiter } from './app/rateLimiter';
 
 const app = createApp(createDb(':memory:'));
+
+function git(cwd: string, args: string[]): string {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+  if (result.error || result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed: ${(result.stderr ?? '').trim() || result.error?.message}`);
+  }
+  return (result.stdout ?? '').trim();
+}
 
 describe('GET /health', () => {
   it('returns ok status', async () => {
@@ -129,28 +138,13 @@ describe('POST /api/chats/bootstrap', () => {
 });
 
 describe('POST /api/chats/:id/abort', () => {
-  it('delegates to the chat runtime command and persists its realtime event', async () => {
-    const abort = async (chatId: string, emit: (type: 'run.aborted', payload: unknown) => void) => {
-      emit('run.aborted', { chatId, reason: 'user' });
-    };
-    const testApp = createApp(createDb(':memory:'), {
-      chatRuntime: {
-        send: async () => undefined,
-        abort,
-      },
-    });
+  it('rejects abort when no shared PiSession runtime is active', async () => {
+    const testApp = createApp(createDb(':memory:'));
     const created = await testApp.request('/api/chats/bootstrap', { method: 'POST' });
     const chat = await created.json();
 
     const res = await testApp.request(`/api/chats/${chat.id}/abort`, { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
-
-    const events = await testApp.request(`/api/chats/${chat.id}/events`);
-    const reader = events.body!.getReader();
-    const first = await reader.read();
-    await reader.cancel();
-    expect(new TextDecoder().decode(first.value)).toContain('run.aborted');
+    expect(res.status).toBe(409);
   });
 });
 
@@ -381,7 +375,25 @@ describe('implementation chat runtime', () => {
         status: 'idle', baseBranch: 'main', baseSha: repo.mainHead, branchName: 'agents/task-1',
         worktreePath, piSessionPath: `${repo.runtimePath}/sessions/task-1.jsonl`, mergeTarget: 'main',
       });
-      const runtime = new FakePiRuntime();
+      class SessionWritingRuntime extends FakePiRuntime {
+        private sessionPath = '';
+
+        override async prepare(session: Parameters<FakePiRuntime['prepare']>[0]): Promise<void> {
+          this.sessionPath = session.sessionPath;
+          await super.prepare(session);
+        }
+
+        override async prompt(sessionId: string, input: Parameters<FakePiRuntime['prompt']>[1]): Promise<void> {
+          mkdirSync(join(repo.runtimePath, 'sessions'), { recursive: true });
+          writeFileSync(this.sessionPath, [
+            JSON.stringify({ type: 'session', version: 3, id: 'pi-session', timestamp: '2026-07-12T00:00:00.000Z', cwd: repo.repoPath }),
+            JSON.stringify({ type: 'message', id: 'pi-user-entry', parentId: null, timestamp: '2026-07-12T00:00:01.000Z', message: { role: 'user', content: input.text } }),
+            JSON.stringify({ type: 'message', id: 'pi-assistant-entry', parentId: 'pi-user-entry', timestamp: '2026-07-12T00:00:02.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'done' }] } }),
+          ].join('\n'), 'utf8');
+          await super.prompt(sessionId, input);
+        }
+      }
+      const runtime = new SessionWritingRuntime();
       const app = createApp(db, { taskRuntime: runtime });
 
       const res = await app.request(`/api/chats/${chat.id}/messages`, {
@@ -392,8 +404,9 @@ describe('implementation chat runtime', () => {
       expect(await res.json()).toMatchObject({ ok: true, taskId: 'task-1' });
 
       await new Promise((resolve) => setTimeout(resolve, 100));
-      expect(runtime.lastPreparedSession).toEqual({
-        sessionId: 'task-1', cwd: worktreePath, sessionPath: `${repo.runtimePath}/sessions/task-1.jsonl`, resourceRoot: repo.repoPath, agentsDir: '.agents',
+      const taskSession = createPiSessionsRepository(db).getByChatId(chat.id);
+      expect(runtime.lastPreparedSession).toMatchObject({
+        sessionId: taskSession?.id, cwd: worktreePath, sessionPath: `${repo.runtimePath}/sessions/task-1.jsonl`, resourceRoot: repo.repoPath, agentsDir: '.agents',
       });
       const events = createEventsRepository(db);
       expect(events.listByTask('task-1').map((event) => event.type)).toContain('run.completed');
@@ -401,24 +414,347 @@ describe('implementation chat runtime', () => {
       expect(events.listByTask('task-1').map((event) => event.type)).toContain('task.status.changed');
       expect(events.listByChat(chat.id).map((event) => event.type)).toContain('run.completed');
       expect(events.listByChat(chat.id).map((event) => event.type)).toContain('checkpoint.created');
-      expect(createCheckpointsRepository(db).listByTask('task-1')).toHaveLength(1);
+      expect(createCheckpointsRepository(db).listByTask('task-1')).toEqual([
+        expect.objectContaining({ piEntryId: 'pi-assistant-entry' }),
+      ]);
       expect(createTasksRepository(db).getById('task-1')?.status).toBe('needs_review');
-      expect(createPiSessionsRepository(db).getByTaskId('task-1')).toMatchObject({
-        path: `${repo.runtimePath}/sessions/task-1.jsonl`, cwd: worktreePath,
+      expect(createPiSessionsRepository(db).getByChatId(chat.id)).toMatchObject({
+        path: `${repo.runtimePath}/sessions/task-1.jsonl`, cwd: worktreePath, lastEntryId: 'pi-assistant-entry',
       });
 
       const trace = await app.request('/api/tasks/task-1/trace');
       expect(trace.status).toBe(200);
       expect((await trace.json()).some((event: { type: string }) => event.type === 'run.completed')).toBe(true);
 
+      appendFileSync(taskSession!.path, `\n${JSON.stringify({
+        type: 'message', id: 'pi-later-entry', parentId: 'pi-assistant-entry', timestamp: '2026-07-12T00:00:03.000Z',
+        message: { role: 'user', content: 'must not be in fork' },
+      })}\n`);
+
       const fork = await app.request('/api/tasks/task-1/fork', { method: 'POST' });
       expect(fork.status).toBe(201);
-      expect((await fork.json()).id).not.toBe('task-1');
+      const forkedTask = await fork.json();
+      expect(forkedTask.id).not.toBe('task-1');
+      expect(forkedTask.sourceChatId).not.toBe(chat.id);
+      expect(createPiSessionsRepository(db).getByChatId(forkedTask.sourceChatId)?.id)
+        .not.toBe(createPiSessionsRepository(db).getByChatId(chat.id)?.id);
+      const forkedSession = createPiSessionsRepository(db).getByChatId(forkedTask.sourceChatId)!;
+      const forkedSessionEntries = readFileSync(forkedSession.path, 'utf8');
+      expect(forkedSessionEntries).toContain('pi-assistant-entry');
+      expect(forkedSessionEntries).not.toContain('pi-later-entry');
 
       const rollback = await app.request('/api/tasks/task-1/rollback', { method: 'POST' });
       expect(rollback.status).toBe(201);
       expect((await rollback.json()).id).not.toBe('task-1');
       expect(createTasksRepository(db).getById('task-1')?.status).toBe('archived');
+    } finally {
+      repo.dispose();
+    }
+  });
+
+  it('accepts a second user step as soon as the first task run becomes reviewable', async () => {
+    const repo = new TemporaryGitRepository();
+    const db = createDb(':memory:');
+    try {
+      const worktreePath = repo.createWorktree('two-steps');
+      const project = createProjectsRepository(db).create({
+        name: 'two steps', repoPath: repo.repoPath, defaultBranch: 'main', runtimeStatePath: repo.runtimePath,
+      });
+      const chat = createChatsRepository(db).create({
+        projectId: project.id, title: 'Two steps', mode: 'implementation', activeTaskId: 'task-two-steps',
+      });
+      createTasksRepository(db).create({
+        id: 'task-two-steps', projectId: project.id, sourceChatId: chat.id, title: 'Two steps', mode: 'implementation',
+        status: 'created', baseBranch: 'main', baseSha: repo.mainHead, branchName: 'agents/task-two-steps',
+        worktreePath, piSessionPath: `${repo.runtimePath}/sessions/two-steps.jsonl`, mergeTarget: 'main',
+      });
+      class CheckpointWritingRuntime extends FakePiRuntime {
+        private sessionPath = '';
+        private cwd = '';
+        private step = 0;
+        private initialized = false;
+
+        override async prepare(session: Parameters<FakePiRuntime['prepare']>[0]): Promise<void> {
+          this.sessionPath = session.sessionPath;
+          this.cwd = session.cwd;
+          if (!this.initialized) {
+            mkdirSync(join(repo.runtimePath, 'sessions'), { recursive: true });
+            writeFileSync(this.sessionPath, `${JSON.stringify({ type: 'session', version: 3, id: 'two-step-session', timestamp: '2026-07-12T00:00:00.000Z', cwd: this.cwd })}\n`);
+            this.initialized = true;
+          }
+          await super.prepare(session);
+        }
+
+        override async prompt(sessionId: string, input: Parameters<FakePiRuntime['prompt']>[1]): Promise<void> {
+          this.step += 1;
+          const parentId = this.step === 1 ? null : `pi-assistant-${this.step - 1}`;
+          appendFileSync(this.sessionPath, `${JSON.stringify({ type: 'message', id: `pi-user-${this.step}`, parentId, timestamp: `2026-07-12T00:00:0${this.step}Z`, message: { role: 'user', content: input.text } })}\n`);
+          appendFileSync(this.sessionPath, `${JSON.stringify({ type: 'message', id: `pi-assistant-${this.step}`, parentId: `pi-user-${this.step}`, timestamp: `2026-07-12T00:00:1${this.step}Z`, message: { role: 'assistant', content: [{ type: 'text', text: 'done' }] } })}\n`);
+          if (this.step === 2) writeFileSync(join(this.cwd, 'second-step.txt'), 'changed by second step\n');
+          await super.prompt(sessionId, input);
+        }
+      }
+      const app = createApp(db, { taskRuntime: new CheckpointWritingRuntime() });
+      const send = (text: string) => app.request(`/api/chats/${chat.id}/messages`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, behavior: 'send' }),
+      });
+      const waitForCompletedStep = async (expectedRuns: number): Promise<void> => {
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const task = createTasksRepository(db).getById('task-two-steps');
+          const trace = await (await app.request('/api/tasks/task-two-steps/trace')).json() as Array<{ type: string }>;
+          const completed = trace.filter((event) => event.type === 'run.completed').length;
+          if (task?.status === 'needs_review' && completed === expectedRuns) return;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        const task = createTasksRepository(db).getById('task-two-steps');
+        const types = (await (await app.request('/api/tasks/task-two-steps/trace')).json() as Array<{ type: string }>)
+          .map((event) => event.type);
+        throw new Error(`expected ${expectedRuns} completed task steps; status=${task?.status}; events=${types.join(',')}`);
+      };
+
+      expect((await send('first step')).status).toBe(200);
+      await waitForCompletedStep(1);
+      // No artificial delay: the terminal status must be safe for the next turn.
+      expect((await send('second step')).status).toBe(200);
+      await waitForCompletedStep(2);
+      const trace = await (await app.request('/api/tasks/task-two-steps/trace')).json() as Array<{ type: string }>;
+      expect(trace.filter((event) => event.type === 'run.started')).toHaveLength(2);
+      const checkpoints = createCheckpointsRepository(db).listByTask('task-two-steps');
+      expect(checkpoints).toHaveLength(2);
+      expect(checkpoints[0]).toMatchObject({
+        piEntryId: 'pi-assistant-1',
+        beforeSha: checkpoints[0]?.afterSha,
+        hasFileChanges: false,
+      });
+      expect(checkpoints[1]).toMatchObject({
+        piEntryId: 'pi-assistant-2',
+        hasFileChanges: true,
+      });
+      expect(checkpoints[1]?.beforeSha).not.toBe(checkpoints[1]?.afterSha);
+      expect(git(worktreePath, ['status', '--porcelain'])).toBe('');
+      await app.dispose();
+    } finally {
+      repo.dispose();
+    }
+  });
+
+  it('preserves a dirty worktree after abort and recovers it on the next user step', async () => {
+    class DirtyBlockingRuntime extends FakePiRuntime {
+      private resolveStarted!: () => void;
+      private releaseFirst!: () => void;
+      readonly firstPromptStarted = new Promise<void>((resolve) => { this.resolveStarted = resolve; });
+      private readonly firstPromptGate = new Promise<void>((resolve) => { this.releaseFirst = resolve; });
+      readonly inputs: string[] = [];
+      private cwd = '';
+
+      override async prepare(session: Parameters<FakePiRuntime['prepare']>[0]): Promise<void> {
+        this.cwd = session.cwd;
+        await super.prepare(session);
+      }
+
+      override async prompt(sessionId: string, input: Parameters<FakePiRuntime['prompt']>[1]): Promise<void> {
+        this.inputs.push(input.text);
+        if (this.inputs.length === 1) {
+          writeFileSync(join(this.cwd, 'draft.txt'), 'preserve this draft\n');
+          this.resolveStarted();
+          await this.firstPromptGate;
+        }
+        await super.prompt(sessionId, input);
+      }
+
+      finishFirstPrompt(): void {
+        this.releaseFirst();
+      }
+    }
+
+    const repo = new TemporaryGitRepository();
+    const db = createDb(':memory:');
+    try {
+      const worktreePath = repo.createWorktree('abort-recovery');
+      const project = createProjectsRepository(db).create({
+        name: 'abort recovery', repoPath: repo.repoPath, defaultBranch: 'main', runtimeStatePath: repo.runtimePath,
+      });
+      const chat = createChatsRepository(db).create({
+        projectId: project.id, title: 'Abort recovery', mode: 'implementation', activeTaskId: 'task-abort-recovery',
+      });
+      createTasksRepository(db).create({
+        id: 'task-abort-recovery', projectId: project.id, sourceChatId: chat.id, title: 'Abort recovery', mode: 'implementation',
+        status: 'idle', baseBranch: 'main', baseSha: repo.mainHead, branchName: 'agents/abort-recovery',
+        worktreePath, piSessionPath: `${repo.runtimePath}/sessions/abort-recovery.jsonl`, mergeTarget: 'main',
+      });
+      const runtime = new DirtyBlockingRuntime();
+      const app = createApp(db, { taskRuntime: runtime });
+      const send = (text: string) => app.request(`/api/chats/${chat.id}/messages`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, behavior: 'send' }),
+      });
+      const waitForStatus = async (status: string): Promise<void> => {
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          if (createTasksRepository(db).getById('task-abort-recovery')?.status === status) return;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        throw new Error(`task did not reach ${status}`);
+      };
+
+      expect((await send('start a draft')).status).toBe(200);
+      await runtime.firstPromptStarted;
+      const diff = await app.request('/api/tasks/task-abort-recovery/diff');
+      expect(diff.status).toBe(200);
+      expect(JSON.stringify(await diff.json())).toContain('draft.txt');
+
+      expect((await app.request(`/api/chats/${chat.id}/abort`, { method: 'POST' })).status).toBe(200);
+      runtime.finishFirstPrompt();
+      await waitForStatus('paused_dirty');
+      expect(readFileSync(join(worktreePath, 'draft.txt'), 'utf8')).toBe('preserve this draft\n');
+
+      expect((await send('continue and review the preserved draft')).status).toBe(200);
+      await waitForStatus('needs_review');
+      expect(runtime.inputs[1]).toContain('The previous agent run was interrupted');
+      expect(runtime.inputs[1]).toContain('continue and review the preserved draft');
+
+      const discard = await app.request('/api/tasks/task-abort-recovery/cancel', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'discard' }),
+      });
+      expect(discard.status).toBe(200);
+      expect(createTasksRepository(db).getById('task-abort-recovery')?.status).toBe('cancelled_discarded');
+      await app.dispose();
+    } finally {
+      repo.dispose();
+    }
+  });
+
+  it('creates an independent checkpoint for a queued follow-up step', async () => {
+    class GatedRuntime extends FakePiRuntime {
+      private releaseFirst!: () => void;
+      private signalFirst!: () => void;
+      private readonly firstGate = new Promise<void>((resolve) => { this.releaseFirst = resolve; });
+      readonly firstPromptStarted = new Promise<void>((resolve) => { this.signalFirst = resolve; });
+      readonly inputs: string[] = [];
+
+      override async prompt(sessionId: string, input: Parameters<FakePiRuntime['prompt']>[1]): Promise<void> {
+        this.inputs.push(input.text);
+        if (this.inputs.length === 1) {
+          this.signalFirst();
+          await this.firstGate;
+        }
+        await super.prompt(sessionId, input);
+      }
+
+      finishFirstPrompt(): void {
+        this.releaseFirst();
+      }
+    }
+
+    const repo = new TemporaryGitRepository();
+    const db = createDb(':memory:');
+    try {
+      const worktreePath = repo.createWorktree('task-follow-up');
+      const project = createProjectsRepository(db).create({
+        name: 'follow-up', repoPath: repo.repoPath, defaultBranch: 'main', runtimeStatePath: repo.runtimePath,
+      });
+      const chat = createChatsRepository(db).create({
+        projectId: project.id, title: 'Follow up', mode: 'implementation', activeTaskId: 'task-follow-up',
+      });
+      createTasksRepository(db).create({
+        id: 'task-follow-up', projectId: project.id, sourceChatId: chat.id, title: 'Follow up', mode: 'implementation',
+        status: 'idle', baseBranch: 'main', baseSha: repo.mainHead, branchName: 'agents/task-follow-up',
+        worktreePath, piSessionPath: `${repo.runtimePath}/sessions/follow-up.jsonl`, mergeTarget: 'main',
+      });
+      const runtime = new GatedRuntime();
+      const app = createApp(db, { taskRuntime: runtime });
+
+      const first = await app.request(`/api/chats/${chat.id}/messages`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'first step', behavior: 'send' }),
+      });
+      expect(first.status).toBe(200);
+      await runtime.firstPromptStarted;
+      const followUp = await app.request(`/api/chats/${chat.id}/messages`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: 'second step', behavior: 'follow_up' }),
+      });
+      expect(followUp.status).toBe(200);
+
+      runtime.finishFirstPrompt();
+      for (let attempt = 0; attempt < 20 && createCheckpointsRepository(db).listByTask('task-follow-up').length < 2; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      const checkpoints = createCheckpointsRepository(db).listByTask('task-follow-up');
+      expect(runtime.inputs).toEqual(['first step', 'second step']);
+      expect(checkpoints).toHaveLength(2);
+      expect(checkpoints.map((checkpoint) => checkpoint.runId)).toHaveLength(2);
+      expect(new Set(checkpoints.map((checkpoint) => checkpoint.runId)).size).toBe(2);
+      expect(checkpoints.every((checkpoint) => checkpoint.beforeSha === checkpoint.afterSha)).toBe(true);
+      expect(db.prepare("SELECT status FROM queued_messages").get()).toEqual({ status: 'delivered' });
+    } finally {
+      repo.dispose();
+    }
+  });
+});
+
+describe('orchestration chat API', () => {
+  it('creates isolated implementation Chats and Tasks without assigning a writable Task to the orchestrator', async () => {
+    const repo = new TemporaryGitRepository();
+    const db = createDb(':memory:');
+    try {
+      const project = createProjectsRepository(db).create({
+        name: 'orchestration', repoPath: repo.repoPath, defaultBranch: 'main', runtimeStatePath: repo.runtimePath,
+      });
+      const app = createApp(db, { taskRuntime: new FakePiRuntime() });
+      const orchestrationResponse = await app.request(`/api/projects/${project.id}/chats`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Coordinate two changes', mode: 'orchestration' }),
+      });
+      expect(orchestrationResponse.status).toBe(201);
+      const orchestration = await orchestrationResponse.json() as { id: string; piSessionId: string; activeTaskId?: string };
+      expect(orchestration.activeTaskId).toBeUndefined();
+
+      const create = async (title: string) => app.request(`/api/chats/${orchestration.id}/implementation-tasks`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title }),
+      });
+      const [firstResponse, secondResponse] = await Promise.all([create('Implement A'), create('Implement B')]);
+      expect(firstResponse.status).toBe(201);
+      expect(secondResponse.status).toBe(201);
+      const first = await firstResponse.json() as { chat: { id: string; piSessionId: string; parentChatId: string | null }; task: { id: string; sourceChatId: string; worktreePath: string } };
+      const second = await secondResponse.json() as typeof first;
+      expect(first.chat.parentChatId).toBe(orchestration.id);
+      expect(second.chat.parentChatId).toBe(orchestration.id);
+      expect(first.chat.piSessionId).not.toBe(orchestration.piSessionId);
+      expect(second.chat.piSessionId).not.toBe(first.chat.piSessionId);
+      expect(first.task.sourceChatId).toBe(first.chat.id);
+      expect(second.task.sourceChatId).toBe(second.chat.id);
+      expect(first.task.worktreePath).not.toBe(second.task.worktreePath);
+
+      const managed = await app.request(`/api/chats/${orchestration.id}/managed-implementations`);
+      expect(managed.status).toBe(200);
+      expect((await managed.json()).map((item: { task: { id: string } }) => item.task.id).sort())
+        .toEqual([first.task.id, second.task.id].sort());
+    } finally {
+      repo.dispose();
+    }
+  });
+});
+
+describe('Ignis access API', () => {
+  it('returns the project-scoped Tailnet URL and active-task indicator without exposing vault paths', async () => {
+    const repo = new TemporaryGitRepository();
+    const db = createDb(':memory:');
+    try {
+      const project = createProjectsRepository(db).create({
+        name: 'vault', repoPath: repo.repoPath, defaultBranch: 'main', runtimeStatePath: repo.runtimePath,
+        ignisUrl: 'https://ignis.tailnet.ts.net/vault/demo',
+      });
+      createTasksRepository(db).create({
+        id: 'active-vault-task', projectId: project.id, title: 'Update notes', mode: 'implementation', status: 'running',
+        baseBranch: 'main', baseSha: repo.mainHead, branchName: 'agents/task/active-vault-task',
+        worktreePath: repo.repoPath, piSessionPath: `${repo.runtimePath}/sessions/vault.jsonl`, mergeTarget: 'main',
+      });
+      const response = await createApp(db).request(`/api/projects/${project.id}/ignis`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        url: 'https://ignis.tailnet.ts.net/vault/demo',
+        activeTaskCount: 1,
+      });
     } finally {
       repo.dispose();
     }
@@ -478,7 +814,7 @@ describe('implementation milestone over public API', () => {
           createTask: true,
         });
         expect(response.status).toBe(201);
-        return response.json() as Promise<{ id: string; activeTaskId: string }>;
+        return response.json() as Promise<{ id: string; activeTaskId: string; piSessionId: string }>;
       };
       const [firstChat, secondChat] = await Promise.all([
         createTaskChat('first implementation'),
@@ -501,8 +837,8 @@ describe('implementation milestone over public API', () => {
         waitForStatus(secondChat.activeTaskId, 'needs_review'),
       ]);
 
-      const firstRuntime = runtime.prepared.get(firstChat.activeTaskId);
-      const secondRuntime = runtime.prepared.get(secondChat.activeTaskId);
+      const firstRuntime = runtime.prepared.get(firstChat.piSessionId);
+      const secondRuntime = runtime.prepared.get(secondChat.piSessionId);
       expect(firstRuntime).toBeDefined();
       expect(secondRuntime).toBeDefined();
       expect(firstRuntime!.cwd).not.toBe(secondRuntime!.cwd);
@@ -528,6 +864,37 @@ describe('implementation milestone over public API', () => {
       const secondTask = await (await api.request(`/api/tasks/${secondChat.activeTaskId}`)).json() as { status: string };
       expect(firstTask.status).toBe('merged');
       expect(secondTask.status).toBe('stale');
+
+      const nextTaskResponse = await postJson(`/api/chats/${firstChat.id}/tasks`, {
+        title: 'second task in the same chat',
+        mode: 'implementation',
+      });
+      expect(nextTaskResponse.status).toBe(201);
+      const nextTask = await nextTaskResponse.json() as {
+        id: string;
+        piSessionId: string;
+        worktreePath: string;
+        baseSha: string;
+      };
+      expect(nextTask.piSessionId).toBe(firstChat.piSessionId);
+      expect(nextTask.worktreePath).not.toBe(firstRuntime!.cwd);
+      expect(nextTask.baseSha).toBe(git(repo.repoPath, ['rev-parse', 'HEAD']));
+      expect(git(nextTask.worktreePath, ['status', '--porcelain'])).toBe('');
+
+      const resumedChat = await (await api.request(`/api/chats/${firstChat.id}`)).json() as {
+        activeTaskId: string;
+        piSessionId: string;
+      };
+      expect(resumedChat.activeTaskId).toBe(nextTask.id);
+      expect(resumedChat.piSessionId).toBe(firstChat.piSessionId);
+
+      const nextRun = await send(firstChat.id, 'second change after merge');
+      expect(nextRun.status).toBe(200);
+      await waitForStatus(nextTask.id, 'needs_review');
+      const nextRuntime = runtime.prepared.get(firstChat.piSessionId);
+      expect(nextRuntime?.cwd).toBe(nextTask.worktreePath);
+      expect(nextRuntime?.sessionPath).toBe(firstRuntime!.sessionPath);
+      expect(git(nextTask.worktreePath, ['status', '--porcelain'])).toBe('');
     } finally {
       await api.dispose();
       repo.dispose();

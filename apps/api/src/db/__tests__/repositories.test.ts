@@ -7,6 +7,8 @@ import { createChatsRepository, type ChatInput } from '../repositories/chatsRepo
 import { createTasksRepository, type TaskInput } from '../repositories/tasksRepository';
 import { createEventsRepository, type ChatEventInput } from '../repositories/eventsRepository';
 import { createPiSessionsRepository } from '../repositories/piSessionsRepository';
+import { createQueuedMessagesRepository } from '../repositories/queuedMessagesRepository';
+import { createRuntimeProcessesRepository } from '../repositories/runtimeProcessesRepository';
 
 const sampleProject: ProjectInput = {
   name: 'demo',
@@ -157,6 +159,77 @@ describe('Pi sessions repository', () => {
     now = new Date(now.getTime() + 1_001);
     expect(sessions.releaseExpiredLocks()).toBe(1);
     expect(sessions.getById(session.id)).toMatchObject({ lockOwner: null, lockHeartbeatAt: null });
+  });
+});
+
+describe('queued messages repository', () => {
+  it('persists pending follow-ups in order and supports explicit queue management', () => {
+    const db = newDb();
+    const projectId = createProjectsRepository(db).create(sampleProject).id;
+    const chatId = createChatsRepository(db).create({ projectId, title: 'queue', mode: 'implementation' }).id;
+    const queue = createQueuedMessagesRepository(db);
+    const first = queue.enqueue({ chatId, text: 'first follow-up' });
+    const second = queue.enqueue({ chatId, text: 'second follow-up' });
+
+    expect(queue.listPending(chatId).map((item) => item.id)).toEqual([first.id, second.id]);
+    expect(queue.reorder(chatId, [second.id, first.id]).map((item) => item.id)).toEqual([second.id, first.id]);
+    expect(queue.remove(chatId, second.id)).toBe(true);
+    expect(queue.listPending(chatId).map((item) => item.id)).toEqual([first.id]);
+    expect(queue.clear(chatId)).toBe(1);
+    expect(queue.listPending(chatId)).toEqual([]);
+  });
+});
+
+describe('runtime processes repository', () => {
+  it('persists a Pi process audit trail through completion', () => {
+    const db = newDb();
+    const projectId = createProjectsRepository(db).create(sampleProject).id;
+    const chatId = createChatsRepository(db).create({ projectId, title: 'audit', mode: 'implementation' }).id;
+    const session = createPiSessionsRepository(db).create({
+      projectId,
+      chatId,
+      path: '/sessions/audit.jsonl',
+      cwd: '/worktrees/audit',
+    });
+    const processes = createRuntimeProcessesRepository(db);
+
+    const started = processes.start({
+      projectId,
+      chatId,
+      taskId: null,
+      piSessionId: session.id,
+      runId: 'run-1',
+      pid: 4321,
+      command: '/usr/bin/bwrap',
+      cwd: '/workspace',
+      sandboxMode: 'bwrap',
+    });
+    const finished = processes.finish(started.id, 'completed');
+
+    expect(finished).toMatchObject({
+      id: started.id,
+      pid: 4321,
+      status: 'completed',
+      sandboxMode: 'bwrap',
+      endedAt: expect.any(String),
+    });
+    expect(processes.listBySessionId(session.id).map((record) => record.id)).toEqual([started.id]);
+  });
+
+  it('closes running audit rows after a backend restart', () => {
+    const db = newDb();
+    const projectId = createProjectsRepository(db).create(sampleProject).id;
+    const session = createPiSessionsRepository(db).create({ projectId, path: '/sessions/restart.jsonl', cwd: '/worktrees/restart' });
+    const processes = createRuntimeProcessesRepository(db);
+    const started = processes.start({
+      projectId, chatId: null, taskId: null, piSessionId: session.id, runId: 'run-restart',
+      pid: 123, command: '/usr/local/bin/pi', cwd: '/workspace', sandboxMode: 'none',
+    });
+
+    expect(processes.finishAllRunning('aborted', 'backend_restarted')).toBe(1);
+    expect(processes.listBySessionId(session.id)).toEqual([
+      expect.objectContaining({ id: started.id, status: 'aborted', exitReason: 'backend_restarted' }),
+    ]);
   });
 });
 

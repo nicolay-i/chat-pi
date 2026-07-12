@@ -14,6 +14,11 @@ export type TaskRow = {
   branch_name: string;
   worktree_path: string;
   pi_session_path: string;
+  pi_session_id: string | null;
+  start_pi_entry_id: string | null;
+  end_pi_entry_id: string | null;
+  pending_pi_fork_entry_id: string | null;
+  last_run_id: string | null;
   merge_target: string;
   current_head_sha: string | null;
   created_at: string;
@@ -32,6 +37,11 @@ export type TaskRecord = {
   branchName: string;
   worktreePath: string;
   piSessionPath: string;
+  piSessionId: string | null;
+  startPiEntryId: string | null;
+  endPiEntryId: string | null;
+  pendingPiForkEntryId: string | null;
+  lastRunId: string | null;
   mergeTarget: string;
   currentHeadSha: string | null;
   createdAt: string;
@@ -50,6 +60,11 @@ export type TaskInput = {
   branchName: string;
   worktreePath: string;
   piSessionPath: string;
+  piSessionId?: string | null;
+  startPiEntryId?: string | null;
+  endPiEntryId?: string | null;
+  pendingPiForkEntryId?: string | null;
+  lastRunId?: string | null;
   mergeTarget: string;
   currentHeadSha?: string | null;
 };
@@ -69,6 +84,11 @@ function rowToTask(row: TaskRow): TaskRecord {
     branchName: row.branch_name,
     worktreePath: row.worktree_path,
     piSessionPath: row.pi_session_path,
+    piSessionId: row.pi_session_id,
+    startPiEntryId: row.start_pi_entry_id,
+    endPiEntryId: row.end_pi_entry_id,
+    pendingPiForkEntryId: row.pending_pi_fork_entry_id,
+    lastRunId: row.last_run_id,
     mergeTarget: row.merge_target,
     currentHeadSha: row.current_head_sha,
     createdAt: row.created_at,
@@ -80,6 +100,7 @@ export type TasksRepository = {
   create(input: TaskInput): TaskRecord;
   getById(id: string): TaskRecord | undefined;
   listByProject(projectId: string): TaskRecord[];
+  listByChatId(chatId: string): TaskRecord[];
   listByStatus(status: TaskStatus): TaskRecord[];
   updateStatus(id: string, status: TaskStatus): TaskRecord | undefined;
   update(id: string, patch: TaskPatch): TaskRecord | undefined;
@@ -95,8 +116,8 @@ export function createTasksRepository(db: DatabaseSync): TasksRepository {
       const id = input.id ?? randomId();
       const now = nowIso();
       db.prepare(
-        `INSERT INTO tasks (id, project_id, source_chat_id, title, mode, status, base_branch, base_sha, branch_name, worktree_path, pi_session_path, merge_target, current_head_sha, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, project_id, source_chat_id, title, mode, status, base_branch, base_sha, branch_name, worktree_path, pi_session_path, pi_session_id, start_pi_entry_id, end_pi_entry_id, pending_pi_fork_entry_id, last_run_id, merge_target, current_head_sha, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         input.projectId,
@@ -109,6 +130,11 @@ export function createTasksRepository(db: DatabaseSync): TasksRepository {
         input.branchName,
         input.worktreePath,
         input.piSessionPath,
+        input.piSessionId ?? null,
+        input.startPiEntryId ?? null,
+        input.endPiEntryId ?? null,
+        input.pendingPiForkEntryId ?? null,
+        input.lastRunId ?? null,
         input.mergeTarget,
         input.currentHeadSha ?? null,
         now,
@@ -126,6 +152,11 @@ export function createTasksRepository(db: DatabaseSync): TasksRepository {
         branchName: input.branchName,
         worktreePath: input.worktreePath,
         piSessionPath: input.piSessionPath,
+        piSessionId: input.piSessionId ?? null,
+        startPiEntryId: input.startPiEntryId ?? null,
+        endPiEntryId: input.endPiEntryId ?? null,
+        pendingPiForkEntryId: input.pendingPiForkEntryId ?? null,
+        lastRunId: input.lastRunId ?? null,
         mergeTarget: input.mergeTarget,
         currentHeadSha: input.currentHeadSha ?? null,
         createdAt: now,
@@ -140,6 +171,12 @@ export function createTasksRepository(db: DatabaseSync): TasksRepository {
       const rows = db
         .prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY created_at ASC')
         .all(projectId) as unknown as TaskRow[];
+      return rows.map(rowToTask);
+    },
+    listByChatId(chatId) {
+      const rows = db
+        .prepare('SELECT * FROM tasks WHERE source_chat_id = ? ORDER BY created_at ASC')
+        .all(chatId) as unknown as TaskRow[];
       return rows.map(rowToTask);
     },
     listByStatus(status) {

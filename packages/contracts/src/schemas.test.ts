@@ -108,7 +108,15 @@ describe('CheckpointSchema', () => {
   it('parses a valid checkpoint', () => {
     const parsed = CheckpointSchema.parse({
       id: 'cp-1',
+      chatId: 'chat-1',
       taskId: 'task-1',
+      runId: 'run-1',
+      stepNumber: 1,
+      piEntryId: 'entry-1',
+      beforeSha: 'before123',
+      afterSha: 'abc123',
+      hasFileChanges: true,
+      patchPath: '/runtime/checkpoints/cp-1.patch',
       message: 'initial',
       sha: 'abc123',
       changedFiles: 2,
@@ -116,6 +124,7 @@ describe('CheckpointSchema', () => {
     });
     expect(parsed.id).toBe('cp-1');
     expect(parsed.sha).toBe('abc123');
+    expect(parsed.afterSha).toBe('abc123');
   });
 
   it('rejects a checkpoint missing required message', () => {
