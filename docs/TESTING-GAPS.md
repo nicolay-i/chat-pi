@@ -38,8 +38,11 @@ yet proven by automated tests and remain release gates.
 
 ## External integrations
 
-- Provider connection testing is synthetic and secrets have no server-side
-  secure storage.
+- The OpenCode environment-provider path was exercised on the VPS through a
+  real `bwrap` Pi turn. It currently stops at OpenCode's `CreditsError` because
+  the account balance is insufficient; repeat the same test after billing is
+  enabled to prove a content-producing response. Provider records still expose
+  only symbolic secret references and have no server-side secret store.
 - The provider oRPC experiment does not yet generate an OpenAPI document:
   `@orpc/openapi` is deliberately not a production dependency until the mobile
   transport decision is made.
@@ -49,21 +52,20 @@ yet proven by automated tests and remain release gates.
   is added.
 - MCP configuration test intentionally does not spawn the configured process.
 - The Docker image builds locally, Compose starts the API with a healthy
-  `/health` response, and its pinned Pi CLI (`0.80.3`) runs inside the
-  configured `bubblewrap` namespaces with only the expected writable mounts.
-  A provider-backed sandbox turn still requires a Linux VPS and configured
-  provider credentials. `pnpm --filter @pi-agents/api verify:vps-bwrap` runs
-  the target verification inside the API container, checks its
-  `runtime_processes` record and discards its temporary Task. The supplied
-  compose profile is `unconfined` because Docker's default profile blocks
-  `unshare()`; replace it with a
-  reviewed custom profile before a hardened deployment.
+  `/health` response, and the VPS has run the pinned Pi CLI (`0.80.3`) through
+  the configured `bubblewrap` namespace. The active profile stays
+  unprivileged: it does not mount procfs and passes only the required device
+  nodes, worktree, session directory, Pi state and explicit provider
+  allowlist. A successful provider response remains blocked by the current
+  OpenCode account balance. Replace `unconfined` seccomp with a reviewed custom
+  profile before a hardened deployment.
 
 ## Security and operations
 
-- No authentication exists yet. The production CORS allowlist, body cap and
-  per-process package-resolution rate limit are in place, but none substitute
-  for authentication. Multi-instance deployment needs a shared rate-limit store.
+- User authentication is intentionally excluded from the current Tailnet-only
+  phase. The production CORS allowlist, body cap and per-process package-
+  resolution rate limit are in place; public exposure remains unsupported.
+  Multi-instance deployment needs a shared rate-limit store.
 - Backup and integrity-checked staging restore cover SQLite, allowed `.agents`
   resources, runtime session files and Git refs. Guarded activation can rebind
   an explicit clean checkout only when every restored task branch has the exact

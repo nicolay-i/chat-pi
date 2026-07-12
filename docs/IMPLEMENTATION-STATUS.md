@@ -50,10 +50,11 @@ This file describes the current worktree, not the earlier generated scaffold.
 - Only trusted and enabled package paths from `packages.lock.json` are exposed
   to a new Pi session; untrusted or disabled package directories are ignored.
 
-## Intentionally unfinished / release blockers
+## Current phase boundaries / release gates
 
-1. **Authentication.** No user authentication, pairing or token rotation exists.
-   Use only local host or a trusted Tailnet until this is implemented.
+1. **Application authentication.** Login, pairing and token rotation are
+   intentionally outside the current Tailnet-only phase. Do not expose the API
+   to the public internet.
 2. **Provider secrets.** API exposes only `hasSecret`; provider metadata accepts
    only symbolic `env:`/`secret:` references and rejects raw keys. Secure secret
    resolution and a real provider transport must be added before provider
@@ -63,17 +64,11 @@ This file describes the current worktree, not the earlier generated scaffold.
 4. **External product surfaces.** VSCode Web remains unsupported. Ignis is a
    configured Tailnet URL with web iframe/native external opening; deployment
    and end-to-end editing against a real Ignis host remain release gates.
-5. **Release validation.** Android/iOS device QA, Docker image build/run and a
-   real provider-backed `bwrap` Pi turn on the target VPS remain required. The
-   Docker image now builds locally, Compose starts the API with a healthy
-   `/health` response, and its `bwrap` namespace/mount smoke test runs Pi 0.80.3
-   successfully. `pnpm --filter @pi-agents/api verify:vps-bwrap` is available
-   inside the container to prove a real provider turn and its audit record. The
-   VPS must allow unprivileged user namespaces;
-   otherwise the API must stay in an explicit non-production
-   `PI_SANDBOX_MODE=none` development mode. Docker's default seccomp blocks
-   bwrap's `unshare()`, so the supplied profile must be verified on the target
-   host before declaring the sandbox operational.
+5. **Release validation.** Android/iOS device QA and a successful provider
+   response remain required. The VPS deployment has a healthy `/health`, and a
+   real OpenCode turn has been audited with `sandbox_mode = bwrap`. The current
+   OpenCode account returns `CreditsError` because it has insufficient balance,
+   so a content-producing turn must be repeated after billing is enabled.
 6. **oRPC decision.** The provider experiment proves Hono transport and
    server/client type inference, but it has not yet been bundled into the Expo
    application or evaluated for OpenAPI generation. Existing `/api/*` routes
