@@ -68,7 +68,10 @@ export function createPiSandboxLaunch(
       '--unshare-user', '--unshare-pid', '--unshare-uts', '--unshare-ipc', '--share-net',
       '--clearenv', '--setenv', 'PATH', '/usr/local/bin:/usr/bin:/bin',
       ...envArgs,
-      '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
+      // A nested Docker sandbox cannot mount a fresh procfs without
+      // privileged mode. Do not bind the parent procfs: it could expose the
+      // API process environment and bypass the explicit secret allowlist.
+      '--dir', '/tmp', '--dir', '/dev',
       '--ro-bind', '/usr', '/usr',
       '--ro-bind', '/bin', '/bin',
       '--ro-bind', '/lib', '/lib',
@@ -77,6 +80,10 @@ export function createPiSandboxLaunch(
       '--ro-bind-try', '/etc/ssl', '/etc/ssl',
       '--ro-bind-try', '/etc/resolv.conf', '/etc/resolv.conf',
       '--ro-bind-try', '/etc/hosts', '/etc/hosts',
+      '--dev-bind', '/dev/null', '/dev/null',
+      '--dev-bind', '/dev/zero', '/dev/zero',
+      '--dev-bind', '/dev/random', '/dev/random',
+      '--dev-bind', '/dev/urandom', '/dev/urandom',
       workspaceBind, input.cwd, '/workspace',
       '--bind', sessionDir, '/sessions',
       '--bind', input.agentDir, '/pi-agent',

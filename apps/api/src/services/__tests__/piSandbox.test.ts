@@ -28,10 +28,13 @@ describe('Pi sandbox launch', () => {
     expect(launch.commandArgs).toEqual(expect.arrayContaining([
       '--unshare-user', '--unshare-pid', '--share-net',
       '--clearenv', '--setenv', 'OPENAI_API_KEY', 'test-key',
+      '--dir', '/tmp', '--dir', '/dev',
+      '--dev-bind', '/dev/urandom', '/dev/urandom',
       '--bind', input.cwd, '/workspace',
       '--bind', '/projects/demo/runtime/sessions', '/sessions',
       '--bind', input.agentDir, '/pi-agent',
     ]));
+    expect(launch.commandArgs).not.toContain('--proc');
     expect(launch.commandArgs).not.toContain('INTERNAL_SECRET');
     expect(launch).toMatchObject({
       spawnCwd: input.cwd,
