@@ -62,3 +62,8 @@ tmp/
 .temp/
 apps/api/.data/
 apps/api/backups/
+
+
+.playwright/
+.playwright-cli/
+
