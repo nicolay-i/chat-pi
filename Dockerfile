@@ -6,19 +6,18 @@ RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/package.json
-COPY apps/mobile/package.json apps/mobile/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @pi-agents/api... install --frozen-lockfile
 
 FROM dependencies AS verify
 
 COPY apps/api apps/api
-COPY apps/mobile apps/mobile
+COPY apps/mobile/src/api/client.ts apps/mobile/src/api/client.ts
 COPY packages/contracts packages/contracts
 
 RUN pnpm --filter @pi-agents/contracts typecheck \
-  && pnpm --filter @pi-agents/api typecheck \
+  && pnpm --filter @pi-agents/api exec tsc --project tsconfig.runtime.json --noEmit \
   && pnpm --filter @pi-agents/api deploy --prod /runtime
 
 FROM node:24-bookworm-slim AS runtime
