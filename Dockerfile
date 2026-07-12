@@ -18,7 +18,8 @@ COPY apps/mobile apps/mobile
 COPY packages/contracts packages/contracts
 
 RUN pnpm --filter @pi-agents/contracts typecheck \
-  && pnpm --filter @pi-agents/api typecheck
+  && pnpm --filter @pi-agents/api typecheck \
+  && pnpm --filter @pi-agents/api deploy --prod /runtime
 
 FROM node:24-bookworm-slim AS runtime
 
@@ -35,7 +36,7 @@ RUN apt-get update \
   && mkdir -p /data/pi-agent /projects \
   && chown -R node:node /data /projects
 
-COPY --from=verify --chown=node:node /app /app
+COPY --from=verify --chown=node:node /runtime /app
 
 ENV NODE_ENV=production
 ENV PORT=8787
@@ -50,4 +51,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 USER node
 
-CMD ["pnpm", "--filter", "@pi-agents/api", "start"]
+CMD ["pnpm", "start"]
