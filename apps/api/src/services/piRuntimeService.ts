@@ -246,7 +246,7 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       ],
       env: this.adapterOpts.env,
       agentDir: sandbox.agentDir,
-      cwd: sandbox.cwd,
+      cwd: sandbox.spawnCwd,
       command: sandbox.command,
       commandArgs: sandbox.commandArgs,
     });

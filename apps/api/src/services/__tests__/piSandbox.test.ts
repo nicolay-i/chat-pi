@@ -11,6 +11,7 @@ describe('Pi sandbox launch', () => {
 
   it('does not rewrite paths when the sandbox is disabled', () => {
     expect(createPiSandboxLaunch({ mode: 'none' }, input)).toEqual({
+      spawnCwd: input.cwd,
       cwd: input.cwd,
       sessionPath: input.sessionPath,
       agentDir: input.agentDir,
@@ -33,6 +34,7 @@ describe('Pi sandbox launch', () => {
     ]));
     expect(launch.commandArgs).not.toContain('INTERNAL_SECRET');
     expect(launch).toMatchObject({
+      spawnCwd: input.cwd,
       cwd: '/workspace',
       sessionPath: '/sessions/chat-1.jsonl',
       agentDir: '/pi-agent',

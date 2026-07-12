@@ -20,6 +20,9 @@ export type PiSandboxLaunchInput = {
 export type PiSandboxLaunch = {
   command?: string;
   commandArgs?: string[];
+  /** Existing host/container path used to spawn the bwrap wrapper. */
+  spawnCwd: string;
+  /** Pi-visible current directory, rewritten to /workspace inside bwrap. */
   cwd: string;
   sessionPath: string;
   agentDir?: string;
@@ -38,6 +41,7 @@ export function createPiSandboxLaunch(
 ): PiSandboxLaunch {
   if (!options || options.mode === 'none') {
     return {
+      spawnCwd: input.cwd,
       cwd: input.cwd,
       sessionPath: input.sessionPath,
       agentDir: input.agentDir,
@@ -80,6 +84,7 @@ export function createPiSandboxLaunch(
       '--setenv', 'PI_CODING_AGENT_DIR', '/pi-agent',
       '--chdir', '/workspace',
     ],
+    spawnCwd: input.cwd,
     cwd: '/workspace',
     sessionPath: sandboxSessionPath,
     agentDir: '/pi-agent',
