@@ -50,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 USER node
 
-CMD ["pnpm", "start"]
+CMD ["node", "--import", "tsx", "src/index.ts"]
