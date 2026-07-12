@@ -1,8 +1,10 @@
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { runInAction } from 'mobx';
 import type { RealtimeEnvelope } from '@pi-agents/contracts';
 import { RootStoreProvider } from '@/providers/RootStoreProvider';
 import { createRootStore } from '@/stores/rootStore';
 import { eventReducer, initialEventReducerState } from '@/state/eventReducer';
+import { ApiClient } from '@/api/client';
 import { ChatScreen } from '../ChatScreen';
 
 function envelope(
@@ -54,7 +56,10 @@ function createTestStore() {
 }
 
 describe('ChatScreen', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    jest.restoreAllMocks();
+  });
 
   it('renders streaming, tool calls, queue and active task through the single MobX session', async () => {
     const { store } = createTestStore();
@@ -79,6 +84,43 @@ describe('ChatScreen', () => {
     expect(screen.getByTestId('chat.toolCard')).toBeTruthy();
     expect(screen.getByTestId('chat.screen.connection').props.children.join('')).toContain('очередь: 1');
     expect(screen.getByTestId('chat.screen.activeTask').props.children.join('')).toContain('task-1');
+  });
+
+  it('prefers the loaded Chat title over an opaque Chat id in the header', async () => {
+    const { store } = createTestStore();
+    jest.spyOn(ApiClient.prototype, 'getChat').mockResolvedValue({
+      id: 'chat-1', projectId: 'project-1', title: 'Проверка интеграции', mode: 'implementation',
+      activeTaskId: 'task-1', updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const screen = await render(
+      <RootStoreProvider store={store}>
+        <ChatScreen chatId="chat-1" />
+      </RootStoreProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('chat.screen.title').props.children).toBe('Проверка интеграции'));
+  });
+
+  it('hydrates the Chat after an asynchronously restored backend URL becomes available', async () => {
+    const { api, store } = createTestStore();
+    store.backend.baseUrl = null;
+    store.backend.restored = true;
+    const screen = await render(
+      <RootStoreProvider store={store}>
+        <ChatScreen chatId="chat-1" />
+      </RootStoreProvider>,
+    );
+
+    expect(api.getChat).not.toHaveBeenCalled();
+    await act(async () => {
+      runInAction(() => {
+        store.backend.baseUrl = 'https://backend.example';
+      });
+    });
+
+    await waitFor(() => expect(api.getChat).toHaveBeenCalledWith('chat-1'));
+    expect(screen.queryByTestId('chat.screen.error')).toBeNull();
   });
 
   it('offers steer or follow-up while a run is active and sends the selected command', async () => {

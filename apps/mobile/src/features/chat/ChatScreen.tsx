@@ -48,6 +48,7 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
   }, [baseUrl, chatId]);
 
   useEffect(() => {
+    if (!baseUrl) return;
     const session = chats.open(chatId);
     void chats.hydrate(chatId).catch((error: unknown) => {
       session.setError(error instanceof Error ? error.message : String(error));
@@ -55,7 +56,7 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
     return () => {
       session.close();
     };
-  }, [chatId, chats]);
+  }, [baseUrl, chatId, chats]);
 
   useEffect(() => {
     void loadOrchestration().catch((error: unknown) => {
@@ -107,7 +108,9 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
     >
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: tokens.color.border, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
         <View style={{ flex: 1, gap: 3 }}>
-          <Text numberOfLines={1} style={{ color: tokens.color.text, fontSize: tokens.fontSize.lg, fontWeight: '700' }}>{chatId}</Text>
+          <Text testID="chat.screen.title" numberOfLines={1} style={{ color: tokens.color.text, fontSize: tokens.fontSize.lg, fontWeight: '700' }}>
+            {metadata?.title ?? chatId}
+          </Text>
           <Text testID="chat.screen.connection" style={{ color: tokens.color.textMuted, fontSize: tokens.fontSize.xs }}>
             {connectionLabel(chat.connectionStatus)} · запуск: {chat.runStatus} · очередь: {chat.queue.pending}
           </Text>
