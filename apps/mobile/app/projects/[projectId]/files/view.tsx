@@ -7,11 +7,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import type { FileContent } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 import {
   DISPLAY_TRUNCATE_BYTES,
   LARGE_FILE_THRESHOLD,

@@ -9,7 +9,7 @@ import {
 
 type ConnectOptions = {
   url: string;
-  after?: string;
+  afterSequence?: number;
   onEvent: (event: RealtimeEnvelope) => void;
   onStateChange?: (state: 'connecting' | 'open' | 'closed' | 'error') => void;
 };
@@ -60,9 +60,10 @@ function makeFakeTransport(): FakeTransport {
   };
 }
 
-function envelope(id: string): RealtimeEnvelope {
+function envelope(id: string, sequence = Number(id.replace(/\D/g, ''))): RealtimeEnvelope {
   return {
     id,
+    sequence,
     stream: 'chat',
     streamId: 'c1',
     type: 'task.status.changed',
@@ -120,7 +121,7 @@ describe('RealtimeManager', () => {
     expect(manager.getState()).toBe('open');
   });
 
-  it('forwards events to onEvent and tracks lastEventId', () => {
+  it('forwards events to onEvent and tracks the last sequence', () => {
     const transport = makeFakeTransport();
     const seen: RealtimeEnvelope[] = [];
     const manager = new RealtimeManager({
@@ -134,23 +135,23 @@ describe('RealtimeManager', () => {
     transport.emit(envelope('02J'));
 
     expect(seen.map((e) => e.id)).toEqual(['01J', '02J']);
-    expect(manager.getLastEventId()).toBe('02J');
+    expect(manager.getLastSequence()).toBe(2);
   });
 
-  it('seeds after from initialAfter', () => {
+  it('seeds afterSequence from initialAfterSequence', () => {
     const transport = makeFakeTransport();
     const manager = new RealtimeManager({
       url: 'https://x',
-      initialAfter: 'seed-1',
+      initialAfterSequence: 41,
       connect: transport.connect,
       onEvent: () => {},
     });
 
     manager.start();
-    expect(transport.lastOptions().after).toBe('seed-1');
+    expect(transport.lastOptions().afterSequence).toBe(41);
   });
 
-  it('reconnects with after=lastEventId after an error using backoff', () => {
+  it('reconnects with afterSequence after an error using backoff', () => {
     const transport = makeFakeTransport();
     const manager = new RealtimeManager({
       url: 'https://x',
@@ -161,7 +162,7 @@ describe('RealtimeManager', () => {
     manager.start();
     transport.openState();
     transport.emit(envelope('5J'));
-    expect(manager.getLastEventId()).toBe('5J');
+    expect(manager.getLastSequence()).toBe(5);
 
     expect(transport.connect).toHaveBeenCalledTimes(1);
     transport.errorState();
@@ -170,7 +171,7 @@ describe('RealtimeManager', () => {
 
     jest.advanceTimersByTime(computeBackoffMs(0));
     expect(transport.connect).toHaveBeenCalledTimes(2);
-    expect(transport.lastOptions().after).toBe('5J');
+    expect(transport.lastOptions().afterSequence).toBe(5);
   });
 
   it('exponential backoff grows with each reconnect attempt', () => {

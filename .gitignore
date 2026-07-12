@@ -61,3 +61,4 @@ coverage/
 tmp/
 .temp/
 apps/api/.data/
+apps/api/backups/

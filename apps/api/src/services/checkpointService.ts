@@ -18,6 +18,7 @@ export type CreateCheckpointInput = {
   message: string;
   repoPath: string;
   worktreePath: string;
+  runtimeStatePath: string;
   piSessionId?: string | null;
   piEntryId?: string | null;
 };
@@ -61,7 +62,7 @@ export function createCheckpointService(
 
       const afterSha = git(['rev-parse', 'HEAD'], { cwd: worktreePath }).stdout;
 
-      const checkpointsDir = join(worktreePath, '.checkpoints');
+      const checkpointsDir = join(input.runtimeStatePath, 'checkpoints', taskId);
       mkdirSync(checkpointsDir, { recursive: true });
 
       const created = checkpoints.create({

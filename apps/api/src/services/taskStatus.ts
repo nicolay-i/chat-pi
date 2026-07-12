@@ -21,11 +21,11 @@ export const VALID_STATUSES: ReadonlySet<TaskStatus> = new Set<TaskStatus>([
 const TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   created: ['creating_worktree', 'idle'],
   creating_worktree: ['idle', 'failed'],
-  idle: ['queued', 'archived', 'merge_running'],
+  idle: ['queued', 'stale', 'archived', 'merge_running'],
   queued: ['running', 'aborting', 'idle'],
   running: ['aborting', 'needs_review', 'checks_running', 'failed'],
   aborting: ['idle', 'failed'],
-  needs_review: ['checks_running', 'idle', 'archived', 'merge_running'],
+  needs_review: ['checks_running', 'idle', 'stale', 'archived', 'merge_running'],
   stale: ['idle', 'archived'],
   checks_running: ['needs_review', 'checks_failed'],
   checks_failed: ['needs_review'],

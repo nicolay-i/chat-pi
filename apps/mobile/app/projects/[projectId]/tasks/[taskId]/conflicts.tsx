@@ -1,34 +1,8 @@
-import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from '@/navigation';
 import { tokens } from '@/theme/tokens';
 import { useTask } from '@/features/tasks/useTasks';
 import { TaskStatusBadge } from '@/features/tasks/TaskStatusBadge';
-
-type ConflictFile = {
-  path: string;
-  body: string;
-};
-
-const CONFLICT_FILES: ConflictFile[] = [
-  {
-    path: 'src/example.ts',
-    body: [
-      '<<<<<<< HEAD',
-      'export function add(a, b) {',
-      '  return a + b;',
-      '}',
-      '=======',
-      'export const add = (a, b) => a + b;',
-      '>>>>>>> feature/branch',
-    ].join('\n'),
-  },
-];
-
-const ACTIONS: ReadonlyArray<{ name: string; label: string }> = [
-  { name: 'ours', label: 'Оставить ours' },
-  { name: 'theirs', label: 'Оставить theirs' },
-  { name: 'agent', label: 'Попросить агента' },
-];
 
 export default function ConflictsScreen() {
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
@@ -87,12 +61,6 @@ export default function ConflictsScreen() {
     );
   }
 
-  const openVscode = () => {
-    void Linking.openURL('./vscode').catch(() => {
-      router.push('./vscode' as never);
-    });
-  };
-
   const abort = () => {
     if (router.canGoBack()) router.back();
     else router.replace('./merge' as never);
@@ -129,81 +97,22 @@ export default function ConflictsScreen() {
         </Text>
       </View>
 
-      {CONFLICT_FILES.map((file, index) => (
-        <View
-          key={file.path}
-          testID={`conflict.file.${index}`}
-          style={{
-            marginTop: 16,
-            backgroundColor: tokens.color.surface,
-            borderRadius: tokens.radius.lg,
-            padding: 12,
-            borderWidth: 1,
-            borderColor: tokens.color.border,
-          }}
-        >
-          <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: tokens.fontSize.sm }}>{file.path}</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginTop: 8 }}
-            contentContainerStyle={{ paddingVertical: 4 }}
-          >
-            <Text
-              style={{
-                fontFamily: 'monospace',
-                color: tokens.color.textMuted,
-                fontSize: tokens.fontSize.xs,
-                lineHeight: 16,
-              }}
-            >
-              {file.body}
-            </Text>
-          </ScrollView>
-
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-            {ACTIONS.map((action) => (
-              <Pressable
-                key={action.name}
-                testID={`conflict.action.${action.name}`}
-                accessibilityRole="button"
-                accessibilityLabel={action.label}
-                onPress={() => {
-                  // placeholder; no real per-file API yet
-                }}
-                style={{
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  marginRight: 8,
-                  marginBottom: 8,
-                  borderRadius: tokens.radius.md,
-                  backgroundColor: tokens.color.surfaceMuted,
-                }}
-              >
-                <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: tokens.fontSize.sm }}>{action.label}</Text>
-              </Pressable>
-            ))}
-            <Pressable
-              testID="conflict.action.vscode"
-              accessibilityRole="link"
-              accessibilityLabel="Open in VSCode Web"
-              onPress={openVscode}
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                marginRight: 8,
-                marginBottom: 8,
-                borderRadius: tokens.radius.md,
-                borderWidth: 1,
-                borderColor: tokens.color.primary,
-                backgroundColor: tokens.color.surface,
-              }}
-            >
-              <Text style={{ color: tokens.color.primary, fontWeight: '700', fontSize: tokens.fontSize.sm }}>Открыть в VSCode Web</Text>
-            </Pressable>
-          </View>
-        </View>
-      ))}
+      <View
+        testID="conflict.unsupported"
+        style={{
+          marginTop: 16,
+          backgroundColor: tokens.color.surface,
+          borderRadius: tokens.radius.lg,
+          padding: 16,
+          borderWidth: 1,
+          borderColor: tokens.color.border,
+        }}
+      >
+        <Text style={{ color: tokens.color.text, fontWeight: '700' }}>Разрешение по файлам недоступно</Text>
+        <Text style={{ color: tokens.color.textMuted, marginTop: 4, fontSize: tokens.fontSize.sm }}>
+          Этот backend пока не публикует конфликтующие файлы и не предоставляет VSCode Web. Прервите merge, затем rebase или fork задачу после исправления рабочей копии.
+        </Text>
+      </View>
 
       <Pressable
         testID="conflict.action.abort"

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Task } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 export type TasksStatus = 'loading' | 'loaded' | 'empty' | 'error';
 

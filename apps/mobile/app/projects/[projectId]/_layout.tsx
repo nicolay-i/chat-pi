@@ -1,4 +1,4 @@
-import { Slot, useLocalSearchParams } from 'expo-router';
+import { Slot, useLocalSearchParams } from '@/navigation';
 import { Platform } from 'react-native';
 import { ProjectWebShell } from '@/components/shell/ProjectWebShell';
 

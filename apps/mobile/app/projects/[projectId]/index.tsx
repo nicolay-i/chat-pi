@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from '@/navigation';
 import type { Chat, Project, Task } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { observer } from '@/lib/observer';
+import { useRootStore } from '@/providers/RootStoreProvider';
+import { useBackend } from '@/stores/useBackend';
 
 type Status = 'loading' | 'loaded' | 'error';
 
-export default function ProjectDashboardScreen() {
+const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { baseUrl } = useBackend();
+  const { tasks: tasksStore } = useRootStore();
   const [project, setProject] = useState<Project | null>(null);
   const [chats, setChats] = useState<Chat[] | null>(null);
-  const [tasks, setTasks] = useState<Task[] | null>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -30,12 +32,11 @@ export default function ProjectDashboardScreen() {
     const client = new ApiClient(baseUrl);
     setStatus('loading');
     setError(null);
-    Promise.all([client.getProject(projectId), client.getChats(projectId), client.getTasks(projectId)])
-      .then(([p, c, t]) => {
+    Promise.all([client.getProject(projectId), client.getChats(projectId), tasksStore.hydrateProject(projectId)])
+      .then(([p, c]) => {
         if (!active) return;
         setProject(p);
         setChats(c);
-        setTasks(t);
         setStatus('loaded');
       })
       .catch((err: unknown) => {
@@ -47,7 +48,7 @@ export default function ProjectDashboardScreen() {
     return () => {
       active = false;
     };
-  }, [baseUrl, projectId, nonce]);
+  }, [baseUrl, projectId, nonce, tasksStore]);
 
   if (status === 'loading') {
     return (
@@ -75,7 +76,7 @@ export default function ProjectDashboardScreen() {
     );
   }
 
-  const activeTasks = tasks?.filter((t) => t.status === 'running' || t.status === 'needs_review') ?? [];
+  const activeTasks = tasksStore.byProject(projectId).filter((task) => task.isRunning);
   const lastChat = chats && chats.length > 0 ? chats[0] : null;
 
   const cardStyle = {
@@ -167,4 +168,6 @@ export default function ProjectDashboardScreen() {
       </View>
     </ScrollView>
   );
-}
+});
+
+export default ProjectDashboardScreen;

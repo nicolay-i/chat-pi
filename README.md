@@ -1,242 +1,187 @@
 # Pi Agents Mobile/Web
 
-Приложение-оболочка для работы с Pi через web / Android / iOS: React Native + Web
-клиент на Expo Router, Hono backend на Node, типизированные контракты через общие
-Zod-схемы, git worktree как средство изоляции параллельных writable-задач.
+Кроссплатформенный клиент для работы с LLM-агентом через Web, Android и iOS.
+Репозиторий содержит Expo/React Native приложение, Hono API и общие типизированные
+контракты. Записи агента всегда изолированы: `Task = branch + worktree + Pi
+session + event stream + checkpoints`.
 
-- **Frontend** (`@pi-agents/mobile`): Expo Router (React Native + Web), TypeScript strict, jest-expo.
-- **Backend** (`@pi-agents/api`): Hono на Node 24, `node:sqlite`, vitest, реальный git worktree.
-- **Contracts** (`@pi-agents/contracts`): общие Zod-схемы и типы.
-- `.agents/` — системная папка проекта (манифест задач, промпты, skills).
+## Состояние проекта
 
-> Главный инвариант: любая параллельная writable-работа запускается как отдельный
-> `Task = branch + git worktree + Pi session + event stream + checkpoints`. Main
-> checkout не используется для прямых записей агентом; готовая задача попадает в
-> основной repo через явное «Слить в repo».
+- **Mobile/Web:** Expo SDK 57, React Native 0.86, TypeScript, MobX.
+- **Навигация:** явный React Navigation native stack и централизованный registry в
+  `apps/mobile/src/navigation/`, без файловой навигации Expo Router.
+- **API:** Hono, SQLite, SSE, общие Zod-схемы и machine-readable API registry.
+- **Agent runtime:** локальный Pi CLI запускается на backend через `AgentRuntime`;
+  для разработки доступен детерминированный `fake` runtime.
+- **Git workflow:** реальные worktree, persistent Pi sessions, checkpoint, fork,
+  rollback, rebase/stale detection и squash/no-ff merge.
 
-Подробное ТЗ — в `docs/01-technical-requirements.md` и `docs/02-screen-specification.md`.
-Текущий статус реализации — в `docs/IMPLEMENTATION-STATUS.md`.
+Детальный статус и оставшиеся ограничения: `docs/IMPLEMENTATION-STATUS.md`.
 
----
+## Требования
 
-## Установка и запуск
+- Node.js 24+.
+- pnpm 9.15.1 (`corepack enable`).
+- Git в `PATH`.
+- Для реальных agent turns: локальный Pi CLI и его авторизация.
+- Для запуска на Android/iOS: Expo Go либо локальная native-сборка.
 
-### Prerequisites
+## Установка и проверка
 
-- **Node 24+** (backend использует встроенный `node:sqlite`).
-- **pnpm 9+** (`corepack enable && corepack prepare pnpm@latest --activate`).
-- **git** в PATH (backend выполняет реальные git-операции через child_process).
-- (Опционально) Expo CLI / Expo Go для запуска мобильного клиента на устройстве.
-
-### Install
-
-Из корня репозитория (workspaces резолвятся автоматически):
-
-```bash
-pnpm install
+```powershell
+pnpm install --frozen-lockfile
+pnpm -r typecheck
+pnpm -r test
+pnpm -r lint
 ```
 
-### Verify
+`lint` является блокирующим CI gate. В нём пока есть предупреждения legacy-кода,
+но нет ошибок.
 
-Все три команды должны быть зелёными:
+`pnpm export:web` проверен и в Linux CI, и локально на Windows. Файл `.npmrc`
+держит pnpm virtual store внутри workspace (`node_modules/.pnpm`): это исключает
+абсолютные Windows-пути в asset names Expo и делает static export воспроизводимым.
 
-```bash
-pnpm -r typecheck   # tsc --noEmit в каждом пакете
-pnpm -r test        # contracts (vitest) + api (vitest) + mobile (jest-expo)
-pnpm -r lint        # tsc в api/contracts, expo lint в mobile
-```
+## Локальный запуск
 
-Тесты: `contracts` 16 + `api` 94 + `mobile` 214 = **324 теста**.
+```powershell
+# Backend с безопасной детерминированной реализацией агента.
+pnpm dev:api
 
-### Run API
-
-```bash
-pnpm dev:api              # tsx watch src/index.ts
-```
-
-По умолчанию поднимается на `http://localhost:8787`. Переменные окружения
-(читаются в `apps/api/src/config.ts` и `apps/api/src/db/db.ts`):
-
-| Переменная   | По умолчанию    | Описание                                                            |
-| ------------ | --------------- | ------------------------------------------------------------------ |
-| `PORT`       | `8787`          | Порт HTTP-сервера.                                                 |
-| `NODE_ENV`   | `development`   | Режим работы.                                                       |
-| `LOG_LEVEL`  | `info`          | Уровень логирования.                                                |
-| `DB_PATH`    | `.data/app.db`  | Путь к файлу SQLite (создаётся при первом запуске). `:memory:` — в RAM. |
-| `AGENT_RUNTIME` | `fake` | Runtime агента: `fake` для UI-разработки, `pi` для локального Pi CLI. |
-| `PI_CWD` | текущая директория API | Рабочая директория Pi-сессий. |
-| `PI_BIN` / `PI_NODE` | `pi.cmd` / Node из PATH | Явный путь к Pi CLI или Node для запуска его JS entry. |
-| `PI_PROVIDER` / `PI_MODEL` | Pi default | Явно выбранный провайдер и модель для Pi. |
-
-Для запуска с локальным Pi в PowerShell задайте `AGENT_RUNTIME=pi` до команды
-`pnpm dev:api`; пример значений лежит в `apps/api/.env.example`.
-
-> **Замечание:** `node:sqlite` в Node 24 — experimental API. Предупреждение
-> `ExperimentalWarning: node:sqlite is an experimental feature` выводится в
-> консоль, но **является косметическим** и не влияет на работу.
-
-### Run mobile / web
-
-```bash
-pnpm --filter @pi-agents/mobile start   # Expo Dev UI
-# в интерактивном меню: w — web, либо отсканировать QR для Expo Go
-# либо сразу web-only:
+# Web-клиент.
 pnpm dev:web
 ```
 
-Для проверки с устройства в Tailnet: `pnpm dev:tailscale`, затем открыть web URL
-и в setup указать Tailscale URL API.
+В приложении откройте `/setup`, задайте API URL и проверьте соединение. На Web
+явная навигация синхронизирует route с адресной строкой; на iOS/Android тот же
+route registry преобразуется в native stack.
 
-### First-run flow
+### Локальный Pi
 
-1. Запустить API: `pnpm dev:api`.
-2. В приложении открыть экран `/setup`.
-3. Ввести backend URL (например `http://localhost:8787`) → **Test connection**
-   → **Save**.
-4. Приложение создаёт или переиспользует локальный чат и открывает `/chat/[chatId]`.
+`apps/api/.env.example` содержит шаблон. В PowerShell:
 
----
-
-## Арххитектура кратко
-
-### Раскладка монорепо
-
-Три пакета + системная папка `.agents`:
-
-```text
-chat-pi/
-├── apps/mobile/            # пакет `mobile`  — Expo Router (RN + Web)
-│   ├── app/                # 22 файловых маршрута Expo Router
-│   └── src/{api,components,features,state,theme,mocks}
-├── apps/api/               # пакет `api`     — Hono backend
-│   └── src/{config,server,index,db,realtime,services}
-├── packages/contracts/     # `@pi-agents/contracts` — Zod-схемы и типы
-│   └── src/{index,schemas}
-└── .agents/                # системная папка проекта
-    ├── project.json
-    └── tasks/{manifest.json,index.md,T00–T22,B00–B08}
+```powershell
+$env:AGENT_RUNTIME = 'pi'
+$env:PI_BIN = 'pi.cmd'
+$env:PI_PROVIDER = '' # optional
+$env:PI_MODEL = ''    # optional
+pnpm dev:api
 ```
 
-### Поток данных
+Первый запуск Pi может занять заметное время. Для implementation-задачи runtime
+получает именно task worktree и persistent session path; общий checkout не
+выдаётся агенту для записи.
 
-```text
-App message
-   │  POST /api/.../messages
-   ▼
-api: taskService → piRuntimeService (Fake / stub) → eventStore.append()
-   │                                                       │
-   │                                                       ▼ pub/sub
-   ▼                                          SSE /api/.../events?after=<id>
-mobile: realtimeClient → RealtimeManager (resume-by-event-id + backoff)
-   │
-   ▼
-eventReducer (чистый, детерминированный) → zustand stores → UI
+## Настройки API
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `8787` | HTTP port. |
+| `API_HOST` | `127.0.0.1` | Standalone bind address. Set a specific Tailnet IP to reach it from a trusted device. |
+| `DB_PATH` | `.data/app.db` (relative to `apps/api`) | SQLite database path. |
+| `AGENT_RUNTIME` | `fake` | `fake` or `pi`. |
+| `PI_BIN` | from `PATH` | Pi CLI command available to backend. |
+| `PI_PROVIDER` / `PI_MODEL` | Pi default | Optional provider/model selection. |
+| `CORS_ORIGINS` | empty in development | Comma-separated allowed browser origins. Required in production. |
+| `MAX_BODY_BYTES` | `1048576` | Maximum HTTP request body size. |
+| `PACKAGE_RESOLVE_RATE_LIMIT` | `10` | Per-client requests allowed for package resolution per time window. |
+| `PACKAGE_RESOLVE_RATE_WINDOW_SECONDS` | `60` | Package-resolution rate-limit window. |
+| `TRUST_PROXY` | `false` | Trust `X-Forwarded-For` only when a reverse proxy overwrites it. |
+| `DISK_WARNING_FREE_BYTES` | `1073741824` | Free-space threshold for a structured API warning near `DB_PATH`. |
+| `DISK_CHECK_INTERVAL_SECONDS` | `300` | Interval for the API storage-capacity check. |
+
+`NODE_ENV=production` without `CORS_ORIGINS` deliberately prevents API startup.
+Use full origins only, for example
+`https://chat.tailnet.ts.net,http://100.116.45.50:8092`; paths are rejected.
+`POST /packages/resolve` is limited per client and returns `429` with
+`Retry-After`; this is a per-process limiter and must be replaced with shared
+storage before running several API replicas.
+The API emits JSON lifecycle logs, checks storage adjacent to `DB_PATH`, and
+handles `SIGINT`/`SIGTERM` by closing the listener before exit.
+
+## Backup and staging restore
+
+```powershell
+# Creates SQLite snapshot, approved .agents/runtime files, Git refs and SHA-256 manifest.
+pnpm --filter @pi-agents/api backup D:\Backups\pi-agents\2026-07-11
+
+# Refuses a non-empty target and verifies every manifest hash before copying.
+pnpm --filter @pi-agents/api restore D:\Backups\pi-agents\2026-07-11 D:\Restore\pi-agents
 ```
 
-- `eventReducer` — чистая функция; одинаковая последовательность событий даёт
-  одинаковое состояние (тестируется явно).
-- Reconnect/resume догружает события после последнего `event_id` через query-параметр
-  `?after=` (поддерживается SSE-эндпоинтами чата/задачи/проекта).
-- Состояния подключения и оффлайн-баннер живут в `state/connectionStore` и
-  отображаются глобально в `_layout.tsx`.
+The restore command is deliberately staging-only: it does not overwrite source
+repositories or rebind project paths in SQLite. To activate a staged recovery,
+prepare clean Git checkouts that already contain the exact task branch commits
+recorded in the backup, then provide explicit project mappings:
 
-### Структура проекта (реализовано)
-
-**`apps/mobile/app/`** — маршруты Expo Router:
-
-```text
-_layout.tsx · index.tsx · setup.tsx · projects.tsx · approvals.tsx · settings.tsx
-projects/
-├── new.tsx
-└── [projectId]/
-    ├── _layout.tsx · index.tsx · actions.tsx · files.tsx · obsidian.tsx
-    ├── chats/        index.tsx · new.tsx · [chatId]/{index,actions,trace,tree}.tsx
-    │                                └── [chatId]/{messages,toolcalls}/
-    ├── tasks/        index.tsx · [taskId]/{index,diff,merge,conflicts,
-    │                                       checkpoints,vscode}.tsx
-    ├── files/
-    └── settings/     {project,theme,providers,mcp,packages,packages/,prompts,
-                       prompts/,skills,skills/}.tsx
+```json
+[
+  {
+    "projectId": "project-id-from-database",
+    "repoPath": "D:/Repos/restored-project",
+    "runtimeStatePath": "D:/PiAgentsRuntime/restored-project"
+  }
+]
 ```
 
-**`apps/mobile/src/`**:
-
-```text
-api/        ApiClient (~40 методов, ApiClientError), eventStream, ApiClient tests
-components/ chat/ {MessageBubble, ToolCard, Composer, DiffPreview, QuickActionChip,
-                  ChatReferenceScreen, composerRules}
-            shell/ {Placeholder, ProjectWebShell}
-features/   {projects, chats, chat, actions, approvals, tasks, trace, diff, merge,
-             checkpoints, files, skills, theme} + settings subdirs
-state/      backendStore · backendStorage (expo-secure-store) · connectionStore ·
-            eventReducer · realtimeClient · RealtimeManager · index
-theme/      design tokens + themeStore (zustand override layer)
-mocks/      фикстуры для UI-тестов и офлайн-режима
+```powershell
+pnpm --filter @pi-agents/api restore:activate D:\Restore\pi-agents D:\Restore\project-mappings.json
 ```
 
-**`apps/api/src/`**:
+Activation refuses existing runtime or `.agents` directories, validates every
+restorable task branch against the backed-up SHA, recreates worktrees and clears
+stale Pi locks before rebinding the staged SQLite paths. It does not clone,
+fetch or overwrite Git repositories. Backup excludes `.env`, credentials,
+`auth.json`, private-key files, `.git`, `node_modules` and task worktree files.
 
-```text
-config.ts     PORT / NODE_ENV / LOG_LEVEL (с валидацией порта)
-index.ts      serve(createApp(getDb()))
-server.ts     createApp(db) — DB-backed Hono routes, SSE, onError
-db/           db.ts · migrations.ts (8 таблиц) · util.ts · repositories/
-              repositories: projects · chats · tasks · events · pi_sessions ·
-                            checkpoints · packages · providers
-realtime/     eventStore.ts (append + pub/sub) · sse.ts (web-standard SSE helper)
-services/     projectService · chatService · taskService (status-transition)
-              gitExec · gitWorktreeService (child_process)
-              piRuntimeService · runtimeManager · piJsonl · sessionSyncService
-              checkpointService · forkService · rollbackService · mergeService
-              packageService · providerService · actionEngine · skillRunner
-              taskStatus
+## Docker / VPS
+
+The repository contains a production-oriented API compose file. It persists
+SQLite in a named volume, mounts managed Git repositories separately, runs Git
+inside the container and keeps the HTTP port bound to localhost by default.
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+# Set CORS_ORIGINS and PROJECTS_ROOT in .env.docker.
+docker compose --env-file .env.docker up --build -d
+docker compose --env-file .env.docker logs -f api
 ```
 
-**`packages/contracts/src/`** — `schemas.ts` (20+ Zod-схем) + `index.ts`.
+To expose API to an authenticated Tailnet device, set `API_BIND_ADDRESS` to the
+host Tailscale IP and include the Web origin in `CORS_ORIGINS`. Do not expose
+the unauthenticated API to the public internet. The supplied image runs the
+fake runtime by default. `AGENT_RUNTIME=pi` requires the Pi CLI to be installed
+inside a derived image and `PI_BIN` to point to that executable.
 
-### Заявленные заглушки (важно!)
+## Architecture
 
-Следующие подсистемы реализованы как явные **stubs** и не претендуют на
-production-готовность — помечено, чтобы не вводить в заблуждение:
+```text
+React Native Web / Android / iOS
+  explicit React Navigation + MobX RootStore
+                 |
+                 | typed ApiClient + SSE
+                 v
+Hono API + SQLite + shared Zod contracts
+                 |
+                 v
+Task worktree + AgentRuntime (Pi or fake) + event stream
+```
 
-- **Pi runtime adapter** (`piRuntimeService.PiRuntimeAdapter`) — реальный бинарник
-  Pi не подключён; в продакшене используется `FakePiRuntime` + `RuntimeManager`.
-  Полноценная интеграция с Pi CLI — отдельная задача после появления бинарника.
-- **`providerService` / "Test connection"** — transport замокан; реальных запросов
-  к OpenAI / Anthropic / Google не выполняется.
-- **`packageService.resolvePackage` / `installPackage`** — заглушки: нет реального
-  обращения к npm registry / git clone / local path.
-- **WebSocket realtime path** — стаб, end-to-end не тестируется (только SSE).
+The contract registry in `packages/contracts/src/apiOperations.ts` connects
+client operations with Hono route modules. API parity tests prevent a client
+operation from silently losing its server route.
 
-Полный список известных лакун в покрытии — `docs/TESTING-GAPS.md`.
+## Limitations
 
----
+- Authentication and pairing are intentionally postponed; the current backend
+  is suitable only for a trusted local/Tailnet environment.
+- Provider connection tests and package resolution are still local/synthetic;
+  provider secrets are not yet stored by the backend.
+- MCP configuration is persisted, but validation deliberately does not execute
+  arbitrary commands.
+- Docker compose structure is validated; image build/run requires a running
+  Docker engine on the host.
+- Device-level QA and a complete browser-to-Pi end-to-end flow remain final
+  release gates.
 
-## Документация и навигация
-
-- `docs/00–12-*.md` — ТЗ, экраны, дизайн-система, архитектура, API-контракт,
-  data-model, git-worktree runtime, pi-sync, test-strategy, subagents plan, DoD,
-  source notes.
-- `docs/IMPLEMENTATION-STATUS.md` — карта «задача → статус → файлы → lacuna»
-  по всем 33 задачам манифеста.
-- `docs/TESTING-GAPS.md` — задокументированные (намеренно) пробелы в автотестах.
-- `.agents/tasks/manifest.json` — формальный манифест 33 задач (T00–T22, B00–B08).
-- `.agents/tasks/index.md` — индекс файлов задач с отметками статуса.
-- `.agents/status.json` — машинно-читаемое отображение `task_id → status`.
-- `.agents/project.json` — политика задач (worktree, rollback, merge strategy,
-  требования к верификации).
-
-### Рекомендуемый порядок чтения
-
-1. `docs/01-technical-requirements.md` — ТЗ.
-2. `docs/02-screen-specification.md` — спецификация экранов.
-3. `docs/04-architecture.md` — архитектура высокого уровня.
-4. `docs/IMPLEMENTATION-STATUS.md` — что фактически реализовано.
-5. `docs/10-subagents-implementation-plan.md` — декомпозиция на подагентов.
-6. `.agents/tasks/` — индивидуальные карточки задач.
-
-### CI
-
-`.github/workflows/ci.yml`: на `push`/`pull_request` в `main` запускаются
-`pnpm -r typecheck` и `pnpm -r test` как обязательные гейты; `pnpm -r lint`
-выполняется с `continue-on-error: true` (не блокирует).
+See `docs/TESTING-GAPS.md` for the test-boundary inventory.

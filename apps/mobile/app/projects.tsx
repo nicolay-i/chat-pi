@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router } from '@/navigation';
 import type { Project } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { useProjects } from '@/features/projects/useProjects';
+import { observer } from '@/lib/observer';
 
 type Filter = 'all' | 'active' | 'needs_review' | 'stale';
 
@@ -29,7 +30,7 @@ function filterProjects(projects: Project[], filter: Filter, query: string): Pro
   });
 }
 
-export default function ProjectsScreen() {
+const ProjectsScreen = observer(function ProjectsScreen() {
   const { status, data, error, refetch } = useProjects();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -197,4 +198,6 @@ export default function ProjectsScreen() {
       </View>
     </View>
   );
-}
+});
+
+export default ProjectsScreen;

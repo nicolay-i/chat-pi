@@ -9,11 +9,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import type { Skill } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 import { parseInline, parseMarkdown, type MarkdownBlock } from '@/features/files/fileTree';
 import { findMockSkill, mockSkillBodies } from '@/features/skills/mockSkills';
 

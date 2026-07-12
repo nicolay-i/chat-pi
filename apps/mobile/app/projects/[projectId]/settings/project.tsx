@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
 import type { CreateProjectInput, Project } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 import { ProjectForm } from '@/features/projects/ProjectForm';
 
 type LoadStatus = 'loading' | 'loaded' | 'error';

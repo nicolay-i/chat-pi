@@ -25,17 +25,18 @@ const ABORT_AND_REPLACE_STATUSES: ReadonlySet<TaskStatus> = new Set<TaskStatus>(
 export function isBehaviorEnabled(
   behavior: SendMessageBehavior,
   taskStatus: TaskStatus | null | undefined,
+  hasActiveRun = false,
 ): boolean {
   const status = taskStatus ?? null;
   switch (behavior) {
     case 'send':
       return true;
     case 'follow_up':
-      return status !== null && FOLLOW_UP_STATUSES.has(status);
+      return hasActiveRun || (status !== null && FOLLOW_UP_STATUSES.has(status));
     case 'steer':
-      return status !== null && STEER_STATUSES.has(status);
+      return hasActiveRun || (status !== null && STEER_STATUSES.has(status));
     case 'abort_and_replace':
-      return status !== null && ABORT_AND_REPLACE_STATUSES.has(status);
+      return hasActiveRun || (status !== null && ABORT_AND_REPLACE_STATUSES.has(status));
     default:
       return false;
   }

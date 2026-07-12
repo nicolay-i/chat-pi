@@ -5,7 +5,7 @@ export type RealtimeState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'e
 
 export type RealtimeManagerOptions = {
   url: string;
-  initialAfter?: string | null;
+  initialAfterSequence?: number | null;
   maxReconnectAttempts?: number;
   onEvent: (event: RealtimeEnvelope) => void;
   onState?: (state: RealtimeState) => void;
@@ -27,7 +27,7 @@ export function computeBackoffMs(attempt: number): number {
 type CloseFn = () => void;
 
 export class RealtimeManager {
-  private lastEventId: string | null;
+  private lastSequence: number | null;
   private state: RealtimeState = 'idle';
   private closeFn: CloseFn | null = null;
   private reconnectAttempts = 0;
@@ -43,7 +43,7 @@ export class RealtimeManager {
 
   constructor(options: RealtimeManagerOptions) {
     this.url = options.url;
-    this.lastEventId = options.initialAfter ?? null;
+    this.lastSequence = options.initialAfterSequence ?? null;
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
     this.onEvent = options.onEvent;
     this.onState = options.onState;
@@ -56,8 +56,8 @@ export class RealtimeManager {
       });
   }
 
-  getLastEventId(): string | null {
-    return this.lastEventId;
+  getLastSequence(): number | null {
+    return this.lastSequence;
   }
 
   getState(): RealtimeState {
@@ -93,9 +93,11 @@ export class RealtimeManager {
     this.setState('connecting');
     const close = this.connect({
       url: this.url,
-      after: this.lastEventId ?? undefined,
+      afterSequence: this.lastSequence ?? undefined,
       onEvent: (event) => {
-        this.lastEventId = event.id;
+        if (this.lastSequence === null || event.sequence > this.lastSequence) {
+          this.lastSequence = event.sequence;
+        }
         this.onEvent(event);
       },
       onStateChange: (s) => {

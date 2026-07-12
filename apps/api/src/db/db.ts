@@ -5,6 +5,8 @@ import { migrate } from './migrations';
 
 export type { DatabaseSync } from 'node:sqlite';
 
+export const DEFAULT_DB_PATH = '.data/app.db';
+
 export function createDb(location: string | ':memory:' = ':memory:'): DatabaseSync {
   const db = new DatabaseSync(location);
   db.exec('PRAGMA foreign_keys = ON;');
@@ -16,7 +18,7 @@ let singleton: DatabaseSync | undefined;
 
 export function getDb(): DatabaseSync {
   if (!singleton) {
-    const location = process.env.DB_PATH ?? '.data/app.db';
+    const location = process.env.DB_PATH ?? DEFAULT_DB_PATH;
     if (location !== ':memory:') {
       mkdirSync(dirname(location), { recursive: true });
     }

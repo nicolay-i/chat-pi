@@ -66,8 +66,12 @@ export interface PiRpcClientOptions {
   cwd?: string;
   /** Extra environment variables merged on top of process.env. */
   env?: Record<string, string>;
+  /** Optional dedicated Pi state directory, instead of the user's ~/.pi/agent. */
+  agentDir?: string;
   provider?: string;
   model?: string;
+  /** Explicit persistent Pi JSONL session file. */
+  sessionPath?: string;
   /** Extra CLI args appended after --mode rpc. */
   args?: string[];
 }
@@ -83,6 +87,17 @@ const PI_PACKAGE_CLI = ['node_modules', '@earendil-works', 'pi-coding-agent', 'd
 
 function defaultPiBin(): string {
   return process.platform === 'win32' ? 'pi.cmd' : 'pi';
+}
+
+export function buildPiRpcArgs(options: Pick<PiRpcClientOptions, 'provider' | 'model' | 'sessionPath' | 'args'>): string[] {
+  const extra: string[] = [];
+  if (options.provider) extra.push('--provider', options.provider);
+  if (options.model) extra.push('--model', options.model);
+  if (options.sessionPath) {
+    extra.push('--session', options.sessionPath, '--session-dir', dirname(options.sessionPath));
+  }
+  if (options.args) extra.push(...options.args);
+  return ['--mode', 'rpc', ...extra];
 }
 
 /** Locate `bin` (e.g. "pi.cmd") on PATH and return its absolute path, or null. */
@@ -158,11 +173,7 @@ export class PiRpcClient {
   constructor(private readonly opts: PiRpcClientOptions = {}) {}
 
   private resolveSpawnTarget(): { command: string; args: string[] } {
-    const extra: string[] = [];
-    if (this.opts.provider) extra.push('--provider', this.opts.provider);
-    if (this.opts.model) extra.push('--model', this.opts.model);
-    if (this.opts.args) extra.push(...this.opts.args);
-    const rpcArgs = ['--mode', 'rpc', ...extra];
+    const rpcArgs = buildPiRpcArgs(this.opts);
 
     if (this.opts.nodeBin) {
       const cliPath = this.opts.piBin ?? defaultPiBin();
@@ -187,7 +198,11 @@ export class PiRpcClient {
     try {
       child = spawn(command, args, {
         cwd: this.opts.cwd,
-        env: this.opts.env ? { ...process.env, ...this.opts.env } : process.env,
+        env: {
+          ...process.env,
+          ...this.opts.env,
+          ...(this.opts.agentDir ? { PI_CODING_AGENT_DIR: this.opts.agentDir } : {}),
+        },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     } catch (err) {

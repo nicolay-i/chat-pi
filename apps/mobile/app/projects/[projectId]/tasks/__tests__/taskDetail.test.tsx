@@ -1,8 +1,9 @@
-import { render } from '@testing-library/react-native';
 
-jest.mock('expo-router', () => ({
+import { renderWithStore as render } from '@/test/renderWithStore';
+
+jest.mock('@/navigation', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
-  useLocalSearchParams: jest.fn(() => ({ taskId: 'task-1' })),
+  useLocalSearchParams: jest.fn(() => ({ projectId: 'project-demo', taskId: 'task-1' })),
 }));
 
 jest.mock('@/state/backendStorage', () => ({
@@ -37,11 +38,22 @@ const TASK = {
   branchName: 'feat/debounce',
   worktreePath: '/repo/.worktrees/task-1',
   changedFiles: 5,
+  sourceChatId: 'chat-1',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+const TRACE = [{
+  id: 'event-1',
+  sequence: 1,
+  stream: 'task',
+  streamId: 'task-1',
+  type: 'run.completed',
+  payload: {},
+  createdAt: '2026-01-01T00:00:00.000Z',
+}];
+
 function configureBackend(url: string): void {
-  const mod = require('@/state/backendStore') as typeof import('@/state/backendStore');
+  const mod = require('@/test/rootStoreHarness') as typeof import('@/test/rootStoreHarness');
   mod.backendActions.setBaseUrl(url);
 }
 
@@ -53,7 +65,7 @@ describe('TaskDetailScreen', () => {
 
   it('renders tabs and header once loaded', async () => {
     configureBackend('https://backend.example');
-    setFetch(jest.fn(async () => jsonRes(TASK)));
+    setFetch(jest.fn(async (input) => jsonRes(String(input).endsWith('/trace') ? TRACE : TASK)));
 
     const { findByTestId, getByText } = await render(<TaskDetailScreen />);
     expect(await findByTestId('taskDetail.header')).toBeTruthy();
@@ -64,12 +76,15 @@ describe('TaskDetailScreen', () => {
     expect(getByText('feat/debounce')).toBeTruthy();
   });
 
-  it('renders runtime panel and collapsed dangerous actions on overview', async () => {
+  it('renders runtime data, task transitions and collapsed dangerous actions on overview', async () => {
     configureBackend('https://backend.example');
-    setFetch(jest.fn(async () => jsonRes(TASK)));
+    setFetch(jest.fn(async (input) => jsonRes(String(input).endsWith('/trace') ? TRACE : TASK)));
 
     const { findByTestId } = await render(<TaskDetailScreen />);
     expect(await findByTestId('taskDetail.runtimePanel')).toBeTruthy();
+    expect(await findByTestId('taskDetail.openChat')).toBeTruthy();
+    expect(await findByTestId('taskDetail.openTrace')).toBeTruthy();
+    expect(await findByTestId('taskDetail.openDiff')).toBeTruthy();
     expect(await findByTestId('taskDetail.dangerousActions')).toBeTruthy();
   });
 

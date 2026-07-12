@@ -45,6 +45,8 @@ export type PiSessionInput = {
 };
 
 export type PiSessionPatch = Partial<{
+  path: string;
+  cwd: string;
   lastImportedOffset: number;
   lastEntryId: string | null;
   activeLeafEntryId: string | null;
@@ -74,13 +76,34 @@ export type PiSessionsRepository = {
   create(input: PiSessionInput): PiSessionRecord;
   getById(id: string): PiSessionRecord | undefined;
   getByPath(path: string): PiSessionRecord | undefined;
+  getByTaskId(taskId: string): PiSessionRecord | undefined;
   update(id: string, patch: PiSessionPatch): PiSessionRecord | undefined;
-  acquireLock(id: string, owner: string): boolean;
+  acquireLock(id: string, owner: string, staleAfterMs?: number): boolean;
+  heartbeatLock(id: string, owner: string): boolean;
   releaseLock(id: string, owner: string): boolean;
+  clearLock(id: string): boolean;
+  releaseExpiredLocks(staleAfterMs?: number): number;
   list(): PiSessionRecord[];
 };
 
-export function createPiSessionsRepository(db: DatabaseSync): PiSessionsRepository {
+export type PiSessionsRepositoryOptions = {
+  clock?: () => Date;
+  defaultLockTtlMs?: number;
+};
+
+const DEFAULT_LOCK_TTL_MS = 2 * 60 * 1000;
+
+function didChange(result: { changes: number | bigint }): boolean {
+  return Number(result.changes) > 0;
+}
+
+export function createPiSessionsRepository(
+  db: DatabaseSync,
+  options: PiSessionsRepositoryOptions = {},
+): PiSessionsRepository {
+  const clock = options.clock ?? (() => new Date());
+  const defaultLockTtlMs = options.defaultLockTtlMs ?? DEFAULT_LOCK_TTL_MS;
+
   return {
     create(input) {
       const id = randomId();
@@ -121,6 +144,12 @@ export function createPiSessionsRepository(db: DatabaseSync): PiSessionsReposito
         .get(path) as PiSessionRow | undefined;
       return row ? rowToRecord(row) : undefined;
     },
+    getByTaskId(taskId) {
+      const row = db
+        .prepare('SELECT * FROM pi_sessions WHERE task_id = ? ORDER BY created_at DESC LIMIT 1')
+        .get(taskId) as PiSessionRow | undefined;
+      return row ? rowToRecord(row) : undefined;
+    },
     update(id, patch) {
       const entries = Object.entries(patch).filter(([, v]) => v !== undefined);
       const now = nowIso();
@@ -136,28 +165,49 @@ export function createPiSessionsRepository(db: DatabaseSync): PiSessionsReposito
       }
       return this.getById(id);
     },
-    acquireLock(id, owner) {
-      const row = db
-        .prepare('SELECT lock_owner FROM pi_sessions WHERE id = ?')
-        .get(id) as { lock_owner: string | null } | undefined;
-      if (!row) return false;
-      if (row.lock_owner !== null && row.lock_owner !== owner) return false;
-      const now = nowIso();
-      db.prepare(
-        'UPDATE pi_sessions SET lock_owner = ?, lock_heartbeat_at = ?, updated_at = ? WHERE id = ?',
-      ).run(owner, now, now, id);
-      return true;
+    acquireLock(id, owner, staleAfterMs = defaultLockTtlMs) {
+      const current = clock();
+      const now = current.toISOString();
+      const staleBefore = new Date(current.getTime() - staleAfterMs).toISOString();
+      const result = db.prepare(
+        `UPDATE pi_sessions
+         SET lock_owner = ?, lock_heartbeat_at = ?, updated_at = ?
+         WHERE id = ?
+           AND (lock_owner IS NULL OR lock_owner = ? OR lock_heartbeat_at IS NULL OR lock_heartbeat_at <= ?)`,
+      ).run(owner, now, now, id, owner, staleBefore);
+      return didChange(result);
+    },
+    heartbeatLock(id, owner) {
+      const now = clock().toISOString();
+      const result = db.prepare(
+        'UPDATE pi_sessions SET lock_heartbeat_at = ?, updated_at = ? WHERE id = ? AND lock_owner = ?',
+      ).run(now, now, id, owner);
+      return didChange(result);
     },
     releaseLock(id, owner) {
-      const row = db
-        .prepare('SELECT lock_owner FROM pi_sessions WHERE id = ?')
-        .get(id) as { lock_owner: string | null } | undefined;
-      if (!row || row.lock_owner !== owner) return false;
-      const now = nowIso();
-      db.prepare(
-        'UPDATE pi_sessions SET lock_owner = NULL, lock_heartbeat_at = NULL, updated_at = ? WHERE id = ?',
+      const now = clock().toISOString();
+      const result = db.prepare(
+        'UPDATE pi_sessions SET lock_owner = NULL, lock_heartbeat_at = NULL, updated_at = ? WHERE id = ? AND lock_owner = ?',
+      ).run(now, id, owner);
+      return didChange(result);
+    },
+    clearLock(id) {
+      const now = clock().toISOString();
+      const result = db.prepare(
+        'UPDATE pi_sessions SET lock_owner = NULL, lock_heartbeat_at = NULL, updated_at = ? WHERE id = ? AND lock_owner IS NOT NULL',
       ).run(now, id);
-      return true;
+      return didChange(result);
+    },
+    releaseExpiredLocks(staleAfterMs = defaultLockTtlMs) {
+      const current = clock();
+      const now = current.toISOString();
+      const staleBefore = new Date(current.getTime() - staleAfterMs).toISOString();
+      const result = db.prepare(
+        `UPDATE pi_sessions
+         SET lock_owner = NULL, lock_heartbeat_at = NULL, updated_at = ?
+         WHERE lock_owner IS NOT NULL AND (lock_heartbeat_at IS NULL OR lock_heartbeat_at <= ?)`,
+      ).run(now, staleBefore);
+      return Number(result.changes);
     },
     list() {
       const rows = db

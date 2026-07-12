@@ -43,6 +43,7 @@ export const MIGRATIONS: string[] = [
    );`,
   `CREATE TABLE IF NOT EXISTS chat_events (
      id text primary key,
+     sequence integer not null unique,
      project_id text not null,
      chat_id text,
      task_id text,
@@ -51,6 +52,9 @@ export const MIGRATIONS: string[] = [
      type text not null,
      payload_json text not null,
      created_at text not null
+   );`,
+  `CREATE TABLE IF NOT EXISTS event_sequences (
+     sequence integer primary key autoincrement
    );`,
   `CREATE TABLE IF NOT EXISTS task_checkpoints (
      id text primary key,
@@ -103,7 +107,6 @@ export const MIGRATIONS: string[] = [
      created_at text not null,
      updated_at text not null
    );`,
-  `CREATE INDEX IF NOT EXISTS idx_chat_events_stream ON chat_events(chat_id, task_id, created_at, id);`,
   `CREATE INDEX IF NOT EXISTS idx_chats_project ON chats(project_id);`,
   `CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);`,
   `CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);`,
@@ -113,4 +116,13 @@ export function migrate(db: DatabaseSync): void {
   for (const sql of MIGRATIONS) {
     db.exec(sql);
   }
+
+  const columns = db.prepare('PRAGMA table_info(chat_events)').all() as { name: string }[];
+  if (!columns.some((column) => column.name === 'sequence')) {
+    db.exec('ALTER TABLE chat_events ADD COLUMN sequence integer');
+  }
+  db.exec('UPDATE chat_events SET sequence = rowid WHERE sequence IS NULL');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_events_sequence ON chat_events(sequence)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_chat_events_stream_sequence ON chat_events(chat_id, task_id, sequence)');
+  db.exec('INSERT OR IGNORE INTO event_sequences(sequence) SELECT sequence FROM chat_events');
 }

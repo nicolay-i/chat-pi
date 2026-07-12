@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RealtimeEnvelopeSchema, type RealtimeEnvelope } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 export type TraceStatus = 'loading' | 'loaded' | 'empty' | 'error';
 

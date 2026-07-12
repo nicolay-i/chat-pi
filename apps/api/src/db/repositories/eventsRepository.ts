@@ -6,6 +6,7 @@ type SqlValue = string | number | bigint | null | Uint8Array;
 
 export type ChatEventRow = {
   id: string;
+  sequence: number;
   project_id: string;
   chat_id: string | null;
   task_id: string | null;
@@ -47,6 +48,7 @@ export function eventRowToEnvelope(row: ChatEventRow): RealtimeEnvelope {
         : row.task_id ?? row.project_id;
   return {
     id: row.id,
+    sequence: row.sequence,
     stream,
     streamId,
     type: row.type as EventType,
@@ -57,33 +59,29 @@ export function eventRowToEnvelope(row: ChatEventRow): RealtimeEnvelope {
 
 export type EventsRepository = {
   append(input: ChatEventInput): RealtimeEnvelope;
-  listByChat(chatId: string, afterId?: string): RealtimeEnvelope[];
-  listByTask(taskId: string, afterId?: string): RealtimeEnvelope[];
-  listByProject(projectId: string, afterId?: string): RealtimeEnvelope[];
+  listByChat(chatId: string, afterSequence?: number): RealtimeEnvelope[];
+  listByTask(taskId: string, afterSequence?: number): RealtimeEnvelope[];
+  listByProject(projectId: string, afterSequence?: number): RealtimeEnvelope[];
 };
 
 export function createEventsRepository(db: DatabaseSync): EventsRepository {
   const listEvents = (
     where: string,
     params: SqlValue[],
-    afterId?: string,
+    afterSequence?: number,
   ): RealtimeEnvelope[] => {
-    const orderBy = ' ORDER BY created_at ASC, id ASC';
-    if (afterId === undefined) {
+    const orderBy = ' ORDER BY sequence ASC';
+    if (afterSequence === undefined) {
       const rows = db
         .prepare(`SELECT * FROM chat_events WHERE ${where}${orderBy}`)
         .all(...params) as unknown as ChatEventRow[];
       return rows.map(eventRowToEnvelope);
     }
-    const anchor = db
-      .prepare('SELECT created_at, id FROM chat_events WHERE id = ?')
-      .get(afterId) as { created_at: string; id: string } | undefined;
-    if (!anchor) return [];
     const rows = db
       .prepare(
-        `SELECT * FROM chat_events WHERE ${where} AND (created_at > ? OR (created_at = ? AND id > ?))${orderBy}`,
+        `SELECT * FROM chat_events WHERE ${where} AND sequence > ?${orderBy}`,
       )
-      .all(...params, anchor.created_at, anchor.created_at, anchor.id) as unknown as ChatEventRow[];
+      .all(...params, afterSequence) as unknown as ChatEventRow[];
     return rows.map(eventRowToEnvelope);
   };
 
@@ -91,11 +89,13 @@ export function createEventsRepository(db: DatabaseSync): EventsRepository {
     append(input) {
       const id = ulid();
       const now = nowIso();
+      const sequence = Number(db.prepare('INSERT INTO event_sequences DEFAULT VALUES').run().lastInsertRowid);
       db.prepare(
-        `INSERT INTO chat_events (id, project_id, chat_id, task_id, pi_session_id, source, type, payload_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO chat_events (id, sequence, project_id, chat_id, task_id, pi_session_id, source, type, payload_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
+        sequence,
         input.projectId,
         input.chatId ?? null,
         input.taskId ?? null,
@@ -113,6 +113,7 @@ export function createEventsRepository(db: DatabaseSync): EventsRepository {
             : input.taskId ?? input.projectId;
       return {
         id,
+        sequence,
         stream: input.source,
         streamId,
         type: input.type,
@@ -120,14 +121,14 @@ export function createEventsRepository(db: DatabaseSync): EventsRepository {
         createdAt: now,
       };
     },
-    listByChat(chatId, afterId) {
-      return listEvents('chat_id = ?', [chatId], afterId);
+    listByChat(chatId, afterSequence) {
+      return listEvents('chat_id = ?', [chatId], afterSequence);
     },
-    listByTask(taskId, afterId) {
-      return listEvents('task_id = ?', [taskId], afterId);
+    listByTask(taskId, afterSequence) {
+      return listEvents('task_id = ?', [taskId], afterSequence);
     },
-    listByProject(projectId, afterId) {
-      return listEvents('project_id = ?', [projectId], afterId);
+    listByProject(projectId, afterSequence) {
+      return listEvents('project_id = ?', [projectId], afterSequence);
     },
   };
 }

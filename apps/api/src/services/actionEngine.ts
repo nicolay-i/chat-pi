@@ -13,6 +13,7 @@ export interface ActionEngine {
     actionId: string,
     input?: Record<string, unknown>,
   ): Promise<ActionRun>;
+  getActionRun(actionRunId: string): Promise<ActionRun | undefined>;
 }
 
 /**
@@ -87,6 +88,7 @@ function visible(action: Action, ctx: ActionContext): boolean {
 }
 
 export function createActionEngine(_db: DatabaseSync): ActionEngine {
+  const runs = new Map<string, ActionRun>();
   return {
     async listActions(_projectId, context) {
       const ctx = context ?? {};
@@ -97,13 +99,20 @@ export function createActionEngine(_db: DatabaseSync): ActionEngine {
     },
 
     async runAction(actionId, input) {
-      return {
+      const action = CATALOG.find((item) => item.id === actionId);
+      if (!action) throw new Error(`action not found: ${actionId}`);
+      const run: ActionRun = {
         id: randomId(),
         actionId,
         status: 'completed',
         result: { actionId, input: input ?? {} },
         createdAt: new Date().toISOString(),
       };
+      runs.set(run.id, run);
+      return run;
+    },
+    async getActionRun(actionRunId) {
+      return runs.get(actionRunId);
     },
   };
 }

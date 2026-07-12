@@ -1,0 +1,90 @@
+import type { DatabaseSync } from 'node:sqlite';
+import { config } from '../config';
+import { createEventStore } from '../realtime/eventStore';
+import { createTasksRepository } from '../db/repositories/tasksRepository';
+import { createPiSessionsRepository } from '../db/repositories/piSessionsRepository';
+import { createProjectsRepository } from '../db/repositories/projectsRepository';
+import { createChatRuntime, type ChatRuntime } from '../services/chatRuntime';
+import { createChatService } from '../services/chatService';
+import { GitWorktreeService } from '../services/gitWorktreeService';
+import { createProjectService } from '../services/projectService';
+import { createTaskService } from '../services/taskService';
+import { PiRuntimeAdapter, createRuntime, type PiRuntime } from '../services/piRuntimeService';
+import { RuntimeManager } from '../services/runtimeManager';
+import { createCheckpointService } from '../services/checkpointService';
+import { createForkService } from '../services/forkService';
+import { createRollbackService } from '../services/rollbackService';
+import { createMergeService } from '../services/mergeService';
+import { createGitTaskService } from '../services/gitTaskService';
+import { createProjectFilesService } from '../services/projectFilesService';
+import { createActionEngine } from '../services/actionEngine';
+import { createProviderService } from '../services/providerService';
+import { createPackageService } from '../services/packageService';
+import { createSkillRunner } from '../services/skillRunner';
+import { createPromptStore } from '../services/promptStore';
+import { createMcpStore } from '../services/mcpStore';
+import { createThemeStore } from '../services/themeStore';
+import { InMemoryProjectOperationMutex } from '../services/projectOperationMutex';
+
+export type CreateAppOptions = { chatRuntime?: ChatRuntime; taskRuntime?: PiRuntime };
+
+export function createServiceContainer(db: DatabaseSync, options: CreateAppOptions = {}) {
+  const worktree = new GitWorktreeService();
+  const projectService = createProjectService(db);
+  const taskService = createTaskService(db, { worktree });
+  const chatService = createChatService(db, { tasks: taskService });
+  const eventStore = createEventStore(db);
+  const taskRecords = createTasksRepository(db);
+  const projectRecords = createProjectsRepository(db);
+  const checkpointService = createCheckpointService(db, { worktree, events: eventStore, tasks: taskRecords });
+  const forkService = createForkService(db, { worktree, events: eventStore, tasks: taskRecords });
+  const rollbackService = createRollbackService(db, { forkService, events: eventStore, tasks: taskRecords });
+  const projectOperations = new InMemoryProjectOperationMutex();
+  const mergeService = createMergeService(db, { worktree, events: eventStore, tasks: taskRecords, operations: projectOperations });
+  const gitTaskService = createGitTaskService({ tasks: taskRecords, events: eventStore, operations: projectOperations });
+  const projectFiles = createProjectFilesService(projectRecords);
+  const actionEngine = createActionEngine(db);
+  const providerService = createProviderService(db, { eventStore });
+  const packageService = createPackageService(db, { eventStore, projects: projectRecords });
+  const skillRunner = createSkillRunner(db, { projects: projectRecords });
+  const promptStore = createPromptStore(projectRecords);
+  const mcpStore = createMcpStore(projectRecords);
+  const themeStore = createThemeStore(projectRecords);
+  const taskRuntime = options.taskRuntime ?? (config.agentRuntime === 'pi'
+    ? new PiRuntimeAdapter({
+      piBin: config.piBin,
+      nodeBin: config.piNode,
+      provider: config.piProvider,
+      model: config.piModel,
+      agentDir: config.piAgentDir,
+      defaultCwd: config.agentCwd,
+    })
+    : createRuntime('fake'));
+  const runtimeManager = new RuntimeManager({
+    runtime: taskRuntime,
+    eventStore,
+    tasks: taskRecords,
+    piSessions: createPiSessionsRepository(db),
+    projects: projectRecords,
+    checkpoints: checkpointService,
+  });
+  void runtimeManager.recoverInterruptedRuns();
+  const chatRuntime = options.chatRuntime ?? createChatRuntime(config.agentRuntime, {
+    cwd: config.agentCwd,
+    piBin: config.piBin,
+    nodeBin: config.piNode,
+    provider: config.piProvider,
+    model: config.piModel,
+    agentDir: config.piAgentDir,
+  });
+
+  const dispose = async (): Promise<void> => {
+    const results = await Promise.allSettled([runtimeManager.dispose(), chatRuntime.dispose?.()]);
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failure) throw failure.reason;
+  };
+
+  return { projectService, taskService, chatService, eventStore, chatRuntime, runtimeManager, taskRecords, projectRecords, checkpointService, forkService, rollbackService, mergeService, gitTaskService, projectFiles, actionEngine, providerService, packageService, skillRunner, promptStore, mcpStore, themeStore, dispose };
+}
+
+export type ServiceContainer = ReturnType<typeof createServiceContainer>;

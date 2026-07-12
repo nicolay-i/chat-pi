@@ -1,18 +1,16 @@
 import { act } from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
+import { renderWithStore as render } from '@/test/renderWithStore';
 
-jest.mock('expo-router', () => ({
+jest.mock('@/navigation', () => ({
   router: { replace: jest.fn() },
 }));
 
-jest.mock('@/state/backendStorage', () => ({
-  clearBackendUrl: jest.fn().mockResolvedValue(undefined),
-}));
-
-import { router } from 'expo-router';
+import { router } from '@/navigation';
 import SettingsScreen from '../settings';
-import { backendActions } from '@/state/backendStore';
-import { clearBackendUrl } from '@/state/backendStorage';
+import { backendActions, getTestRootStore } from '@/test/rootStoreHarness';
+import { RootStoreProvider } from '@/providers/RootStoreProvider';
+import { createRootStore } from '@/stores/rootStore';
 
 const setBackend = (baseUrl: string | null) => {
   act(() => {
@@ -77,7 +75,7 @@ describe('SettingsScreen', () => {
     expect(getByTestId('settings.resetConfirm')).toBeTruthy();
   });
 
-  it('clears the backend url and navigates to /setup on confirm', async () => {
+  it('clears the injected backend url and navigates to /setup on confirm', async () => {
     setBackend('https://pi.example.internal');
 
     const { getByTestId } = await render(<SettingsScreen />);
@@ -90,7 +88,32 @@ describe('SettingsScreen', () => {
       fireEvent.press(getByTestId('settings.resetConfirm'));
     });
 
-    await waitFor(() => expect(clearBackendUrl).toHaveBeenCalled());
+    expect(getTestRootStore().backend.baseUrl).toBeNull();
     expect(router.replace).toHaveBeenCalledWith('/setup');
+  });
+
+  it('resets the injected provider store instead of the legacy test fallback', async () => {
+    const clear = jest.fn(async () => undefined);
+    const store = createRootStore({
+      storage: { load: async () => null, save: async () => undefined, clear },
+    });
+    store.backend.setBaseUrl('https://provider.example');
+    store.backend.restored = true;
+    const screen = await render(
+      <RootStoreProvider store={store}><SettingsScreen /></RootStoreProvider>,
+    );
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('settings.resetConnection'));
+    });
+    await waitFor(() => expect(screen.getByTestId('settings.resetConfirm')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('settings.resetConfirm'));
+    });
+
+    await waitFor(() => expect(clear).toHaveBeenCalledTimes(1));
+    expect(store.backend.baseUrl).toBeNull();
+    expect(router.replace).toHaveBeenCalledWith('/setup');
+    store.dispose();
   });
 });

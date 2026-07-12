@@ -8,11 +8,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import type { Action } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 type Status = 'loading' | 'loaded' | 'empty' | 'error';
 

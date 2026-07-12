@@ -66,7 +66,7 @@ export function createTaskService(db: DatabaseSync, deps: TaskServiceDeps): Task
         baseBranch: project.defaultBranch,
         runtimePath: project.runtimeStatePath,
       });
-      const piSessionPath = `${project.runtimeStatePath}/sessions/${taskId}`;
+      const piSessionPath = `${project.runtimeStatePath}/sessions/${taskId}.jsonl`;
       const rec = tasks.create({
         id: taskId,
         projectId,

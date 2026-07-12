@@ -1,10 +1,21 @@
-import type { EventType, RealtimeEnvelope, SendMessageInput } from '@pi-agents/contracts';
+import type { EventType, SendMessageInput } from '@pi-agents/contracts';
+import type { RealtimeEventDraft } from '../realtime/eventStore';
 import { PiRpcClient } from './piRpcClient';
 import { mapPiEventToEnvelope } from './piEventMap';
+import { piResourceArgs } from './piResources';
 
-export type RuntimeEventHandler = (event: RealtimeEnvelope) => void;
+export type RuntimeEventHandler = (event: RealtimeEventDraft) => void;
+
+export type RuntimeSessionContext = {
+  sessionId: string;
+  cwd: string;
+  sessionPath: string;
+  resourceRoot?: string;
+  agentsDir?: string;
+};
 
 export interface PiRuntime {
+  prepare(session: RuntimeSessionContext): Promise<void>;
   prompt(sessionId: string, input: SendMessageInput): Promise<void>;
   steer(sessionId: string, text: string): Promise<void>;
   followUp(sessionId: string, text: string): Promise<void>;
@@ -12,6 +23,7 @@ export interface PiRuntime {
   subscribe(sessionId: string, handler: RuntimeEventHandler): () => void;
   acquireLock(sessionId: string, owner: string): boolean;
   releaseLock(sessionId: string, owner: string): boolean;
+  dispose?(): Promise<void>;
 }
 
 type SessionLock = { owner: string; acquiredAt: string };
@@ -68,7 +80,7 @@ abstract class BaseRuntime implements PiRuntime {
   }
 
   protected emit(sessionId: string, type: EventType, payload: unknown): void {
-    const envelope: RealtimeEnvelope = {
+    const envelope: RealtimeEventDraft = {
       id: newId(),
       stream: 'task',
       streamId: sessionId,
@@ -81,6 +93,7 @@ abstract class BaseRuntime implements PiRuntime {
     for (const handler of set) handler(envelope);
   }
 
+  abstract prepare(session: RuntimeSessionContext): Promise<void>;
   abstract prompt(sessionId: string, input: SendMessageInput): Promise<void>;
   abstract steer(sessionId: string, text: string): Promise<void>;
   abstract followUp(sessionId: string, text: string): Promise<void>;
@@ -88,6 +101,12 @@ abstract class BaseRuntime implements PiRuntime {
 }
 
 export class FakePiRuntime extends BaseRuntime implements PiRuntime {
+  lastPreparedSession: RuntimeSessionContext | null = null;
+
+  async prepare(session: RuntimeSessionContext): Promise<void> {
+    this.lastPreparedSession = session;
+  }
+
   async prompt(sessionId: string, input: SendMessageInput): Promise<void> {
     this.emit(sessionId, 'run.started', {
       behavior: input.behavior,
@@ -120,11 +139,11 @@ export class FakePiRuntime extends BaseRuntime implements PiRuntime {
   }
 
   async steer(sessionId: string, text: string): Promise<void> {
-    this.emit(sessionId, 'queue.updated', { type: 'steer', text });
+    this.emit(sessionId, 'queue.updated', { type: 'steer', text, pending: 1 });
   }
 
   async followUp(sessionId: string, text: string): Promise<void> {
-    this.emit(sessionId, 'queue.updated', { type: 'follow_up', text });
+    this.emit(sessionId, 'queue.updated', { type: 'follow_up', text, pending: 1 });
   }
 
   async abort(sessionId: string, reason?: string): Promise<void> {
@@ -139,6 +158,7 @@ export interface PiRuntimeAdapterOptions {
   model?: string;
   args?: string[];
   env?: Record<string, string>;
+  agentDir?: string;
   defaultCwd?: string;
 }
 
@@ -150,14 +170,12 @@ interface AdapterSessionState {
 /**
  * Real Pi CLI integration backed by a per-session `pi --mode rpc` child process.
  *
- * - One rpc client (and therefore one writer) per session, gated by the lock
- *   inherited from BaseRuntime (reentrant for owner 'runtime').
+ * - One rpc client (and therefore one writer) per session. Persistent lock
+ *   ownership belongs to RuntimeManager, which has the API-instance owner.
  * - subscribe() is inherited and fans mapped RealtimeEnvelopes to handlers; the
  *   raw pi events are translated via mapPiEventToEnvelope.
- * - prompt() awaits pi's acknowledgement but does NOT block on agent_end — the
- *   streamed content is delivered to subscribers as it arrives. Callers that
- *   need to know the turn finished should listen for run.completed (or use the
- *   client's waitForIdle when holding the lock directly).
+ * - prompt() resolves only after `agent_end`; streamed content remains available
+ *   to subscribers while the run is active.
  * - releaseLock() tears the client down (the writer is done); dispose() stops
  *   every session's client for shutdown/tests.
  */
@@ -174,11 +192,18 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       model: opts?.model ?? process.env.PI_MODEL,
       args: opts?.args,
       env: opts?.env,
+      agentDir: opts?.agentDir ?? process.env.PI_AGENT_DIR,
       defaultCwd: opts?.defaultCwd ?? process.env.PI_CWD,
     };
   }
 
-  private ensureClient(sessionId: string, cwd?: string): AdapterSessionState {
+  private ensureClient(
+    sessionId: string,
+    cwd?: string,
+    agentsDir?: string,
+    sessionPath?: string,
+    resourceRoot?: string,
+  ): AdapterSessionState {
     const existing = this.sessions.get(sessionId);
     if (existing) return existing;
     const client = new PiRpcClient({
@@ -186,8 +211,10 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       nodeBin: this.adapterOpts.nodeBin,
       provider: this.adapterOpts.provider,
       model: this.adapterOpts.model,
-      args: this.adapterOpts.args,
+      sessionPath,
+      args: [...piResourceArgs(resourceRoot ?? cwd, agentsDir), ...(this.adapterOpts.args ?? [])],
       env: this.adapterOpts.env,
+      agentDir: this.adapterOpts.agentDir,
       cwd: cwd ?? this.adapterOpts.defaultCwd,
     });
     client.onEvent((event) => {
@@ -209,20 +236,28 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
     return state;
   }
 
+  async prepare(session: RuntimeSessionContext): Promise<void> {
+    const state = this.ensureClient(
+      session.sessionId,
+      session.cwd,
+      session.agentsDir,
+      session.sessionPath,
+      session.resourceRoot,
+    );
+    await state.started;
+  }
+
   async prompt(sessionId: string, input: SendMessageInput): Promise<void> {
     const state = this.ensureClient(sessionId);
     await state.started;
-    if (!this.acquireLock(sessionId, 'runtime')) {
-      throw new Error('Task already running');
-    }
     const imageUris = input.attachments
       ?.filter((a) => a.kind === 'image')
       .map((a) => a.uri);
     const images = imageUris && imageUris.length > 0 ? imageUris : undefined;
     try {
       await state.client.prompt(input.text, images);
+      await state.client.waitForIdle();
     } catch (err) {
-      this.releaseLock(sessionId, 'runtime');
       this.emit(sessionId, 'run.error', {
         message: err instanceof Error ? err.message : String(err),
       });
@@ -234,12 +269,14 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
     const state = this.ensureClient(sessionId);
     await state.started;
     await state.client.steer(text);
+    this.emit(sessionId, 'queue.updated', { type: 'steer', text, pending: 1 });
   }
 
   async followUp(sessionId: string, text: string): Promise<void> {
     const state = this.ensureClient(sessionId);
     await state.started;
     await state.client.followUp(text);
+    this.emit(sessionId, 'queue.updated', { type: 'follow_up', text, pending: 1 });
   }
 
   async abort(sessionId: string, reason?: string): Promise<void> {

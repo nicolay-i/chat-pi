@@ -1,0 +1,14 @@
+.git
+.agents
+.expo
+.playwright-cli
+**/node_modules
+**/dist
+**/.data
+coverage
+tmp
+.temp
+.env
+.env.*
+!.env.example
+!.env.docker.example

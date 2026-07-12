@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
 import type { Chat, RunMode } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { useChats } from '@/features/chats/useChats';

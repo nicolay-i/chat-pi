@@ -1,5 +1,5 @@
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
 import type { Task } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { useTasks } from '@/features/tasks/useTasks';

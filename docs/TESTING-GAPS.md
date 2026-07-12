@@ -1,81 +1,67 @@
-# Testing gaps
+# Testing Gaps
 
-Known, intentionally-documented gaps in the automated test coverage of the
-`chat-pi` workspace. These items are not regressions — they describe areas that
-the current unit/component suites do **not** exercise. Each entry lists the
-missing surface and why it is hard to cover today.
+The suite covers contracts, API route/service integration, real temporary Git
+repositories, MobX stores and mobile screens. The following surfaces are not
+yet proven by automated tests and remain release gates.
 
-The list is grouped by area and kept specific so it can drive follow-up tasks.
+## End-to-end runtime
 
-## Integration / end-to-end
+- No CI test connects a running Hono process, actual browser bundle and real Pi
+  CLI in one flow.
+- The real Pi test is opt-in because it depends on the local CLI, account and
+  model availability. Run it before a release after the first Pi launch has
+  completed:
 
-- No end-to-end test drives the Hono API server together with the React Native
-  client. The `api` package is tested with an in-memory SQLite DB; the `mobile`
-  package is tested with mocked `ApiClient`. The two never meet in CI.
-- SSE live-push is validated only via replay (`RealtimeManager.test.ts`
-  consumes recorded envelopes). No test holds an open SSE stream against the
-  server and asserts an event arrives on the client.
-- WebSocket realtime path is stubbed and untested end-to-end.
+  ```powershell
+  $env:PI_REAL_E2E = '1'
+  pnpm --filter @pi-agents/api test -- src/services/__tests__/piRuntime.test.ts
+  ```
+- When `PI_AGENT_DIR` is used, it must contain the selected provider's
+  credentials (or the provider must be configured through environment
+  variables); the isolated directory intentionally does not copy `~/.pi`.
+- SSE server and client replay are tested, but a long-lived mobile client
+  connected to a real server process is not continuously exercised in CI.
 
-## Backend runtime adapters
+## Device and visual verification
 
-- The Pi runtime adapter (B06 JSONL tailer / file-watch) is not covered by a
-  long-running integration test. File growth, rotation, and tail resumption are
-  untested against a real log file.
-- Git operations are exercised only against a temporary `git init` repo. Merge
-  conflicts, rebase, and large-repo behaviour are not simulated.
-- Worktree creation/teardown (`supportsWorktrees`) is not asserted against a
-  real filesystem worktree lifecycle.
+- Android/iOS flows have not been checked on physical devices after the explicit
+  navigation migration.
+- The experimental provider oRPC client is integration-tested in Node only.
+  It has not yet been added to the Expo bundle or tested on iOS/Android.
+- There is no visual-regression suite for React Native Web, responsive layout,
+  dark theme or screen-reader traversal.
+- VSCode Web and Obsidian/Ignis have no end-to-end product flow yet because the
+  corresponding backend capabilities are absent.
+- Current React 19 tests still emit several `act(...)` warnings. They do not
+  fail the suite, but each affected interaction should be cleaned up.
 
-## Providers & packages
+## External integrations
 
-- `resolvePackage` / `installPackage` are stubbed: no real npm registry, git
-  clone, or local path resolution runs in tests.
-- Provider "Test connection" hits a mocked transport; real OpenAI / Anthropic /
-  Google round-trips are not covered.
-- Secret storage (`expo-secure-store`) write/read is mocked; no device test.
+- Provider connection testing is synthetic and secrets have no server-side
+  secure storage.
+- The provider oRPC experiment does not yet generate an OpenAPI document:
+  `@orpc/openapi` is deliberately not a production dependency until the mobile
+  transport decision is made.
+- Local package resolution reads `pi-package.json` without executing package
+  code; trust materializes it under `.agents/packages`. npm and Git sources are
+  still review-only and must remain trust-gated when real fetch/install support
+  is added.
+- MCP configuration test intentionally does not spawn the configured process.
+- The Docker image installs the pinned Pi CLI and compose is syntax-validated;
+  a complete image build and Pi start/healthcheck test requires a running
+  Docker engine and configured provider credentials.
 
-## React Native components
+## Security and operations
 
-- No snapshot or visual regression tests for screens. Pixel/layout differences
-  (spacing, overflow, dark theme) are not caught automatically.
-- `react-native-web` rendering is not regression-tested. The web-only
-  `ProjectWebShell` 3-column layout has no test.
-- Theme override layer (`themeStore` overrides) is validated at the store level
-  but is not wired into the shared components in tests — preview-only.
-
-## Accessibility
-
-- Only `accessibilityLabel` *presence* is asserted (see
-  `src/components/__tests__/accessibility.test.tsx`). A full TalkBack / VoiceOver
-  traversal is not automated.
-- Focus order, swipe-navigation sequence, and `accessibilityState` correctness
-  are not asserted.
-- Colour-contrast ratios are not measured automatically; colour is paired with
-  text in badges (TaskStatusBadge, ToolCard, DiffFileList) but contrast is
-  eyeballed, not computed.
-
-## CI
-
-- The workflow runs `typecheck` + `test` as required gates; `lint`
-  (`pnpm -r lint`) runs with `continue-on-error` and does not block. Lint
-  regressions can therefore land unnoticed.
-- No coverage threshold is enforced; coverage is not collected or uploaded.
-- Build artifacts (Expo bundle, API build) are not produced or smoke-tested in
-  CI.
-
-## Data / contracts
-
-- Zod schemas are unit-tested for shape, but cross-package compatibility (API
-  emits → contract parses → client renders) is not asserted in a single suite.
-- Migration / seed scripts for `node:sqlite` are not covered by an automated
-  round-trip test.
-
-## Non-functional
-
-- Offline / reconnect behaviour (`connectionStore` + `OfflineBanner`) is tested
-  in isolation; the full reconnect-and-resume-sequence is not simulated.
-- Performance: no test guards render counts or message-list virtualisation
-  under large histories.
-- Internationalisation: UI strings are mixed Russian/English; no test enforces
-  a single locale or a translation-table contract.
+- No authentication exists yet. The production CORS allowlist, body cap and
+  per-process package-resolution rate limit are in place, but none substitute
+  for authentication. Multi-instance deployment needs a shared rate-limit store.
+- Backup and integrity-checked staging restore cover SQLite, allowed `.agents`
+  resources, runtime session files and Git refs. Guarded activation can rebind
+  an explicit clean checkout only when every restored task branch has the exact
+  backed-up SHA; it intentionally does not clone/fetch repositories. A full
+  real-Pi continuation after activation still needs an end-to-end release run.
+- Multi-instance process supervision/metrics and external disk alert delivery
+  are still required for VPS deployment. The single-container baseline now has
+  Docker restart policy, structured lifecycle logs, disk-capacity checks and
+  graceful `SIGINT`/`SIGTERM` shutdown.

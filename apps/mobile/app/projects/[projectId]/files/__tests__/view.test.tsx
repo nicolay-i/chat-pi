@@ -1,8 +1,9 @@
-import { render } from '@testing-library/react-native';
+
+import { renderWithStore as render } from '@/test/renderWithStore';
 
 const searchParams = { projectId: 'project-demo', path: 'docs/readme.md' };
 
-jest.mock('expo-router', () => ({
+jest.mock('@/navigation', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: jest.fn(() => searchParams),
 }));
@@ -31,12 +32,12 @@ const jsonRes = (body: unknown): Response =>
   ({ ok: true, json: async () => body }) as unknown as Response;
 
 function configureBackend(url: string): void {
-  const mod = require('@/state/backendStore') as typeof import('@/state/backendStore');
+  const mod = require('@/test/rootStoreHarness') as typeof import('@/test/rootStoreHarness');
   mod.backendActions.setBaseUrl(url);
 }
 
 function setPath(p: string): void {
-  const mock = require('expo-router').useLocalSearchParams as ReturnType<typeof jest.fn>;
+  const mock = require('@/navigation').useLocalSearchParams as ReturnType<typeof jest.fn>;
   mock.mockImplementation(() => ({ projectId: 'project-demo', path: p }));
 }
 

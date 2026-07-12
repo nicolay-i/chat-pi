@@ -1,19 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
+import type { RealtimeEnvelope } from '@pi-agents/contracts';
+import { ApiClient } from '@/api/client';
+import { RuntimePanel } from '@/features/trace/RuntimePanel';
+import { useBackend } from '@/stores/useBackend';
 import { tokens } from '@/theme/tokens';
 import { useTask } from '@/features/tasks/useTasks';
 import { TaskStatusBadge } from '@/features/tasks/TaskStatusBadge';
 
-type TabKey = 'overview' | 'chat' | 'diff' | 'checkpoints' | 'trace' | 'files' | 'merge';
+type TabKey = 'overview' | 'diff' | 'checkpoints' | 'merge';
 
 const TABS: ReadonlyArray<{ key: TabKey; label: string; route?: string }> = [
   { key: 'overview', label: 'Overview' },
-  { key: 'chat', label: 'Chat' },
   { key: 'diff', label: 'Diff', route: './diff' },
   { key: 'checkpoints', label: 'Checkpoints', route: './checkpoints' },
-  { key: 'trace', label: 'Trace' },
-  { key: 'files', label: 'Files' },
   { key: 'merge', label: 'Merge', route: './merge' },
 ];
 
@@ -26,8 +27,30 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+function TaskRuntimePanel({ taskId }: { taskId: string }) {
+  const { baseUrl } = useBackend();
+  const [events, setEvents] = useState<RealtimeEnvelope[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!baseUrl) return;
+    let active = true;
+    void new ApiClient(baseUrl).getTaskTrace(taskId)
+      .then((next) => { if (active) setEvents(next); })
+      .catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : String(err)); });
+    return () => { active = false; };
+  }, [baseUrl, taskId]);
+
+  return (
+    <View testID="taskDetail.runtimePanel" style={{ marginTop: 16 }}>
+      <RuntimePanel events={events} />
+      {error ? <Text style={{ color: tokens.color.danger, marginTop: 6, fontSize: tokens.fontSize.sm }}>{error}</Text> : null}
+    </View>
+  );
+}
+
 export default function TaskDetailScreen() {
-  const { taskId } = useLocalSearchParams<{ taskId: string }>();
+  const { projectId, taskId } = useLocalSearchParams<{ projectId: string; taskId: string }>();
   const { data: task, status, error, refetch } = useTask(taskId);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [dangerOpen, setDangerOpen] = useState(false);
@@ -135,15 +158,22 @@ export default function TaskDetailScreen() {
             <Row label="Source chat" value={task.sourceChatId ?? '—'} />
             <Row label="Task ID" value={task.id} />
 
-            <View testID="taskDetail.runtimePanel" style={{ marginTop: 16, backgroundColor: tokens.color.surface, borderRadius: tokens.radius.lg, padding: 16 }}>
-              <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: tokens.fontSize.md }}>Runtime</Text>
-              <Row label="Current run" value="—" />
-              <Row label="Active tool" value="—" />
-              <Row label="Queue" value="—" />
-              <Row label="Elapsed" value="—" />
-              <Text style={{ color: tokens.color.textMuted, fontSize: tokens.fontSize.xs, marginTop: 8 }}>
-                Realtime runtime metrics will appear here.
-              </Text>
+            <TaskRuntimePanel taskId={task.id} />
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+              {task.sourceChatId ? (
+                <Pressable testID="taskDetail.openChat" accessibilityLabel="Open task chat" onPress={() => router.push(`/projects/${projectId}/chats/${task.sourceChatId}`)} style={{ paddingVertical: 9, paddingHorizontal: 12, borderRadius: tokens.radius.md, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border }}>
+                  <Text style={{ color: tokens.color.text, fontWeight: '700' }}>Open chat</Text>
+                </Pressable>
+              ) : null}
+              {task.sourceChatId ? (
+                <Pressable testID="taskDetail.openTrace" accessibilityLabel="Open task trace" onPress={() => router.push(`/projects/${projectId}/chats/${task.sourceChatId}/trace`)} style={{ paddingVertical: 9, paddingHorizontal: 12, borderRadius: tokens.radius.md, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border }}>
+                  <Text style={{ color: tokens.color.text, fontWeight: '700' }}>Open trace</Text>
+                </Pressable>
+              ) : null}
+              <Pressable testID="taskDetail.openDiff" accessibilityLabel="Open task diff" onPress={() => router.push(`./diff`)} style={{ paddingVertical: 9, paddingHorizontal: 12, borderRadius: tokens.radius.md, backgroundColor: tokens.color.surface, borderWidth: 1, borderColor: tokens.color.border }}>
+                <Text style={{ color: tokens.color.text, fontWeight: '700' }}>Open diff</Text>
+              </Pressable>
             </View>
 
             <Pressable
@@ -174,26 +204,6 @@ export default function TaskDetailScreen() {
           </View>
         ) : null}
 
-        {activeTab === 'chat' ? (
-          <View style={{ backgroundColor: tokens.color.surface, borderRadius: tokens.radius.lg, padding: 16 }}>
-            <Text style={{ color: tokens.color.text, fontWeight: '700' }}>Chat</Text>
-            <Text style={{ color: tokens.color.textMuted, marginTop: 4 }}>Steering and follow-ups will appear here.</Text>
-          </View>
-        ) : null}
-
-        {activeTab === 'trace' ? (
-          <View style={{ backgroundColor: tokens.color.surface, borderRadius: tokens.radius.lg, padding: 16 }}>
-            <Text style={{ color: tokens.color.text, fontWeight: '700' }}>Trace</Text>
-            <Text style={{ color: tokens.color.textMuted, marginTop: 4 }}>Run trace events will appear here.</Text>
-          </View>
-        ) : null}
-
-        {activeTab === 'files' ? (
-          <View style={{ backgroundColor: tokens.color.surface, borderRadius: tokens.radius.lg, padding: 16 }}>
-            <Text style={{ color: tokens.color.text, fontWeight: '700' }}>Files</Text>
-            <Text style={{ color: tokens.color.textMuted, marginTop: 4 }}>Changed files browser will appear here.</Text>
-          </View>
-        ) : null}
       </View>
     </ScrollView>
   );

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import { tokens } from '@/theme/tokens';
 import { useTaskDiff } from '@/features/diff/useTaskDiff';
 import { DiffFileList } from '@/features/diff/DiffFileList';
 import { UnifiedDiff, countHunkLines } from '@/features/diff/UnifiedDiff';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 type ConfirmKind = 'revert' | 'apply' | null;
 
@@ -25,7 +25,7 @@ export default function DiffReviewScreen() {
       setPending(true);
       const client = new ApiClient(baseUrl);
       client
-        .revertFile(taskId, { path: selectedPath })
+        .revertFile(taskId, { path: selectedPath, confirm: true })
         .then(() => {
           refetch();
         })

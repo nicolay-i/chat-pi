@@ -1,5 +1,1 @@
-import { Placeholder } from '@/components/shell/Placeholder';
-
-export default function Screen() {
-  return <Placeholder title="Actions" />;
-}
+export { default } from '../../actions';

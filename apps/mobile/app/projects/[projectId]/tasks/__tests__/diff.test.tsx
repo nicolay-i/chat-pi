@@ -1,7 +1,8 @@
 import { act } from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent } from '@testing-library/react-native';
+import { renderWithStore as render } from '@/test/renderWithStore';
 
-jest.mock('expo-router', () => ({
+jest.mock('@/navigation', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: jest.fn(() => ({ taskId: 'task-1' })),
 }));
@@ -30,7 +31,7 @@ const jsonRes = (body: unknown): Response =>
   ({ ok: true, json: async () => body }) as unknown as Response;
 
 function configureBackend(url: string): void {
-  const mod = require('@/state/backendStore') as typeof import('@/state/backendStore');
+  const mod = require('@/test/rootStoreHarness') as typeof import('@/test/rootStoreHarness');
   mod.backendActions.setBaseUrl(url);
 }
 
@@ -150,7 +151,7 @@ describe('DiffScreen', () => {
     expect(revertCall).toBeTruthy();
     expect(String(revertCall?.[0])).toBe('https://backend.example/api/tasks/task-1/revert-file');
     expect(revertCall?.[1]?.method).toBe('POST');
-    expect(revertCall?.[1]?.body).toBe(JSON.stringify({ path: 'src/a.ts' }));
+    expect(revertCall?.[1]?.body).toBe(JSON.stringify({ path: 'src/a.ts', confirm: true }));
   });
 
   it('renders error state when entries fetch rejects', async () => {

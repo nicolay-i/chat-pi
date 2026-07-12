@@ -1,5 +1,7 @@
-import { Placeholder } from '@/components/shell/Placeholder';
+import { TraceEventDetail } from '@/features/trace/TraceEventDetail';
+import { useLocalSearchParams } from '@/navigation';
 
 export default function Screen() {
-  return <Placeholder title="Tool Call Detail" />;
+  const { chatId, toolCallId } = useLocalSearchParams<{ chatId: string; toolCallId: string }>();
+  return <TraceEventDetail chatId={chatId} targetId={toolCallId} kind="toolCall" />;
 }

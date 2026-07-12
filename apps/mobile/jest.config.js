@@ -1,8 +1,7 @@
 module.exports = {
   preset: 'jest-expo',
+  setupFilesAfterEnv: ['<rootDir>/src/test/jestSetup.js'],
   moduleNameMapper: {
-    '^mobx$': '<rootDir>/src/test/mocks/mobx.ts',
-    '^@/lib/observer$': '<rootDir>/src/test/mocks/observer.ts',
     '^lucide-react-native$': '<rootDir>/src/test/mocks/lucide-react-native.tsx',
   },
 };

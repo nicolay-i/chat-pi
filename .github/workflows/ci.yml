@@ -23,11 +23,10 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: latest
+          version: 9.15.1
 
-      # Lockfile may not be fully staged yet; do not fail the build on a drift.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
         run: pnpm -r typecheck
@@ -35,7 +34,8 @@ jobs:
       - name: Test
         run: pnpm -r test
 
-      # Lint is bonus: run it but never let warnings block the build.
       - name: Lint
-        continue-on-error: true
         run: pnpm -r lint
+
+      - name: Export web bundle
+        run: pnpm export:web

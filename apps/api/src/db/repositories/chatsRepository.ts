@@ -95,7 +95,7 @@ export function createChatsRepository(db: DatabaseSync): ChatsRepository {
     },
     listByProject(projectId) {
       const rows = db
-        .prepare('SELECT * FROM chats WHERE project_id = ? ORDER BY created_at ASC')
+        .prepare('SELECT * FROM chats WHERE project_id = ? AND archived_at IS NULL ORDER BY created_at ASC')
         .all(projectId) as unknown as ChatRow[];
       return rows.map(rowToChat);
     },

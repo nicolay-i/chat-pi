@@ -8,14 +8,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 import { isValidHex, normalizeHex } from '@/features/theme/colorValidation';
 import {
   selectMergedTokens,
-  useThemeStore,
+  useTheme,
   type ThemeOverrides,
 } from '@/features/theme/themeStore';
 import { THEME_PRESETS } from '@/features/theme/presets';
@@ -38,10 +38,8 @@ const FONTSIZE_KEYS: Array<keyof typeof tokens.fontSize> = ['sm', 'md', 'lg'];
 export default function ThemeScreen() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { baseUrl } = useBackend();
-  const overrides = useThemeStore((s) => s.overrides);
-  const setOverride = useThemeStore((s) => s.setOverride);
-  const loadFrom = useThemeStore((s) => s.loadFrom);
-  const reset = useThemeStore((s) => s.reset);
+  const theme = useTheme();
+  const { overrides, setOverride, loadFrom, reset } = theme;
 
   const merged = selectMergedTokens(overrides);
 

@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router } from '@/navigation';
 import { tokens } from '@/theme/tokens';
-import { backendActions, useBackend } from '@/state/backendStore';
-import { clearBackendUrl } from '@/state/backendStorage';
+import { useBackend } from '@/stores/useBackend';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -35,7 +34,7 @@ function Row({ label, value }: { label: string; value?: string | null }) {
 }
 
 export default function SettingsScreen() {
-  const { baseUrl, capabilities } = useBackend();
+  const { baseUrl, capabilities, reset } = useBackend();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cacheToast, setCacheToast] = useState<string | null>(null);
   const [notifyApprovals, setNotifyApprovals] = useState(true);
@@ -50,10 +49,7 @@ export default function SettingsScreen() {
   };
 
   const handleConfirmReset = async () => {
-    await clearBackendUrl();
-    backendActions.setBaseUrl(null);
-    backendActions.setCapabilities(null);
-    backendActions.setStatus('idle');
+    await reset();
     setConfirmOpen(false);
     router.replace('/setup');
   };

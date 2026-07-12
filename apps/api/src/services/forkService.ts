@@ -60,7 +60,7 @@ export function createForkService(
       const baseBranch = sourceTask.baseBranch;
       const mergeTarget = sourceTask.mergeTarget;
       const title = input.title ?? `${sourceTask.title} (fork @ ${cp.id.slice(0, 8)})`;
-      const piSessionPath = join(runtimePath, 'sessions', newTaskId);
+      const piSessionPath = join(runtimePath, 'sessions', `${newTaskId}.jsonl`);
 
       const rec = tasks.create({
         id: newTaskId,

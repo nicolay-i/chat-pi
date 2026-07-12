@@ -6,6 +6,7 @@ import { createProjectsRepository, type ProjectInput } from '../repositories/pro
 import { createChatsRepository, type ChatInput } from '../repositories/chatsRepository';
 import { createTasksRepository, type TaskInput } from '../repositories/tasksRepository';
 import { createEventsRepository, type ChatEventInput } from '../repositories/eventsRepository';
+import { createPiSessionsRepository } from '../repositories/piSessionsRepository';
 
 const sampleProject: ProjectInput = {
   name: 'demo',
@@ -130,6 +131,35 @@ describe('tasks repository', () => {
   });
 });
 
+describe('Pi sessions repository', () => {
+  it('uses owner-scoped heartbeats and allows takeover only after lock expiry', () => {
+    const db = newDb();
+    const projectId = createProjectsRepository(db).create(sampleProject).id;
+    let now = new Date('2026-07-12T00:00:00.000Z');
+    const sessions = createPiSessionsRepository(db, {
+      clock: () => now,
+      defaultLockTtlMs: 1_000,
+    });
+    const session = sessions.create({ projectId, taskId: 'task-1', path: '/sessions/task-1.jsonl', cwd: '/worktree/task-1' });
+
+    expect(sessions.acquireLock(session.id, 'api-a')).toBe(true);
+    now = new Date(now.getTime() + 500);
+    expect(sessions.heartbeatLock(session.id, 'api-a')).toBe(true);
+    now = new Date(now.getTime() + 800);
+    expect(sessions.acquireLock(session.id, 'api-b')).toBe(false);
+
+    now = new Date(now.getTime() + 1_001);
+    expect(sessions.acquireLock(session.id, 'api-b')).toBe(true);
+    expect(sessions.getById(session.id)).toMatchObject({ lockOwner: 'api-b' });
+    expect(sessions.heartbeatLock(session.id, 'api-a')).toBe(false);
+    expect(sessions.releaseLock(session.id, 'api-a')).toBe(false);
+
+    now = new Date(now.getTime() + 1_001);
+    expect(sessions.releaseExpiredLocks()).toBe(1);
+    expect(sessions.getById(session.id)).toMatchObject({ lockOwner: null, lockHeartbeatAt: null });
+  });
+});
+
 describe('events repository', () => {
   let db: DatabaseSync;
   let projectId: string;
@@ -148,7 +178,7 @@ describe('events repository', () => {
     });
   }
 
-  it('appends and lists events in stable insert order; afterId paginates the tail', () => {
+  it('appends and lists events in stable insert order; afterSequence paginates the tail', () => {
     const events = createEventsRepository(db);
     const chats = createChatsRepository(db);
     const chatId = chats.create({ projectId, title: 'c1', mode: 'discussion' }).id;
@@ -160,10 +190,10 @@ describe('events repository', () => {
     const ordered = events.listByChat(chatId).map((e) => e.id);
     expect(ordered).toEqual([ev1.id, ev2.id, ev3.id]);
 
-    const tail = events.listByChat(chatId, ev2.id).map((e) => e.id);
+    const tail = events.listByChat(chatId, ev2.sequence).map((e) => e.id);
     expect(tail).toEqual([ev3.id]);
 
-    expect(events.listByChat(chatId, ev3.id)).toHaveLength(0);
+    expect(events.listByChat(chatId, ev3.sequence)).toHaveLength(0);
   });
 
   it('scopes listByChat to a single chat', () => {

@@ -164,6 +164,21 @@ PUT  /api/projects/:projectId/mcp
 POST /api/projects/:projectId/mcp/:serverId/test
 ```
 
+### Experimental provider RPC transport
+
+`/api/*` remains the stable transport. The same provider output schemas are
+also exercised through an isolated oRPC endpoint while transport ergonomics are
+evaluated:
+
+```http
+POST /rpc/providers/list
+POST /rpc/providers/create
+POST /rpc/providers/test
+```
+
+This transport is intentionally not used for messages or realtime; SSE stays
+raw Hono.
+
 ## 11. Error shape
 
 ```ts

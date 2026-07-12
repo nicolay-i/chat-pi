@@ -9,11 +9,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import type { Provider, ProviderTestResult } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 type Status = 'loading' | 'loaded' | 'error';
 type ProviderType = 'openai' | 'anthropic' | 'google' | 'custom';

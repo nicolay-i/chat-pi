@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DiffEntry, DiffFileContent } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 export type DiffEntriesStatus = 'loading' | 'loaded' | 'empty' | 'error';
 export type DiffFileStatus = 'idle' | 'loading' | 'loaded' | 'error';

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
 import type { CreateChatInput, RunMode } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 type ModeCard = {
   key: RunMode;

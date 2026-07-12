@@ -9,11 +9,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import type { McpServer } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 import { REDACTED, hasSecretKey } from '@/features/trace/redaction';
 
 type Status = 'loading' | 'loaded' | 'error';

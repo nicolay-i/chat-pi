@@ -1,1 +1,1 @@
-export { observer } from 'mobx-react-lite/dist/index';
+export { observer } from 'mobx-react-lite';

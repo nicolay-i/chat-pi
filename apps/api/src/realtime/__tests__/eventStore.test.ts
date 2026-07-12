@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync as RawDatabaseSync } from 'node:sqlite';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createDb } from '../../db';
 import { createProjectsRepository } from '../../db/repositories/projectsRepository';
 import { createChatsRepository } from '../../db/repositories/chatsRepository';
@@ -85,14 +89,23 @@ describe('eventStore.append + stream', () => {
     expect(store.stream('chat', 'B').map((e) => e.id)).toEqual([b1.id]);
   });
 
-  it('afterId returns ONLY the strict tail (SSE resume semantics)', async () => {
+  it('keeps a cursor scoped to each stream when sequences are interleaved', async () => {
+    const a1 = await appendChat(store, projectId, 'A');
+    await appendChat(store, projectId, 'B');
+    const a2 = await appendChat(store, projectId, 'A');
+
+    expect(store.stream('chat', 'A', a1.sequence).map((event) => event.id)).toEqual([a2.id]);
+    expect(store.stream('chat', 'B', a1.sequence)).toHaveLength(1);
+  });
+
+  it('afterSequence returns ONLY the strict tail (SSE resume semantics)', async () => {
     const e1 = await appendChat(store, projectId, 'A');
     const e2 = await appendChat(store, projectId, 'A');
     const e3 = await appendChat(store, projectId, 'A');
 
-    expect(store.stream('chat', 'A', e2.id).map((e) => e.id)).toEqual([e3.id]);
-    expect(store.stream('chat', 'A', e3.id)).toHaveLength(0);
-    expect(store.stream('chat', 'A', e1.id).map((e) => e.id)).toEqual([
+    expect(store.stream('chat', 'A', e2.sequence).map((e) => e.id)).toEqual([e3.id]);
+    expect(store.stream('chat', 'A', e3.sequence)).toHaveLength(0);
+    expect(store.stream('chat', 'A', e1.sequence).map((e) => e.id)).toEqual([
       e2.id,
       e3.id,
     ]);
@@ -102,6 +115,49 @@ describe('eventStore.append + stream', () => {
     expect(streamKey('chat', 'c1')).toBe('chat:c1');
     expect(streamKey('task', 't9')).toBe('task:t9');
     expect(streamKey('project', 'p2')).toBe('project:p2');
+  });
+});
+
+describe('event sequence persistence', () => {
+  it('continues with a higher sequence after reopening a database', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'pi-agents-events-'));
+    const path = join(directory, 'events.db');
+    try {
+      const firstDb = createDb(path);
+      const projectId = seedProject(firstDb);
+      const first = await appendChat(createEventStore(firstDb), projectId, 'chat-1');
+      firstDb.close();
+
+      const secondDb = createDb(path);
+      const second = await appendChat(createEventStore(secondDb), projectId, 'chat-1');
+      secondDb.close();
+
+      expect(second.sequence).toBeGreaterThan(first.sequence);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('migrates a legacy chat_events table without a sequence column', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'pi-agents-legacy-'));
+    const path = join(directory, 'legacy.db');
+    try {
+      const legacy = new RawDatabaseSync(path);
+      legacy.exec(`CREATE TABLE chat_events (
+        id text primary key, project_id text not null, chat_id text, task_id text,
+        pi_session_id text, source text not null, type text not null,
+        payload_json text not null, created_at text not null
+      );`);
+      legacy.exec(`INSERT INTO chat_events VALUES ('legacy-1', 'p1', 'c1', null, null, 'chat', 'message.created', '{}', '2026-01-01T00:00:00.000Z');`);
+      legacy.close();
+
+      const db = createDb(path);
+      const events = createEventStore(db).stream('chat', 'c1');
+      db.close();
+      expect(events[0].sequence).toBe(1);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 
@@ -141,15 +197,15 @@ describe('eventStore pub/sub', () => {
     expect(seen).toHaveLength(1);
   });
 
-  it('does NOT redeliver already-seen events when resuming with afterId (duplicate-safe)', async () => {
+  it('does NOT redeliver already-seen events when resuming with afterSequence (duplicate-safe)', async () => {
     const e1 = await appendChat(store, projectId, 'A');
     const e2 = await appendChat(store, projectId, 'A');
     const e3 = await appendChat(store, projectId, 'A');
 
     const liveAfter2: RealtimeEnvelope[] = [];
-    store.subscribe('chat', 'A', e2.id, (env) => liveAfter2.push(env));
+    store.subscribe('chat', 'A', e2.sequence, (env) => liveAfter2.push(env));
 
-    expect(store.stream('chat', 'A', e2.id).map((e) => e.id)).toEqual([e3.id]);
+    expect(store.stream('chat', 'A', e2.sequence).map((e) => e.id)).toEqual([e3.id]);
 
     const e4 = await appendChat(store, projectId, 'A');
     expect(liveAfter2.map((e) => e.id)).toEqual([e4.id]);
@@ -160,6 +216,7 @@ describe('formatSseEvent', () => {
   it('produces a single SSE data line terminated by blank line', () => {
     const env: RealtimeEnvelope = {
       id: 'evt-1',
+      sequence: 1,
       stream: 'chat',
       streamId: 'c1',
       type: 'message.created',
@@ -240,7 +297,7 @@ describe('SSE HTTP integration (createApp)', () => {
     expect(body).toContain(`data: ${JSON.stringify(e2)}`);
   });
 
-  it('GET /api/chats/:id/events?after=ID replays only events strictly after the id', async () => {
+  it('GET /api/chats/:id/events?afterSequence=N replays only the strict tail', async () => {
     const events = createEventStore(db);
     const e1 = await appendChat(events, projectId, chatId, undefined, { n: 1 });
     const e2 = await appendChat(events, projectId, chatId, undefined, { n: 2 });
@@ -248,7 +305,7 @@ describe('SSE HTTP integration (createApp)', () => {
 
     const app = createApp(db);
     const res = await app.request(
-      `/api/chats/${chatId}/events?after=${e2.id}`,
+      `/api/chats/${chatId}/events?afterSequence=${e2.sequence}`,
     );
 
     expect(res.status).toBe(200);
@@ -256,6 +313,12 @@ describe('SSE HTTP integration (createApp)', () => {
     expect(body).not.toContain(e1.id);
     expect(body).not.toContain(e2.id);
     expect(body).toContain(e3.id);
+  });
+
+  it('rejects an invalid afterSequence cursor', async () => {
+    const app = createApp(db);
+    const res = await app.request(`/api/chats/${chatId}/events?afterSequence=not-a-number`);
+    expect(res.status).toBe(400);
   });
 
   it('POST /api/chats/:id/messages appends an event visible to SSE replay (round-trip)', async () => {
@@ -296,6 +359,7 @@ describe('toSseResponse unit', () => {
     const replay: RealtimeEnvelope[] = [
       {
         id: 'r1',
+        sequence: 1,
         stream: 'chat',
         streamId: 'c1',
         type: 'message.created',

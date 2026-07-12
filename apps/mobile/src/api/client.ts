@@ -15,6 +15,7 @@ import {
   PackageInstallResultSchema,
   PackageManifestSchema,
   PromptTemplateSchema,
+  RealtimeEnvelopeSchema,
   ProjectSchema,
   ProviderSchema,
   ProviderTestResultSchema,
@@ -26,6 +27,7 @@ import {
   ValidateRepoInputSchema,
   ValidateRepoResultSchema,
   McpServerSchema,
+  apiClientOperationIds,
   type Action,
   type ActionRun,
   type Capabilities,
@@ -41,6 +43,7 @@ import {
   type PackageInstallResult,
   type PackageManifest,
   type PromptTemplate,
+  type RealtimeEnvelope,
   type Project,
   type Provider,
   type ProviderTestResult,
@@ -73,6 +76,8 @@ export class ApiClientError extends Error {
 }
 
 export class ApiClient {
+  static readonly operationIds = apiClientOperationIds;
+
   constructor(private readonly baseUrl: string) {}
 
   // --- Health / capabilities ---
@@ -217,6 +222,14 @@ export class ApiClient {
     return { ok: true };
   }
 
+  async abortChat(chatId: string): Promise<{ ok: true }> {
+    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/abort`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw await this.toError(res);
+    return { ok: true };
+  }
+
   async steer(taskId: string, input: SendMessageInput): Promise<{ ok: true }> {
     const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/steer`, {
       method: 'POST',
@@ -266,6 +279,12 @@ export class ApiClient {
     const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}`);
     if (!res.ok) throw await this.toError(res);
     return TaskSchema.parse(await res.json());
+  }
+
+  async getTaskTrace(taskId: string): Promise<RealtimeEnvelope[]> {
+    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/trace`);
+    if (!res.ok) throw await this.toError(res);
+    return RealtimeEnvelopeSchema.array().parse(await res.json());
   }
 
   async forkTask(taskId: string): Promise<Task> {
@@ -330,7 +349,7 @@ export class ApiClient {
     return DiffFileContentSchema.parse(await res.json());
   }
 
-  async revertFile(taskId: string, options: { path: string }): Promise<Task> {
+  async revertFile(taskId: string, options: { path: string; confirm: true }): Promise<Task> {
     const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/revert-file`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -506,7 +525,7 @@ export class ApiClient {
     return PackageManifestSchema.array().parse(await res.json());
   }
 
-  async resolvePackage(projectId: string, input: { name: string; version?: string }): Promise<PackageInstallResult> {
+  async resolvePackage(projectId: string, input: { kind: 'npm' | 'git' | 'local'; ref: string }): Promise<PackageInstallResult> {
     const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/packages/resolve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -516,7 +535,7 @@ export class ApiClient {
     return PackageInstallResultSchema.parse(await res.json());
   }
 
-  async installPackage(projectId: string, input: { name: string; version?: string }): Promise<PackageInstallResult> {
+  async installPackage(projectId: string, input: { source: { kind: 'npm' | 'git' | 'local'; ref: string }; manifest: PackageManifest }): Promise<PackageInstallResult> {
     const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/packages/install`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

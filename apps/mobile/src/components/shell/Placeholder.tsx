@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import { tokens } from '@/theme/tokens';
 
 export function Placeholder({ title }: { title: string }) {

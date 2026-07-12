@@ -83,6 +83,7 @@ export type EventType = z.infer<typeof EventTypeSchema>;
 
 export const RealtimeEnvelopeSchema = z.object({
   id: z.string(),
+  sequence: z.number().int().nonnegative(),
   stream: z.enum(['project', 'chat', 'task']),
   streamId: z.string(),
   type: EventTypeSchema,
@@ -103,6 +104,8 @@ export type AttachmentRef = z.infer<typeof AttachmentRefSchema>;
 export const SendMessageInputSchema = z.object({
   text: z.string().min(1),
   behavior: z.enum(['send', 'follow_up', 'steer', 'abort_and_replace']),
+  // Lets a client reconcile its optimistic message with the realtime event.
+  clientMessageId: z.string().min(1).max(128).optional(),
   mode: RunModeSchema.optional(),
   modelId: z.string().optional(),
   toolProfileId: z.string().optional(),

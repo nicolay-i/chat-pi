@@ -8,13 +8,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
 import type { SearchResult } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
 import { useProjectFiles } from '@/features/files/useProjectFiles';
 import { flattenNodes } from '@/features/files/fileTree';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 const rowTestID = (path: string): string => `files.row.${path.replace(/\//g, '_')}`;
 

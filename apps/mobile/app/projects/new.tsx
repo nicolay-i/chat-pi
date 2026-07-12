@@ -1,9 +1,9 @@
-import { router } from 'expo-router';
+import { router } from '@/navigation';
 import { Text, View } from 'react-native';
 import type { CreateProjectInput } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 import { ProjectForm } from '@/features/projects/ProjectForm';
 
 export default function NewProjectScreen() {

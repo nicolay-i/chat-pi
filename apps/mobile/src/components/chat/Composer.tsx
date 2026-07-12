@@ -18,6 +18,7 @@ export type ComposerProps = {
   behavior?: SendMessageBehavior;
   onBehaviorChange?: (behavior: SendMessageBehavior) => void;
   taskStatus?: TaskStatus | null;
+  hasActiveRun?: boolean;
 };
 
 const NO_TASK_HINT = 'нет активной задачи';
@@ -30,6 +31,7 @@ export function Composer({
   behavior,
   onBehaviorChange,
   taskStatus,
+  hasActiveRun = false,
 }: ComposerProps) {
   const [internal, setInternal] = useState('');
   const [modeOpen, setModeOpen] = useState(false);
@@ -67,7 +69,7 @@ export function Composer({
     }
   };
 
-  const behaviorEnabled = isBehaviorEnabled(activeBehavior, taskStatus ?? null);
+  const behaviorEnabled = isBehaviorEnabled(activeBehavior, taskStatus ?? null, hasActiveRun);
   const canSend = !disabled && current.trim().length > 0 && behaviorEnabled;
   const activeOption: BehaviorOption =
     BEHAVIOR_OPTIONS.find((o) => o.behavior === activeBehavior) ?? BEHAVIOR_OPTIONS[0];
@@ -147,9 +149,9 @@ export function Composer({
           >
             <Text style={styles.sheetTitle}>Режим отправки</Text>
             {BEHAVIOR_OPTIONS.map((option) => {
-              const enabled = isBehaviorEnabled(option.behavior, taskStatus ?? null);
+              const enabled = isBehaviorEnabled(option.behavior, taskStatus ?? null, hasActiveRun);
               const selected = option.behavior === activeBehavior;
-              const showNoTaskHint = !enabled && (taskStatus === null || taskStatus === undefined);
+              const showNoTaskHint = !enabled && !hasActiveRun && (taskStatus === null || taskStatus === undefined);
               return (
                 <Pressable
                   key={option.behavior}

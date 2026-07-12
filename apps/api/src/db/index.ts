@@ -1,4 +1,4 @@
-export { createDb, getDb } from './db';
+export { createDb, DEFAULT_DB_PATH, getDb } from './db';
 export type { DatabaseSync } from './db';
 export { migrate, MIGRATIONS } from './migrations';
 export {

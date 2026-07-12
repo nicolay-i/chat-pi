@@ -1,5 +1,6 @@
 import { act } from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
+import { renderWithStore as render } from '@/test/renderWithStore';
 import ApprovalsScreen from '../approvals';
 import { mockApprovals } from '@/features/approvals/mockApprovals';
 

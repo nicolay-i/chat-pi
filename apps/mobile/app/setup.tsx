@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router } from '@/navigation';
 import { observer } from '@/lib/observer';
 import { tokens } from '@/theme/tokens';
 import type { Capabilities } from '@pi-agents/contracts';
-import { rootStore } from '@/stores/rootStore';
+import { useRootStore } from '@/providers/RootStoreProvider';
 
 type Phase =
   | 'idle'
@@ -40,6 +40,8 @@ function isValidBackendUrl(value: string): boolean {
 }
 
 export default observer(function SetupScreen() {
+  const store = useRootStore();
+  const { backend, chats } = store;
   const [url, setUrl] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
@@ -54,24 +56,24 @@ export default observer(function SetupScreen() {
       return;
     }
     setPhase('checking');
-    await rootStore.backend.connect(trimmed);
-    if (rootStore.backend.status === 'connected' && rootStore.backend.capabilities) {
+    await backend.connect(trimmed);
+    if (backend.status === 'connected' && backend.capabilities) {
       setDiagnostics({
-        latencyMs: rootStore.backend.latencyMs ?? 0,
-        apiVersion: rootStore.backend.capabilities.apiVersion,
-        capabilities: rootStore.backend.capabilities,
+        latencyMs: backend.latencyMs ?? 0,
+        apiVersion: backend.capabilities.apiVersion,
+        capabilities: backend.capabilities,
       });
       setPhase('connected');
     } else {
       setPhase('serverUnreachable');
-      setError(rootStore.backend.error ?? 'Не удалось подключиться к backend');
+      setError(backend.error ?? 'Не удалось подключиться к backend');
     }
   };
 
   const handleContinue = async (): Promise<void> => {
     try {
-      const chat = await rootStore.chat.bootstrap();
-      router.replace(`/chat/${chat.id}`);
+      const createdChat = await chats.bootstrap();
+      router.replace(`/chat/${createdChat.id}`);
     } catch (e) {
       setPhase('serverUnreachable');
       setError(e instanceof Error ? e.message : String(e));
@@ -79,7 +81,7 @@ export default observer(function SetupScreen() {
   };
 
   const handleReset = async (): Promise<void> => {
-    await rootStore.backend.reset();
+    await store.reset();
     setUrl('');
     setDiagnostics(null);
     setError(null);

@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { basename, dirname, join, resolve } from 'node:path';
 import type {
   Project,
   CreateProjectInput,
@@ -33,11 +34,18 @@ export interface ProjectService {
   validateRepo(input: ValidateRepoInput): Promise<ValidateRepoResult>;
 }
 
+export function runtimePathForRepository(repoPath: string): string {
+  const repository = resolve(repoPath);
+  return join(dirname(repository), `${basename(repository)}.pi-runtime`);
+}
+
 export function createProjectService(db: DatabaseSync): ProjectService {
   const projects = createProjectsRepository(db);
   return {
     async create(input) {
-      const runtimeStatePath = `${input.repoPath.replace(/\/$/, '')}/.pi-runtime`;
+      // Runtime state owns worktrees and locks, so it must never dirty the
+      // canonical checkout that is used as the merge target.
+      const runtimeStatePath = runtimePathForRepository(input.repoPath);
       const rec = projects.create({
         name: input.name,
         repoPath: input.repoPath,

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Link } from 'expo-router';
+import { Link } from '@/navigation';
 import { Platform, View, Text, StyleSheet } from 'react-native';
 import { tokens } from '@/theme/tokens';
 

@@ -32,7 +32,7 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('message.created');
-    expect(env?.payload).toEqual({ role: 'user', text: 'reply with exactly: ok' });
+    expect(env?.payload).toMatchObject({ role: 'user', text: 'reply with exactly: ok' });
     expect(env?.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
   });
 
@@ -45,7 +45,7 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('message.created');
-    expect(env?.payload).toEqual({ role: 'assistant', text: '' });
+    expect(env?.payload).toMatchObject({ role: 'assistant', text: '' });
   });
 
   it('maps message_update text_delta -> message.delta with the delta', () => {
@@ -58,7 +58,7 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('message.delta');
-    expect(env?.payload).toEqual({ delta: 'ok' });
+    expect(env?.payload).toMatchObject({ delta: 'ok' });
   });
 
   it('maps message_update text_end -> message.delta with full content chunk', () => {
@@ -71,7 +71,7 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('message.delta');
-    expect(env?.payload).toEqual({ delta: 'ok' });
+    expect(env?.payload).toMatchObject({ delta: 'ok' });
   });
 
   it('maps message_end -> message.completed', () => {
@@ -83,7 +83,7 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('message.completed');
-    expect(env?.payload).toEqual({ role: 'assistant', text: 'ok' });
+    expect(env?.payload).toMatchObject({ role: 'assistant', text: 'ok' });
   });
 
   it('maps turn_end -> message.completed role assistant', () => {
@@ -96,7 +96,7 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('message.completed');
-    expect(env?.payload).toEqual({ role: 'assistant', text: 'ok' });
+    expect(env?.payload).toMatchObject({ role: 'assistant', text: 'ok' });
   });
 
   it('maps agent_end -> run.completed', () => {
@@ -105,7 +105,8 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('run.completed');
-    expect(env?.payload).toEqual({});
+    expect(env?.payload).toMatchObject({});
+    expect(env?.payload).toMatchObject({ rawPiEvent: { type: 'agent_end', willRetry: false } });
   });
 
   it('returns null for an unknown event type', () => {

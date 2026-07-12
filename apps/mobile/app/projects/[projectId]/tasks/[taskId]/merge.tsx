@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
 import { tokens } from '@/theme/tokens';
 import { useTask } from '@/features/tasks/useTasks';
 import { TaskStatusBadge } from '@/features/tasks/TaskStatusBadge';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 import {
   canMerge,
   checksSummaryFor,

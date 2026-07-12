@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { RealtimeEnvelope } from '@pi-agents/contracts';
+import type { RealtimeEventDraft } from '../realtime/eventStore';
 
 export interface EventMapContext {
   sessionId: string;
@@ -27,8 +27,12 @@ function firstText(content: unknown): string {
   return '';
 }
 
+function withRawPiEvent(event: Record<string, unknown>, payload: Record<string, unknown>): Record<string, unknown> {
+  return { ...payload, rawPiEvent: event };
+}
+
 /**
- * Map a raw pi rpc event into a RealtimeEnvelope, or return null when the event
+ * Map a raw pi rpc event into an event draft, or return null when the event
  * is unrecognized or the payload is malformed. Never throws — all access is
  * narrowed defensively.
  *
@@ -40,7 +44,7 @@ function firstText(content: unknown): string {
 export function mapPiEventToEnvelope(
   event: unknown,
   ctx: EventMapContext,
-): RealtimeEnvelope | null {
+): RealtimeEventDraft | null {
   if (!isRecord(event)) return null;
   const type = asString(event.type);
   if (!type) return null;
@@ -56,7 +60,7 @@ export function mapPiEventToEnvelope(
 
   switch (type) {
     case 'agent_start':
-      return { ...base, type: 'run.started', payload: {} };
+      return { ...base, type: 'run.started', payload: withRawPiEvent(event, {}) };
 
     case 'message_start': {
       const message = event.message;
@@ -64,10 +68,10 @@ export function mapPiEventToEnvelope(
       const role = asString(message.role);
       const text = firstText(message.content);
       if (role === 'user') {
-        return { ...base, type: 'message.created', payload: { role: 'user', text } };
+        return { ...base, type: 'message.created', payload: withRawPiEvent(event, { role: 'user', text }) };
       }
       if (role === 'assistant') {
-        return { ...base, type: 'message.created', payload: { role: 'assistant', text: '' } };
+        return { ...base, type: 'message.created', payload: withRawPiEvent(event, { role: 'assistant', text: '' }) };
       }
       return null;
     }
@@ -77,10 +81,10 @@ export function mapPiEventToEnvelope(
       if (!isRecord(ame)) return null;
       const subType = asString(ame.type);
       if (subType === 'text_delta') {
-        return { ...base, type: 'message.delta', payload: { delta: asString(ame.delta) ?? '' } };
+        return { ...base, type: 'message.delta', payload: withRawPiEvent(event, { delta: asString(ame.delta) ?? '' }) };
       }
       if (subType === 'text_end') {
-        return { ...base, type: 'message.delta', payload: { delta: asString(ame.content) ?? '' } };
+        return { ...base, type: 'message.delta', payload: withRawPiEvent(event, { delta: asString(ame.content) ?? '' }) };
       }
       return null;
     }
@@ -90,34 +94,34 @@ export function mapPiEventToEnvelope(
       if (!isRecord(message)) return null;
       const role = asString(message.role) ?? 'assistant';
       const text = firstText(message.content);
-      return { ...base, type: 'message.completed', payload: { role, text } };
+      return { ...base, type: 'message.completed', payload: withRawPiEvent(event, { role, text }) };
     }
 
     case 'turn_end': {
       const message = event.message;
       const text = isRecord(message) ? firstText(message.content) : '';
-      return { ...base, type: 'message.completed', payload: { role: 'assistant', text } };
+      return { ...base, type: 'message.completed', payload: withRawPiEvent(event, { role: 'assistant', text }) };
     }
 
     case 'agent_end':
-      return { ...base, type: 'run.completed', payload: {} };
+      return { ...base, type: 'run.completed', payload: withRawPiEvent(event, {}) };
 
     case 'tool_call':
       return {
         ...base,
         type: 'tool.started',
-        payload: { tool: asString(event.tool) ?? '', args: event.args ?? {} },
+        payload: withRawPiEvent(event, { tool: asString(event.tool) ?? '', args: event.args ?? {} }),
       };
 
     case 'tool_result':
       return {
         ...base,
         type: 'tool.completed',
-        payload: {
+        payload: withRawPiEvent(event, {
           tool: asString(event.tool) ?? '',
           output: event.output,
           status: asString(event.status) ?? 'completed',
-        },
+        }),
       };
 
     default:

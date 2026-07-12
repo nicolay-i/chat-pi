@@ -1,7 +1,8 @@
 import { act } from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
+import { renderWithStore as render } from '@/test/renderWithStore';
 
-jest.mock('expo-router', () => ({
+jest.mock('@/navigation', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: jest.fn(() => ({ projectId: 'project-demo' })),
 }));
@@ -12,7 +13,7 @@ jest.mock('@/state/backendStorage', () => ({
   clearBackendUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { router } from 'expo-router';
+import { router } from '@/navigation';
 import NewChatScreen from '../new';
 
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -32,7 +33,7 @@ const jsonRes = (body: unknown): Response =>
 
 function configureBackend(url: string): void {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const mod = require('@/state/backendStore') as typeof import('@/state/backendStore');
+  const mod = require('@/test/rootStoreHarness') as typeof import('@/test/rootStoreHarness');
   mod.backendActions.setBaseUrl(url);
 }
 

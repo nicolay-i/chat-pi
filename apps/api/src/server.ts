@@ -1,316 +1,140 @@
-import { Hono, type Context } from 'hono';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { RPCHandler } from '@orpc/server/fetch';
 import type { DatabaseSync } from 'node:sqlite';
-import {
-  ApiErrorSchema,
-  CapabilitiesSchema,
-  CreateChatInputSchema,
-  CreateProjectInputSchema,
-  HealthResponseSchema,
-  SendMessageInputSchema,
-  TaskStatus,
-  TaskStatusSchema,
-  UpdateProjectInputSchema,
-  ValidateRepoInputSchema,
-} from '@pi-agents/contracts';
-import { config } from './config';
-import { createProjectService } from './services/projectService';
-import { createChatService } from './services/chatService';
-import { createTaskService } from './services/taskService';
-import { GitWorktreeService } from './services/gitWorktreeService';
-import { createEventStore, type EventStream } from './realtime/eventStore';
-import { toSseResponse } from './realtime/sse';
-import { createChatRuntime, type ChatRuntime } from './services/chatRuntime';
+import { ApiErrorSchema } from '@pi-agents/contracts';
+import { config, type Config } from './config';
+import { FixedWindowRateLimiter } from './app/rateLimiter';
+import { createServiceContainer, type CreateAppOptions as CreateServiceContainerOptions } from './app/serviceContainer';
+import { createHealthRoutes, healthRouteOperationIds } from './routes/healthRoutes';
+import { createProjectRoutes, projectRouteOperationIds } from './routes/projectRoutes';
+import { createChatRoutes, chatRouteOperationIds } from './routes/chatRoutes';
+import { createTaskRoutes, taskRouteOperationIds } from './routes/taskRoutes';
+import { createRealtimeRoutes, realtimeRouteOperationIds } from './routes/realtimeRoutes';
+import { createFileRoutes, fileRouteOperationIds } from './routes/fileRoutes';
+import { createActionRoutes, actionRouteOperationIds } from './routes/actionRoutes';
+import { createProviderRoutes, providerRouteOperationIds } from './routes/providerRoutes';
+import { createPackageRoutes, packageRouteOperationIds } from './routes/packageRoutes';
+import { createSkillRoutes, skillRouteOperationIds } from './routes/skillRoutes';
+import { createPromptRoutes, promptRouteOperationIds } from './routes/promptRoutes';
+import { createMcpRoutes, mcpRouteOperationIds } from './routes/mcpRoutes';
+import { createThemeRoutes, themeRouteOperationIds } from './routes/themeRoutes';
+import { providerRpcRouter } from './orpc/providerRouter';
 
-function sendApiError(
-  c: Context,
-  status: ContentfulStatusCode,
-  code: string,
-  message: string,
-) {
-  const body = ApiErrorSchema.parse({ code, message, retryable: false });
-  return c.json(body, status);
-}
-
-export type CreateAppOptions = {
-  chatRuntime?: ChatRuntime;
+export type CreateAppOptions = CreateServiceContainerOptions & {
+  corsPolicy?: Pick<Config, 'nodeEnv' | 'corsOrigins'> & Partial<Pick<Config, 'trustProxy'>>;
+  maxBodyBytes?: number;
+  packageResolveRateLimit?: Pick<Config, 'packageResolveRateLimit' | 'packageResolveRateWindowMs'>;
+  rateLimiter?: FixedWindowRateLimiter;
 };
 
-export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): Hono {
-  const app = new Hono();
-  const worktree = new GitWorktreeService();
-  const projectService = createProjectService(db);
-  const taskService = createTaskService(db, { worktree });
-  const chatService = createChatService(db, { tasks: taskService });
-  const eventStore = createEventStore(db);
-  const chatRuntime = options.chatRuntime ?? createChatRuntime(config.agentRuntime, {
-    cwd: config.agentCwd,
-    piBin: config.piBin,
-    nodeBin: config.piNode,
-    provider: config.piProvider,
-    model: config.piModel,
+export const registeredApiOperationIds = [
+  ...healthRouteOperationIds,
+  ...projectRouteOperationIds,
+  ...chatRouteOperationIds,
+  ...taskRouteOperationIds,
+  ...realtimeRouteOperationIds,
+  ...fileRouteOperationIds,
+  ...actionRouteOperationIds,
+  ...providerRouteOperationIds,
+  ...packageRouteOperationIds,
+  ...skillRouteOperationIds,
+  ...promptRouteOperationIds,
+  ...mcpRouteOperationIds,
+  ...themeRouteOperationIds,
+] as const;
+
+export function createCorsMiddleware(policy: Pick<Config, 'nodeEnv' | 'corsOrigins'>) {
+  const isDevelopment = policy.nodeEnv !== 'production';
+  return cors({
+    origin: isDevelopment
+      ? '*'
+      : (origin) => policy.corsOrigins.includes(origin) ? origin : undefined,
+    allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['content-type', 'authorization'],
+    maxAge: 600,
   });
+}
 
-  app.use(
-    '*',
-    cors({
-      origin: '*',
-      allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['content-type'],
-    }),
-  );
-
-  app.get('/health', (c) =>
-    c.json(
-      HealthResponseSchema.parse({ ok: true, time: new Date().toISOString() }),
-    ),
-  );
-
-  app.get('/api/capabilities', (c) =>
-    c.json(
-      CapabilitiesSchema.parse({
-        apiVersion: '0.0.0',
-        piAvailable: config.agentRuntime === 'pi',
-        gitAvailable: true,
-        supportsWorktrees: true,
-        supportsSse: true,
-        supportsWebSocket: false,
-        supportsPackageInstall: true,
-        supportsVscodeWeb: false,
-        supportsIgnis: false,
-      }),
-    ),
-  );
-
-  app.get('/api/projects', async (c) => {
-    const items = await projectService.list();
-    return c.json(items);
-  });
-
-  app.post('/api/projects', async (c) => {
-    let parsed;
-    try {
-      parsed = CreateProjectInputSchema.parse(await c.req.json());
-    } catch (err) {
-      return sendApiError(c, 400, 'invalid_input', (err as Error).message);
-    }
-    try {
-      const project = await projectService.create(parsed);
-      return c.json(project, 201);
-    } catch (err) {
-      return sendApiError(c, 500, 'create_failed', (err as Error).message);
-    }
-  });
-
-  app.get('/api/projects/:id', async (c) => {
-    const project = await projectService.get(c.req.param('id'));
-    if (!project) return sendApiError(c, 404, 'not_found', 'project not found');
-    return c.json(project);
-  });
-
-  app.patch('/api/projects/:id', async (c) => {
-    let parsed;
-    try {
-      parsed = UpdateProjectInputSchema.parse(await c.req.json());
-    } catch (err) {
-      return sendApiError(c, 400, 'invalid_input', (err as Error).message);
-    }
-    const project = await projectService.update(c.req.param('id'), parsed);
-    if (!project) return sendApiError(c, 404, 'not_found', 'project not found');
-    return c.json(project);
-  });
-
-  app.delete('/api/projects/:id', async (c) => {
-    await projectService.remove(c.req.param('id'));
-    return c.body(null, 204);
-  });
-
-  app.post('/api/projects/:id/validate-repo', async (c) => {
-    const id = c.req.param('id');
-    const project = await projectService.get(id);
-    if (!project) return sendApiError(c, 404, 'not_found', 'project not found');
-    const body = await c.req.json().catch(() => ({} as unknown));
-    const fallback = {
-      repoPath: project.repoPath,
-      defaultBranch: project.defaultBranch,
-    };
-    const input = {
-      repoPath:
-        typeof (body as { repoPath?: unknown }).repoPath === 'string'
-          ? (body as { repoPath: string }).repoPath
-          : fallback.repoPath,
-      defaultBranch:
-        typeof (body as { defaultBranch?: unknown }).defaultBranch === 'string'
-          ? (body as { defaultBranch: string }).defaultBranch
-          : fallback.defaultBranch,
-    };
-    let parsed;
-    try {
-      parsed = ValidateRepoInputSchema.parse(input);
-    } catch (err) {
-      return sendApiError(c, 400, 'invalid_input', (err as Error).message);
-    }
-    const result = await projectService.validateRepo(parsed);
-    return c.json(result);
-  });
-
-  app.get('/api/projects/:id/chats', async (c) => {
-    const items = await chatService.list(c.req.param('id'));
-    return c.json(items);
-  });
-
-  app.post('/api/projects/:id/chats', async (c) => {
-    let parsed;
-    try {
-      parsed = CreateChatInputSchema.parse(await c.req.json());
-    } catch (err) {
-      return sendApiError(c, 400, 'invalid_input', (err as Error).message);
-    }
-    try {
-      const chat = await chatService.create(c.req.param('id'), parsed);
-      return c.json(chat, 201);
-    } catch (err) {
-      return sendApiError(c, 500, 'create_failed', (err as Error).message);
-    }
-  });
-
-  app.post('/api/chats/bootstrap', async (c) => {
-    const repoPath = config.agentCwd ?? process.cwd();
-    let project = (await projectService.list()).find((item) => item.repoPath === repoPath);
-    if (!project) {
-      project = await projectService.create({
-        name: 'Local workspace',
-        repoPath,
-        defaultBranch: 'main',
-      });
-    }
-    const existing = await chatService.list(project.id);
-    const chat = existing[0] ?? (await chatService.create(project.id, {
-      title: 'Новый чат',
-      mode: 'discussion',
-    }));
-    return c.json(chat, 201);
-  });
-
-  app.get('/api/projects/:id/tasks', async (c) => {
-    const items = await taskService.listByProject(c.req.param('id'));
-    return c.json(items);
-  });
-
-  app.get('/api/chats/:id', async (c) => {
-    const chat = await chatService.get(c.req.param('id'));
-    if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
-    return c.json(chat);
-  });
-
-  app.get('/api/tasks/:id', async (c) => {
-    const task = await taskService.get(c.req.param('id'));
-    if (!task) return sendApiError(c, 404, 'not_found', 'task not found');
-    return c.json(task);
-  });
-
-  app.patch('/api/tasks/:id', async (c) => {
-    const body = await c.req.json().catch(() => ({} as unknown));
-    const rawStatus = (body as { status?: unknown }).status;
-    let status: TaskStatus;
-    try {
-      status = TaskStatusSchema.parse(rawStatus);
-    } catch (err) {
-      return sendApiError(c, 400, 'invalid_input', (err as Error).message);
-    }
-    try {
-      const task = await taskService.updateStatus(c.req.param('id'), status);
-      return c.json(task);
-    } catch (err) {
-      return sendApiError(c, 400, 'invalid_transition', (err as Error).message);
-    }
-  });
-
-  app.post('/api/chats/:chatId/messages', async (c) => {
-    const chatId = c.req.param('chatId');
-    const body = SendMessageInputSchema.parse(await c.req.json());
-    const chat = await chatService.get(chatId);
-    const projectId = chat?.projectId ?? chatId;
-    const userMessageId = crypto.randomUUID();
-    const userCreatedAt = new Date().toISOString();
-    await eventStore.append({
-      stream: 'chat',
-      streamId: chatId,
-      projectId,
-      chatId,
-      type: 'message.created',
-      payload: {
-        chatId,
-        id: userMessageId,
-        role: 'user',
-        text: body.text,
-        createdAt: userCreatedAt,
-        behavior: body.behavior,
-      },
-    });
-
-    void chatRuntime.send(chatId, body, (type, payload) => {
-      void eventStore.append({
-        stream: 'chat',
-        streamId: chatId,
-        projectId,
-        chatId,
-        type,
-        payload,
-      });
-    }).catch((error: unknown) => {
-      void eventStore.append({
-        stream: 'chat',
-        streamId: chatId,
-        projectId,
-        chatId,
-        type: 'run.error',
-        payload: {
-          chatId,
-          message: error instanceof Error ? error.message : String(error),
-        },
-      });
-    });
-
-    return c.json({ ok: true, chatId, accepted: body.behavior });
-  });
-
-  const sseHandler = (stream: EventStream) => (c: Context): Response => {
-    const paramKey =
-      stream === 'chat' ? 'chatId' : stream === 'task' ? 'taskId' : 'projectId';
-    const streamId = c.req.param(paramKey);
-    if (streamId === undefined) {
-      return sendApiError(c, 400, 'invalid_input', `missing path param: ${paramKey}`);
-    }
-    const after = c.req.query('after');
-    const replay = eventStore.stream(stream, streamId, after);
-    return toSseResponse({
-      replay,
-      subscribe: (onChange) =>
-        eventStore.subscribe(stream, streamId, after, onChange),
-    });
-  };
-
-  app.get('/api/chats/:chatId/events', sseHandler('chat'));
-  app.get('/api/tasks/:taskId/events', sseHandler('task'));
-  app.get('/api/projects/:projectId/events', sseHandler('project'));
-
-  if (config.nodeEnv !== 'production') {
-    app.get('/__throws', () => {
-      throw new Error('boom');
-    });
+function requestClientKey(context: Context, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = context.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    if (forwarded) return `ip:${forwarded}`;
   }
 
-  app.onError((err, c) => {
-    const body = ApiErrorSchema.parse({
-      code: 'internal_error',
-      message: err.message,
-      retryable: false,
-    });
-    return c.json(body, 500);
-  });
+  const incoming = (context.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming;
+  return incoming?.socket?.remoteAddress ? `ip:${incoming.socket.remoteAddress}` : 'shared:unknown-client';
+}
 
+export function createPackageResolveRateLimitMiddleware(
+  limiter: FixedWindowRateLimiter,
+  trustProxy: boolean,
+): MiddlewareHandler {
+  return async (context, next) => {
+    if (context.req.method !== 'POST' || !/^\/api\/projects\/[^/]+\/packages\/resolve$/.test(new URL(context.req.url).pathname)) {
+      return next();
+    }
+
+    const result = limiter.consume(requestClientKey(context, trustProxy));
+    if (result.allowed) return next();
+    context.header('Retry-After', String(result.retryAfterSeconds));
+    return context.json(ApiErrorSchema.parse({
+      code: 'rate_limited',
+      message: 'Too many package resolution requests. Try again later.',
+      retryable: true,
+    }), 429);
+  };
+}
+
+export type AppWithLifecycle = Hono & { dispose(): Promise<void> };
+
+export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): AppWithLifecycle {
+  const app = new Hono() as AppWithLifecycle;
+  const services = createServiceContainer(db, options);
+  const providerRpcHandler = new RPCHandler(providerRpcRouter);
+  const corsPolicy = options.corsPolicy ?? config;
+  const rateLimitPolicy = options.packageResolveRateLimit ?? config;
+  const rateLimiter = options.rateLimiter ?? new FixedWindowRateLimiter(
+    rateLimitPolicy.packageResolveRateLimit,
+    rateLimitPolicy.packageResolveRateWindowMs,
+  );
+  app.use('*', createCorsMiddleware(corsPolicy));
+  app.use('/api/*', bodyLimit({
+    maxSize: options.maxBodyBytes ?? config.maxBodyBytes,
+    onError: (context) => context.json(ApiErrorSchema.parse({
+      code: 'payload_too_large',
+      message: 'Request body exceeds the configured limit',
+      retryable: false,
+    }), 413),
+  }));
+  app.use('/api/*', createPackageResolveRateLimitMiddleware(rateLimiter, corsPolicy.trustProxy ?? config.trustProxy));
+  app.use('/rpc/*', async (context, next) => {
+    const { matched, response } = await providerRpcHandler.handle(context.req.raw, {
+      prefix: '/rpc',
+      context: { providerService: services.providerService },
+    });
+    if (matched) return context.newResponse(response.body, response);
+    await next();
+  });
+  app.route('/', createHealthRoutes());
+  app.route('/', createProjectRoutes(services));
+  app.route('/', createChatRoutes(services));
+  app.route('/', createTaskRoutes(services));
+  app.route('/', createRealtimeRoutes(services));
+  app.route('/', createFileRoutes(services));
+  app.route('/', createActionRoutes(services));
+  app.route('/', createProviderRoutes(services));
+  app.route('/', createPackageRoutes(services));
+  app.route('/', createSkillRoutes(services));
+  app.route('/', createPromptRoutes(services));
+  app.route('/', createMcpRoutes(services));
+  app.route('/', createThemeRoutes(services));
+  if (corsPolicy.nodeEnv !== 'production') app.get('/__throws', () => { throw new Error('boom'); });
+  app.onError((error, context) => context.json(ApiErrorSchema.parse({
+    code: 'internal_error', message: error.message, retryable: false,
+  }), 500));
+  app.dispose = services.dispose;
   return app;
 }
 

@@ -11,17 +11,18 @@ export type { EventStream } from '../db/repositories/eventsRepository';
 /**
  * Delivery / idempotency contract:
  *
- * The server MAY redeliver an event on SSE reconnect. The `after` query param
- * (backed by `stream(..., afterId)`) minimizes re-delivery by replaying only
- * events strictly after the client's last-seen id, but it is a best-effort
- * optimization, not a guarantee. Ultimate dedup is the CLIENT's job: the
- * client reducer MUST be idempotent on `event.id` (see T05 eventReducer).
+ * The server MAY redeliver an event on SSE reconnect. The `afterSequence`
+ * query param replays only events strictly after the client's stream cursor.
+ * `id` remains the idempotency key; `sequence` is only used for ordering and
+ * resume, never for deduplication.
  * This server-side store is append-only and never mutates an event once
  * persisted, so `id` is a safe dedup key for the reducer.
  */
 export type Listener = (env: RealtimeEnvelope) => void;
 
-export type AppendEnvelope = Omit<RealtimeEnvelope, 'id' | 'createdAt'> & {
+export type RealtimeEventDraft = Omit<RealtimeEnvelope, 'sequence'>;
+
+export type AppendEnvelope = Omit<RealtimeEnvelope, 'id' | 'sequence' | 'createdAt'> & {
   id?: string;
   createdAt?: string;
   projectId?: string;
@@ -39,12 +40,12 @@ export interface EventStore {
   stream(
     stream: EventStream,
     streamId: string,
-    afterId?: string,
+    afterSequence?: number,
   ): RealtimeEnvelope[];
   subscribe(
     stream: EventStream,
     streamId: string,
-    afterId: string | undefined,
+    afterSequence: number | undefined,
     onChange: Listener,
   ): () => void;
 }
@@ -79,14 +80,14 @@ export function createEventStore(db: DatabaseSync): EventStore {
       return persisted;
     },
 
-    stream(stream, streamId, afterId) {
-      if (stream === 'chat') return repo.listByChat(streamId, afterId);
-      if (stream === 'task') return repo.listByTask(streamId, afterId);
-      return repo.listByProject(streamId, afterId);
+    stream(stream, streamId, afterSequence) {
+      if (stream === 'chat') return repo.listByChat(streamId, afterSequence);
+      if (stream === 'task') return repo.listByTask(streamId, afterSequence);
+      return repo.listByProject(streamId, afterSequence);
     },
 
-    subscribe(stream, streamId, afterId, onChange) {
-      void afterId;
+    subscribe(stream, streamId, afterSequence, onChange) {
+      void afterSequence;
       const key = streamKey(stream, streamId);
       let set = listeners.get(key);
       if (!set) {

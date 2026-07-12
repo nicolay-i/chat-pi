@@ -8,11 +8,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import type { PromptTemplate, RunMode } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 const MODE_OPTIONS: RunMode[] = ['discussion', 'planning', 'implementation', 'orchestration'];
 
@@ -56,6 +56,13 @@ export default function PromptEditorScreen() {
 
   const preview = useMemo(() => renderPromptPreview(body, variables), [body, variables]);
 
+  const applyTemplate = useCallback((tpl: PromptTemplate): void => {
+    setName(tpl.name);
+    setMode(tpl.mode ?? null);
+    setBody(tpl.body);
+    setVariablesText(tpl.variables.join(', '));
+  }, []);
+
   useEffect(() => {
     if (!baseUrl || !projectId || !templateId) {
       setStatus('error');
@@ -88,14 +95,7 @@ export default function PromptEditorScreen() {
     return () => {
       active = false;
     };
-  }, [baseUrl, projectId, templateId, nonce]);
-
-  function applyTemplate(tpl: PromptTemplate): void {
-    setName(tpl.name);
-    setMode(tpl.mode ?? null);
-    setBody(tpl.body);
-    setVariablesText(tpl.variables.join(', '));
-  }
+  }, [applyTemplate, baseUrl, projectId, templateId, nonce]);
 
   const handleSave = (): void => {
     if (!baseUrl || !projectId || !templateId) return;

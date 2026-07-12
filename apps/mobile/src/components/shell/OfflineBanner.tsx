@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
-import { selectIsOffline, useConnection } from '@/state/connectionStore';
+import { observer } from '@/lib/observer';
+import { useRootStore } from '@/providers/RootStoreProvider';
 import { tokens } from '@/theme/tokens';
 
 export type OfflineBannerProps = {
@@ -8,10 +9,11 @@ export type OfflineBannerProps = {
 
 const AMBER = '#E8A33D';
 
-export function OfflineBanner({ onRetry }: OfflineBannerProps) {
-  const { status, lastEventId } = useConnection();
+export const OfflineBanner = observer(function OfflineBanner({ onRetry }: OfflineBannerProps) {
+  const { connection } = useRootStore();
+  const { status, lastSequence } = connection;
 
-  if (!selectIsOffline(status)) {
+  if (!connection.isOffline) {
     return null;
   }
 
@@ -39,10 +41,10 @@ export function OfflineBanner({ onRetry }: OfflineBannerProps) {
         </Text>
         {isReconnecting ? (
           <Text
-            testID="offline.lastEventId"
+            testID="offline.lastSequence"
             style={{ color: '#fff', fontSize: tokens.fontSize.sm, marginTop: 2 }}
           >
-            {lastEventId ?? '—'}
+            {lastSequence ?? '—'}
           </Text>
         ) : null}
       </View>
@@ -63,4 +65,4 @@ export function OfflineBanner({ onRetry }: OfflineBannerProps) {
       </Pressable>
     </View>
   );
-}
+});

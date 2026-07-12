@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EventType } from '@pi-agents/contracts';
-import { FakeChatRuntime } from '../chatRuntime';
+import { FakeChatRuntime, PiChatRuntime } from '../chatRuntime';
 
 describe('FakeChatRuntime', () => {
   it('emits a chat-shaped assistant response', async () => {
@@ -29,5 +29,11 @@ describe('FakeChatRuntime', () => {
       chatId: 'chat-1',
       delta: 'Принял задачу: Проверь поток',
     });
+  });
+});
+
+describe('PiChatRuntime', () => {
+  it('disposes without a started Pi session', async () => {
+    await expect(new PiChatRuntime().dispose()).resolves.toBeUndefined();
   });
 });

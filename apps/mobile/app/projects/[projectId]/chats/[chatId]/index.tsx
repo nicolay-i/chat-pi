@@ -1,12 +1,12 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChatThread } from '@/features/chat/ChatThread';
+import { ChatScreen as ChatFeatureScreen } from '@/features/chat/ChatScreen';
 
 export default function ChatScreen() {
   const { chatId } = useLocalSearchParams<{ chatId: string }>();
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
-      <ChatThread chatId={chatId} />
+      <ChatFeatureScreen chatId={chatId} />
     </SafeAreaView>
   );
 }

@@ -1,7 +1,8 @@
 import { act } from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
+import { renderWithStore as render } from '@/test/renderWithStore';
 
-jest.mock('expo-router', () => ({
+jest.mock('@/navigation', () => ({
   router: { replace: jest.fn() },
 }));
 
@@ -11,9 +12,10 @@ jest.mock('@/state/backendStorage', () => ({
   clearBackendUrl: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { router } from 'expo-router';
+import { router } from '@/navigation';
 import SetupScreen from '../setup';
-import { rootStore } from '@/stores/rootStore';
+import { RootStoreProvider } from '@/providers/RootStoreProvider';
+import { createRootStore, type RootStore } from '@/stores/rootStore';
 
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -51,23 +53,24 @@ const typeUrl = async (
 };
 
 describe('SetupScreen', () => {
+  let store: RootStore;
+
   beforeEach(() => {
-    rootStore.chat.close();
-    jest.spyOn(rootStore.chat, 'open').mockImplementation(() => undefined);
-    rootStore.backend.baseUrl = null;
-    rootStore.backend.capabilities = null;
-    rootStore.backend.status = 'idle';
-    rootStore.backend.latencyMs = null;
-    rootStore.backend.error = null;
+    store = createRootStore({
+      realtimeFactory: () => ({ start: jest.fn(), stop: jest.fn() }),
+    });
   });
 
   afterEach(() => {
+    store.dispose();
     restoreFetch();
     jest.clearAllMocks();
   });
 
   it('renders the backend URL input and test-connection button', async () => {
-    const { getByTestId } = await render(<SetupScreen />);
+    const { getByTestId } = await render(
+      <RootStoreProvider store={store}><SetupScreen /></RootStoreProvider>,
+    );
     expect(getByTestId('setup.backendUrl')).toBeTruthy();
     expect(getByTestId('setup.testConnection')).toBeTruthy();
   });
@@ -90,7 +93,9 @@ describe('SetupScreen', () => {
     });
     setFetch(fetchMock);
 
-    const { getByTestId, findByText } = await render(<SetupScreen />);
+    const { getByTestId, findByText } = await render(
+      <RootStoreProvider store={store}><SetupScreen /></RootStoreProvider>,
+    );
     await typeUrl(getByTestId, 'https://pi.example.internal');
 
     await act(async () => {
@@ -106,7 +111,9 @@ describe('SetupScreen', () => {
   it('shows server-unreachable error when fetch rejects', async () => {
     setFetch(jest.fn(() => Promise.reject(new Error('network down'))));
 
-    const { getByTestId, findByText } = await render(<SetupScreen />);
+    const { getByTestId, findByText } = await render(
+      <RootStoreProvider store={store}><SetupScreen /></RootStoreProvider>,
+    );
     await typeUrl(getByTestId, 'https://pi.example.internal');
 
     await act(async () => {
@@ -120,7 +127,9 @@ describe('SetupScreen', () => {
     const fetchMock = jest.fn((): Promise<Response> => Promise.resolve(jsonRes({})));
     setFetch(fetchMock);
 
-    const { getByTestId, findByText } = await render(<SetupScreen />);
+    const { getByTestId, findByText } = await render(
+      <RootStoreProvider store={store}><SetupScreen /></RootStoreProvider>,
+    );
     await typeUrl(getByTestId, 'not-a-url');
 
     await act(async () => {

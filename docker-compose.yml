@@ -1,0 +1,34 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      # The host port mapping controls exposure; inside the container bind all interfaces.
+      API_HOST: 0.0.0.0
+      DB_PATH: /data/app.db
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-1048576}
+      PACKAGE_RESOLVE_RATE_LIMIT: ${PACKAGE_RESOLVE_RATE_LIMIT:-10}
+      PACKAGE_RESOLVE_RATE_WINDOW_SECONDS: ${PACKAGE_RESOLVE_RATE_WINDOW_SECONDS:-60}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      DISK_WARNING_FREE_BYTES: ${DISK_WARNING_FREE_BYTES:-1073741824}
+      DISK_CHECK_INTERVAL_SECONDS: ${DISK_CHECK_INTERVAL_SECONDS:-300}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env.docker}
+      AGENT_RUNTIME: ${AGENT_RUNTIME:-fake}
+      PI_BIN: ${PI_BIN:-}
+      PI_PROVIDER: ${PI_PROVIDER:-}
+      PI_MODEL: ${PI_MODEL:-}
+    ports:
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8787}:8787"
+    volumes:
+      - api-data:/data
+      - type: bind
+        source: ${PROJECTS_ROOT:?Set PROJECTS_ROOT to the host directory containing managed repositories}
+        target: /projects
+    restart: unless-stopped
+    init: true
+
+volumes:
+  api-data:

@@ -2,13 +2,15 @@ import { RealtimeEnvelopeSchema, type RealtimeEnvelope } from '@pi-agents/contra
 
 type EventStreamOptions = {
   url: string;
-  after?: string;
+  afterSequence?: number;
   onEvent: (event: RealtimeEnvelope) => void;
   onStateChange?: (state: 'connecting' | 'open' | 'closed' | 'error') => void;
 };
 
 export function connectEventStream(options: EventStreamOptions) {
-  const url = options.after ? `${options.url}?after=${encodeURIComponent(options.after)}` : options.url;
+  const url = options.afterSequence === undefined
+    ? options.url
+    : `${options.url}?afterSequence=${encodeURIComponent(options.afterSequence)}`;
   options.onStateChange?.('connecting');
   const source = new EventSource(url);
   source.onopen = () => options.onStateChange?.('open');

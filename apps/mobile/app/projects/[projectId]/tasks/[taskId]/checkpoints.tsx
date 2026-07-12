@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from '@/navigation';
 import type { DiffEntry } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { useCheckpoints } from '@/features/checkpoints/useCheckpoints';
 import { CheckpointTree } from '@/features/checkpoints/CheckpointTree';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 type Confirm = { kind: 'fork' | 'rollback'; checkpointId: string } | null;
 

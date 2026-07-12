@@ -1,4 +1,5 @@
 import type { EventType, RealtimeEnvelope } from '@pi-agents/contracts';
+import type { RealtimeEventDraft } from '../realtime/eventStore';
 
 export type PiJsonlEntryKind =
   | 'message'
@@ -78,7 +79,7 @@ function makeEnvelope(
   createdAt: string,
   type: EventType,
   payload: unknown,
-): RealtimeEnvelope {
+): RealtimeEventDraft {
   return {
     id: newEnvelopeId(),
     stream,
@@ -112,7 +113,7 @@ function makeEnvelope(
 export function mapEntryToEvent(
   entry: PiJsonlEntry,
   ctx: MapEntryContext,
-): RealtimeEnvelope {
+): RealtimeEventDraft {
   const stream: RealtimeEnvelope['stream'] = ctx.taskId ? 'task' : 'chat';
   const streamId = ctx.taskId ?? ctx.chatId ?? ctx.projectId;
   const createdAt = entry.ts;

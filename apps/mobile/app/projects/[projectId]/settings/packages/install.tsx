@@ -9,11 +9,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from '@/navigation';
 import type { PackageInstallResult, PackageManifest } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
-import { useBackend } from '@/state/backendStore';
+import { useBackend } from '@/stores/useBackend';
 
 type SourceKind = 'npm' | 'git' | 'local';
 const SOURCE_KINDS: { kind: SourceKind; label: string; placeholder: string }[] = [
@@ -62,7 +62,7 @@ export default function PackageInstallScreen() {
     setTrust(false);
     const client = new ApiClient(baseUrl);
     try {
-      const result = await client.resolvePackage(projectId, { name });
+      const result = await client.resolvePackage(projectId, { kind: sourceKind, ref: name });
       setState({ phase: 'resolved', result });
     } catch (err: unknown) {
       setState({ phase: 'error', message: err instanceof Error ? err.message : String(err) });
@@ -76,7 +76,9 @@ export default function PackageInstallScreen() {
     setInstalling(true);
     const client = new ApiClient(baseUrl);
     try {
-      await client.installPackage(projectId, { name });
+      const manifest = resolved ? { ...resolved, trusted: true } : null;
+      if (!manifest) return;
+      await client.installPackage(projectId, { source: { kind: sourceKind, ref: name }, manifest });
       router.back();
     } catch (err: unknown) {
       setState({ phase: 'error', message: err instanceof Error ? err.message : String(err) });

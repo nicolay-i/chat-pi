@@ -1,13 +1,13 @@
 import { tokens } from '@/theme/tokens';
 import {
   selectMergedTokens,
-  useThemeStore,
   type ThemeOverrides,
 } from '../themeStore';
+import { getTestRootStore } from '@/test/rootStoreHarness';
 
 describe('themeStore', () => {
   afterEach(() => {
-    useThemeStore.getState().reset();
+    getTestRootStore().theme.reset();
   });
 
   it('selectMergedTokens returns base tokens when overrides are empty', () => {
@@ -38,17 +38,18 @@ describe('themeStore', () => {
   });
 
   it('setOverride updates a single key within a group', () => {
-    const { setOverride } = useThemeStore.getState();
+    const { theme } = getTestRootStore();
+    const { setOverride } = theme;
     setOverride('color', 'primary', '#00FF00');
-    const state = useThemeStore.getState();
-    expect(state.overrides.color?.primary).toBe('#00FF00');
-    expect(selectMergedTokens(state.overrides).color.primary).toBe('#00FF00');
+    expect(theme.overrides.color?.primary).toBe('#00FF00');
+    expect(selectMergedTokens(theme.overrides).color.primary).toBe('#00FF00');
   });
 
   it('loadFrom replaces overrides wholesale and reset clears them', () => {
-    useThemeStore.getState().loadFrom({ color: { danger: '#112233' } });
-    expect(useThemeStore.getState().overrides.color?.danger).toBe('#112233');
-    useThemeStore.getState().reset();
-    expect(useThemeStore.getState().overrides).toEqual({});
+    const { theme } = getTestRootStore();
+    theme.loadFrom({ color: { danger: '#112233' } });
+    expect(theme.overrides.color?.danger).toBe('#112233');
+    theme.reset();
+    expect(theme.overrides).toEqual({});
   });
 });

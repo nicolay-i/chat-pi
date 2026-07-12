@@ -97,6 +97,33 @@ describe('ApiClient', () => {
     expect(sentBody.attachments).toEqual([{ id: 'a1', kind: 'image', uri: 'file:///x.png' }]);
   });
 
+  it('abortChat posts to the chat runtime command endpoint', async () => {
+    fetchMock.mockResolvedValue(mockResponse({ ok: true }));
+
+    const client = new ApiClient('https://api.example.com');
+    await expect(client.abortChat('chat-1')).resolves.toEqual({ ok: true });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://api.example.com/api/chats/chat-1/abort', {
+      method: 'POST',
+    });
+  });
+
+  it('revertFile sends the explicit confirmation accepted by the task route', async () => {
+    fetchMock.mockResolvedValue(mockResponse({
+      id: 'task-1', projectId: 'project-1', title: 'Task', mode: 'implementation', status: 'idle',
+      branchName: 'agents/task-1', worktreePath: '/repo/.worktrees/task-1', changedFiles: 0, updatedAt: '2026-01-01T00:00:00.000Z',
+    }));
+
+    const client = new ApiClient('https://api.example.com');
+    await client.revertFile('task-1', { path: 'src/app.ts', confirm: true });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://api.example.com/api/tasks/task-1/revert-file', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: 'src/app.ts', confirm: true }),
+    });
+  });
+
   it('toError normalizes an error body into ApiClientError', async () => {
     fetchMock.mockResolvedValue(
       mockResponse({ code: 'HTTP_ERROR', message: 'Internal Server Error' }, { ok: false }),

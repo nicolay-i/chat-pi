@@ -15,6 +15,7 @@ function envelope(
 ): RealtimeEnvelope {
   return {
     id,
+    sequence: Number(id.replace(/\D/g, '')),
     stream: 'chat',
     streamId,
     type,
@@ -47,7 +48,7 @@ describe('eventReducer', () => {
     expect(second).toEqual(first);
   });
 
-  it('ignores duplicate / stale event ids (state unchanged)', () => {
+  it('ignores duplicate ids and stale sequences (state unchanged)', () => {
     const seq: RealtimeEnvelope[] = [
       envelope('01J', 'message.created', {
         chatId: 'c1',
@@ -69,11 +70,22 @@ describe('eventReducer', () => {
     }));
     expect(replayed).toEqual(baseline);
 
-    const lexicographicallyLower = eventReducer(baseline, envelope('00J', 'task.status.changed', {
+    const lowerSequence = eventReducer(baseline, envelope('00J', 'task.status.changed', {
       taskId: 't99',
       status: 'queued',
     }));
-    expect(lexicographicallyLower).toEqual(baseline);
+    expect(lowerSequence).toEqual(baseline);
+  });
+
+  it('keeps cursors independent for different stream identities', () => {
+    const chat = envelope('10J', 'task.status.changed', { taskId: 'chat-task', status: 'running' });
+    const task = { ...envelope('02J', 'task.status.changed', { taskId: 'task-1', status: 'running' }), stream: 'task' as const, streamId: 'task-1' };
+    const staleTask = { ...envelope('01J', 'task.status.changed', { taskId: 'task-1', status: 'queued' }), stream: 'task' as const, streamId: 'task-1' };
+
+    const state = reduceMany([chat, task, staleTask]);
+
+    expect(state.events.map((event) => event.id)).toEqual(['10J', '02J']);
+    expect(state.lastSequenceByStream).toEqual({ 'chat:chat-1': 10, 'task:task-1': 2 });
   });
 
   it('message.created pushes a MessageView into messagesByChat', () => {
@@ -131,6 +143,23 @@ describe('eventReducer', () => {
       envelope('02J', 'task.status.changed', { taskId: 't1', status: 'merged' }),
     ]);
     expect(state.taskStatuses.t1).toBe('merged');
+  });
+
+  it('uses stream context when runtime payload omits duplicate identifiers', () => {
+    const state = reduceMany([
+      envelope('01J', 'message.created', { messageId: 'assistant-1', role: 'assistant', text: '' }),
+      envelope('02J', 'message.delta', { messageId: 'assistant-1', delta: 'Working' }),
+      {
+        ...envelope('03J', 'task.status.changed', { status: 'running' }),
+        stream: 'task' as const,
+        streamId: 'task-1',
+      },
+      envelope('04J', 'queue.updated', { pending: 3 }),
+    ]);
+
+    expect(state.messagesByChat['chat-1'][0]).toMatchObject({ id: 'assistant-1', text: 'Working' });
+    expect(state.taskStatuses['task-1']).toBe('running');
+    expect(state.queueByChat['chat-1']).toBe(3);
   });
 
   it('message.completed marks a message complete', () => {
@@ -191,6 +220,6 @@ describe('eventReducer', () => {
     ];
     const state = reduceMany(seq);
     expect(state.events.map((e) => e.id)).toEqual(['01J', '02J']);
-    expect(state.lastEventId).toBe('02J');
+    expect(state.lastSequenceByStream['chat:chat-1']).toBe(2);
   });
 });

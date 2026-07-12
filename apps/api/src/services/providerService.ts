@@ -49,6 +49,15 @@ export type ProviderServiceDeps = {
   providers?: ProvidersRepository;
 };
 
+const SECRET_REFERENCE_PATTERN = /^(?:env|secret):[A-Za-z_][A-Za-z0-9_./-]*$/;
+const PENDING_SECRET_REFERENCE = 'pending-secret-configuration';
+
+function assertSecretReference(secretRef: string | undefined): void {
+  if (!secretRef) return;
+  if (secretRef === PENDING_SECRET_REFERENCE || SECRET_REFERENCE_PATTERN.test(secretRef)) return;
+  throw new Error('provider secret must be a symbolic env: or secret: reference; raw secret values are not accepted');
+}
+
 function toInput(
   projectId: string,
   input: CreateProviderInput,
@@ -74,6 +83,7 @@ export function createProviderService(
 
   return {
     async create(projectId, input) {
+      assertSecretReference(input.secretRef);
       const rec = providers.create(toInput(projectId, input));
       await eventStore.append({
         stream: 'project',

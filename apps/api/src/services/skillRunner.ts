@@ -1,9 +1,12 @@
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Skill } from '@pi-agents/contracts';
 import {
   createPackagesRepository,
   type PackagesRepository,
 } from '../db';
+import type { ProjectsRepository } from '../db/repositories/projectsRepository';
 
 const DEFAULT_SKILLS: Skill[] = [
   {
@@ -31,6 +34,8 @@ export type RunSkillResult = {
 
 export interface SkillRunner {
   listSkills(projectId: string): Promise<Skill[]>;
+  getSkill(projectId: string, skillId: string): Promise<Skill | undefined>;
+  saveSkill(projectId: string, skillId: string, input: Partial<Skill>): Promise<Skill>;
   runSkill(
     skillId: string,
     input?: Record<string, unknown>,
@@ -39,6 +44,7 @@ export interface SkillRunner {
 
 export type SkillRunnerDeps = {
   packages?: PackagesRepository;
+  projects: ProjectsRepository;
 };
 
 /**
@@ -49,27 +55,67 @@ export type SkillRunnerDeps = {
  */
 export function createSkillRunner(
   db: DatabaseSync,
-  deps: SkillRunnerDeps = {},
+  deps: SkillRunnerDeps,
 ): SkillRunner {
   const packages: PackagesRepository =
     deps.packages ?? createPackagesRepository(db);
+  const projects = deps.projects;
+
+  const projectRoot = (projectId: string) => {
+    const project = projects.getById(projectId);
+    if (!project) throw new Error(`project not found: ${projectId}`);
+    return join(project.repoPath, project.agentsDir, 'skills');
+  };
+  const assertId = (id: string) => {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(id)) throw new Error('skill id must be a safe directory name');
+  };
+  const projectSkills = (projectId: string): Skill[] => {
+    const root = projectRoot(projectId);
+    if (!existsSync(root)) return [];
+    return readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && existsSync(join(root, entry.name, 'SKILL.md')))
+      .map((entry) => {
+        const id = entry.name;
+        const dir = join(root, id);
+        const metadataPath = join(dir, 'skill.json');
+        const metadata = existsSync(metadataPath) ? JSON.parse(readFileSync(metadataPath, 'utf8')) as Partial<Skill> : {};
+        const body = readFileSync(join(dir, 'SKILL.md'), 'utf8');
+        const description = metadata.description ?? body.split(/\r?\n/).find((line) => line.trim() && !line.startsWith('#'))?.trim();
+        return { id, name: metadata.name ?? id, description, source: 'project', enabled: metadata.enabled ?? true, path: `${id}/SKILL.md` };
+      });
+  };
+
+  const packageSkills = (projectId: string): Skill[] => {
+    const out: Skill[] = [];
+    for (const pkg of packages.listByProject(projectId)) {
+      if (!pkg.trusted || !pkg.enabled) continue;
+      for (const skillId of pkg.manifest.resources.skills) out.push({ id: `${pkg.name}/${skillId}`, name: skillId, source: 'package', enabled: true, path: `${pkg.installPath}/skills/${skillId}/SKILL.md` });
+    }
+    return out;
+  };
 
   return {
     async listSkills(projectId) {
-      const out: Skill[] = [...DEFAULT_SKILLS];
-      for (const pkg of packages.listByProject(projectId)) {
-        if (!pkg.trusted || !pkg.enabled) continue;
-        for (const skillId of pkg.manifest.resources.skills) {
-          out.push({
-            id: `${pkg.name}/${skillId}`,
-            name: skillId,
-            source: 'package',
-            enabled: true,
-            path: `${pkg.installPath}/skills/${skillId}/SKILL.md`,
-          });
-        }
-      }
-      return out;
+      const local = projectSkills(projectId);
+      return [...(local.length > 0 ? local : DEFAULT_SKILLS), ...packageSkills(projectId)];
+    },
+
+    async getSkill(projectId, skillId) { return (await this.listSkills(projectId)).find((skill) => skill.id === skillId); },
+
+    async saveSkill(projectId, skillId, input) {
+      assertId(skillId);
+      if (input.source && input.source !== 'project') throw new Error('package skills are read-only');
+      const root = projectRoot(projectId);
+      const dir = join(root, skillId);
+      mkdirSync(dir, { recursive: true });
+      const skillPath = join(dir, 'SKILL.md');
+      if (!existsSync(skillPath)) writeFileSync(skillPath, `# ${input.name ?? skillId}\n\n${input.description ?? ''}\n`, 'utf8');
+      const skill: Skill = { id: skillId, name: input.name ?? skillId, description: input.description, source: 'project', enabled: input.enabled ?? true, path: `${skillId}/SKILL.md` };
+      const metadataPath = join(dir, 'skill.json');
+      const temporary = `${metadataPath}.${process.pid}.tmp`;
+      writeFileSync(temporary, JSON.stringify(skill, null, 2), 'utf8');
+      renameSync(temporary, metadataPath);
+      return skill;
     },
 
     async runSkill(skillId, _input) {

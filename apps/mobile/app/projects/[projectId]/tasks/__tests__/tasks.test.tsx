@@ -1,6 +1,7 @@
-import { render } from '@testing-library/react-native';
 
-jest.mock('expo-router', () => ({
+import { renderWithStore as render } from '@/test/renderWithStore';
+
+jest.mock('@/navigation', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: jest.fn(() => ({ projectId: 'project-demo' })),
 }));
@@ -43,7 +44,7 @@ function makeTask(overrides: Partial<Record<string, unknown>> & { id: string }) 
 }
 
 function configureBackend(url: string): void {
-  const mod = require('@/state/backendStore') as typeof import('@/state/backendStore');
+  const mod = require('@/test/rootStoreHarness') as typeof import('@/test/rootStoreHarness');
   mod.backendActions.setBaseUrl(url);
 }
 

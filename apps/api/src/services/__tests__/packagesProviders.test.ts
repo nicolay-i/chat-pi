@@ -1,24 +1,30 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
+import type { PackageManifest } from '@pi-agents/contracts';
 import { createDb } from '../../db';
+import { createProjectsRepository } from '../../db';
 import { createEventStore } from '../../realtime/eventStore';
 import { createProjectService } from '../projectService';
 import { createPackageService } from '../packageService';
 import { createProviderService } from '../providerService';
 import { createActionEngine } from '../actionEngine';
 import { createSkillRunner } from '../skillRunner';
+import { TemporaryGitRepository } from '../../test/harness/TemporaryGitRepository';
 
 async function setup() {
   const db: DatabaseSync = createDb(':memory:');
   const eventStore = createEventStore(db);
   const projects = createProjectService(db);
-  const packages = createPackageService(db, { eventStore });
+  const repository = new TemporaryGitRepository();
+  const packages = createPackageService(db, { eventStore, projects: createProjectsRepository(db) });
   const providers = createProviderService(db, { eventStore });
   const actions = createActionEngine(db);
-  const skills = createSkillRunner(db);
+  const skills = createSkillRunner(db, { projects: createProjectsRepository(db) });
   const project = await projects.create({
     name: 'p',
-    repoPath: '/repo',
+    repoPath: repository.repoPath,
     defaultBranch: 'main',
   });
   return {
@@ -29,6 +35,7 @@ async function setup() {
     providers,
     actions,
     skills,
+    repository,
   };
 }
 
@@ -36,6 +43,33 @@ let env: Awaited<ReturnType<typeof setup>>;
 beforeEach(async () => {
   env = await setup();
 });
+
+afterEach(() => {
+  env.repository.dispose();
+});
+
+function createLocalPackage(name: string, resources: PackageManifest['resources']): string {
+  const path = join(env.repository.root, 'package-sources', name);
+  mkdirSync(path, { recursive: true });
+  writeFileSync(join(path, 'pi-package.json'), JSON.stringify({
+    name,
+    version: '1.2.3',
+    description: `Fixture ${name}`,
+    resources,
+    trusted: false,
+  }, null, 2));
+  if (resources.extensions.length > 0) {
+    mkdirSync(join(path, 'extensions'), { recursive: true });
+    writeFileSync(join(path, 'extensions', 'extension.mjs'), 'export default {};\n');
+  }
+  if (resources.skills.length > 0) {
+    for (const skill of resources.skills) {
+      mkdirSync(join(path, 'skills', skill), { recursive: true });
+      writeFileSync(join(path, 'skills', skill, 'SKILL.md'), `# ${skill}\n`);
+    }
+  }
+  return path;
+}
 
 describe('packageService', () => {
   it('resolve returns a manifest with resources', async () => {
@@ -68,13 +102,16 @@ describe('packageService', () => {
   });
 
   it('listLoadableExtensions excludes untrusted packages', async () => {
+    const source = createLocalPackage('pkg', {
+      extensions: ['ext-a', 'ext-b'], skills: [], prompts: [], themes: [], providers: [],
+    });
     const manifest = await env.packages.resolve({
       kind: 'local',
-      ref: './local/pkg',
+      ref: source,
     });
     manifest.resources.extensions = ['ext-a', 'ext-b'];
     const result = await env.packages.install(env.project.id, {
-      source: { kind: 'local', ref: './local/pkg' },
+      source: { kind: 'local', ref: source },
       manifest,
     });
     const before = await env.packages.listLoadableExtensions(env.project.id);
@@ -86,33 +123,66 @@ describe('packageService', () => {
   });
 
   it('listLoadableExtensions excludes disabled-but-trusted packages', async () => {
+    const source = createLocalPackage('pkg2', {
+      extensions: ['ext-x'], skills: [], prompts: [], themes: [], providers: [],
+    });
     const manifest = await env.packages.resolve({
       kind: 'local',
-      ref: './local/pkg2',
+      ref: source,
     });
     manifest.resources.extensions = ['ext-x'];
     const result = await env.packages.install(env.project.id, {
-      source: { kind: 'local', ref: './local/pkg2' },
+      source: { kind: 'local', ref: source },
       manifest,
     });
     await env.packages.trust(result.installId);
     await env.packages.setEnabled(result.installId, false);
     const loadable = await env.packages.listLoadableExtensions(env.project.id);
     expect(loadable.extensions).toEqual([]);
+    expect(JSON.parse(readFileSync(join(env.project.repoPath, '.agents', 'packages.lock.json'), 'utf8'))).toMatchObject({
+      packages: [],
+    });
   });
 
   it('trust toggles the trusted flag', async () => {
+    const source = createLocalPackage('toggleme', {
+      extensions: [], skills: [], prompts: [], themes: [], providers: [],
+    });
     const manifest = await env.packages.resolve({
-      kind: 'npm',
-      ref: 'toggleme',
+      kind: 'local',
+      ref: source,
     });
     const result = await env.packages.install(env.project.id, {
-      source: { kind: 'npm', ref: 'toggleme' },
+      source: { kind: 'local', ref: source },
       manifest,
     });
     await env.packages.trust(result.installId);
     const list = await env.packages.list(env.project.id);
     expect(list[0].trusted).toBe(true);
+    expect(existsSync(join(env.project.repoPath, '.agents', 'packages', 'toggleme@1.2.3', 'pi-package.json'))).toBe(true);
+    expect(JSON.parse(readFileSync(join(env.project.repoPath, '.agents', 'packages.lock.json'), 'utf8'))).toMatchObject({
+      version: 1,
+      packages: [{ name: 'toggleme', version: '1.2.3', installPath: '.agents/packages/toggleme@1.2.3' }],
+    });
+  });
+
+  it('materializes a scoped local package under a filesystem-safe directory name', async () => {
+    const source = createLocalPackage('@scope/plugin', {
+      extensions: [], skills: [], prompts: [], themes: [], providers: [],
+    });
+    const manifest = await env.packages.resolve({ kind: 'local', ref: source });
+    const result = await env.packages.install(env.project.id, {
+      source: { kind: 'local', ref: source },
+      manifest,
+    });
+
+    await env.packages.trust(result.installId);
+
+    const safeDirectory = '%40scope%2Fplugin@1.2.3';
+    expect(existsSync(join(env.project.repoPath, '.agents', 'packages', safeDirectory, 'pi-package.json'))).toBe(true);
+    expect(JSON.parse(readFileSync(join(env.project.repoPath, '.agents', 'packages.lock.json'), 'utf8'))).toMatchObject({
+      packages: [{ name: '@scope/plugin', installPath: `.agents/packages/${safeDirectory}` }],
+    });
   });
 
   it('remove deletes the package', async () => {
@@ -147,6 +217,17 @@ describe('providerService', () => {
     const serialized = JSON.stringify(list);
     expect(serialized).not.toContain('secret:');
     expect(serialized).not.toContain('ollama-key');
+  });
+
+  it('rejects a raw provider secret before it reaches SQLite', async () => {
+    await expect(env.providers.create(env.project.id, {
+      name: 'raw-key',
+      type: 'openai',
+      secretRef: 'sk-live-this-must-not-be-persisted',
+    })).rejects.toThrow(/symbolic env: or secret: reference/);
+
+    const stored = env.db.prepare('SELECT secret_ref FROM providers WHERE project_id = ?').all(env.project.id);
+    expect(JSON.stringify(stored)).not.toContain('sk-live-this-must-not-be-persisted');
   });
 
   it('list provider carries models but no secretRef field', async () => {
@@ -226,13 +307,16 @@ describe('skillRunner', () => {
   });
 
   it('listSkills includes package skills only from trusted+enabled', async () => {
+    const source = createLocalPackage('skillpkg', {
+      extensions: [], skills: ['extra-skill'], prompts: [], themes: [], providers: [],
+    });
     const manifest = await env.packages.resolve({
       kind: 'local',
-      ref: './skillpkg',
+      ref: source,
     });
     manifest.resources.skills = ['extra-skill'];
     const result = await env.packages.install(env.project.id, {
-      source: { kind: 'local', ref: './skillpkg' },
+      source: { kind: 'local', ref: source },
       manifest,
     });
     const before = await env.skills.listSkills(env.project.id);

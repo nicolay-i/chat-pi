@@ -14,6 +14,7 @@ import { createCheckpointService } from '../checkpointService';
 import { createForkService } from '../forkService';
 import { createRollbackService } from '../rollbackService';
 import { createMergeService } from '../mergeService';
+import { createGitTaskService } from '../gitTaskService';
 import { isValidStatusTransition } from '../taskStatus';
 
 function git(cwd: string, args: string[]): string {
@@ -168,6 +169,7 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       message: 'add file.txt',
       repoPath: repo.repoPath,
       worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
     });
 
     expect(cp.sha).toBeTruthy();
@@ -183,7 +185,10 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       .get(taskId) as { patch_path: string } | undefined;
     expect(row?.patch_path).toBeTruthy();
     expect(existsSync(row!.patch_path)).toBe(true);
+    expect(row!.patch_path.startsWith(join(repo.runtimePath, 'checkpoints', taskId))).toBe(true);
+    expect(row!.patch_path.startsWith(seed.worktreePath)).toBe(false);
     expect(readFileSync(row!.patch_path, 'utf8')).toContain('file.txt');
+    expect(git(seed.worktreePath, ['status', '--porcelain'])).toBe('');
 
     const list = env.checkpoints.listByTask(taskId);
     expect(list).toHaveLength(1);
@@ -210,6 +215,7 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       message: 'work before fork',
       repoPath: repo.repoPath,
       worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
     });
 
     const forkService = createForkService(env.db, {
@@ -263,6 +269,7 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       message: 'before rollback',
       repoPath: repo.repoPath,
       worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
     });
 
     const forkService = createForkService(env.db, {
@@ -301,7 +308,9 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
     const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
     const taskId = 'task-mg-1';
     const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    const sibling = await seedTask({ env, projectId, taskId: 'task-mg-stale', repoPath: repo.repoPath, runtimePath: repo.runtimePath });
     moveStatus(env, taskId, 'idle');
+    moveStatus(env, sibling.taskId, 'idle');
 
     writeFileSync(join(seed.worktreePath, 'feature.txt'), 'FEATURE\n');
 
@@ -315,6 +324,7 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       message: 'feature work',
       repoPath: repo.repoPath,
       worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
     });
 
     const mergeService = createMergeService(env.db, {
@@ -341,6 +351,55 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
 
     const taskAfter = env.tasks.getById(taskId);
     expect(taskAfter?.status).toBe('merged');
+    expect(env.tasks.getById(sibling.taskId)?.status).toBe('stale');
+    expect(git(repo.repoPath, ['status', '--porcelain'])).toBe('');
+    expect(existsSync(join(repo.runtimePath, 'integration', taskId))).toBe(false);
+  }, 15_000);
+
+  it('diff and rebase preserve task changes while advancing the base', async () => {
+    const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
+    const taskId = 'task-rebase-1';
+    const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    moveStatus(env, taskId, 'idle');
+    writeFileSync(join(seed.worktreePath, 'rebase.txt'), 'task change\n');
+    const checkpointService = createCheckpointService(env.db, { worktree: env.worktree, events: env.events, tasks: env.tasks });
+    await checkpointService.createCheckpoint({ taskId, message: 'task change', repoPath: repo.repoPath, worktreePath: seed.worktreePath, runtimeStatePath: repo.runtimePath });
+    writeFileSync(join(repo.repoPath, 'main.txt'), 'main change\n');
+    git(repo.repoPath, ['add', 'main.txt']);
+    git(repo.repoPath, ['commit', '-m', 'advance main']);
+    env.tasks.updateStatus(taskId, 'stale');
+
+    const service = createGitTaskService({ tasks: env.tasks, events: env.events });
+    expect((await service.listDiff(taskId)).map((entry) => entry.path)).toContain('rebase.txt');
+    await service.rebase(taskId);
+
+    const rebased = env.tasks.getById(taskId);
+    expect(rebased?.status).toBe('idle');
+    expect(rebased?.baseSha).toBe(git(repo.repoPath, ['rev-parse', 'HEAD']));
+    expect((await service.listDiff(taskId)).map((entry) => entry.path)).toContain('rebase.txt');
+  });
+
+  it('reverts only changed files inside the task worktree', async () => {
+    const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
+    const taskId = 'task-revert-1';
+    const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    moveStatus(env, taskId, 'idle');
+    writeFileSync(join(seed.worktreePath, 'README.md'), '# changed\n');
+    writeFileSync(join(seed.worktreePath, 'added.txt'), 'added\n');
+    git(seed.worktreePath, ['add', 'added.txt']);
+
+    const service = createGitTaskService({ tasks: env.tasks, events: env.events });
+    expect((await service.listDiff(taskId)).map((entry) => entry.path)).toEqual(
+      expect.arrayContaining(['README.md', 'added.txt']),
+    );
+
+    await service.revertFile(taskId, 'README.md');
+    await service.revertFile(taskId, 'added.txt');
+
+    expect(readFileSync(join(seed.worktreePath, 'README.md'), 'utf8').trim()).toBe('# demo');
+    expect(existsSync(join(seed.worktreePath, 'added.txt'))).toBe(false);
+    expect(await service.listDiff(taskId)).toEqual([]);
+    await expect(service.revertFile(taskId, '../README.md')).rejects.toThrow(/repository-relative/);
   });
 
   it('no-ff merge creates a merge commit on target', async () => {
@@ -361,6 +420,7 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       message: 'nf work',
       repoPath: repo.repoPath,
       worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
     });
 
     const mergeService = createMergeService(env.db, {
@@ -401,6 +461,7 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       message: 'running work',
       repoPath: repo.repoPath,
       worktreePath: seed.worktreePath,
+      runtimeStatePath: repo.runtimePath,
     });
 
     const mergeService = createMergeService(env.db, {

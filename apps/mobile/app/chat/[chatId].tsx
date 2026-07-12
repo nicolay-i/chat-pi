@@ -1,7 +1,7 @@
-import { useLocalSearchParams } from 'expo-router';
-import { MvpChatScreen } from '@/features/chat/MvpChatScreen';
+import { useLocalSearchParams } from '@/navigation';
+import { ChatScreen } from '@/features/chat/ChatScreen';
 
 export default function ChatScreenRoute() {
   const { chatId } = useLocalSearchParams<{ chatId: string }>();
-  return <MvpChatScreen chatId={chatId} />;
+  return <ChatScreen chatId={chatId} />;
 }

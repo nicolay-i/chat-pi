@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { EventType, SendMessageInput } from '@pi-agents/contracts';
 import { PiRpcClient, type PiEventListener } from './piRpcClient';
+import { piResourceArgs } from './piResources';
 
 export type ChatRuntimeEmit = (type: EventType, payload: unknown) => void;
 
 export interface ChatRuntime {
   send(chatId: string, input: SendMessageInput, emit: ChatRuntimeEmit): Promise<void>;
+  abort(chatId: string, emit: ChatRuntimeEmit): Promise<void>;
+  dispose?(): Promise<void>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -41,6 +44,11 @@ export class FakeChatRuntime implements ChatRuntime {
     emit('message.completed', { chatId, messageId });
     emit('run.completed', { chatId });
   }
+
+  async abort(chatId: string, emit: ChatRuntimeEmit): Promise<void> {
+    emit('run.aborted', { chatId, reason: 'user' });
+  }
+
 }
 
 type PiChatSession = {
@@ -56,6 +64,7 @@ export type PiChatRuntimeOptions = {
   nodeBin?: string;
   provider?: string;
   model?: string;
+  agentDir?: string;
 };
 
 export class PiChatRuntime implements ChatRuntime {
@@ -70,6 +79,8 @@ export class PiChatRuntime implements ChatRuntime {
       nodeBin: this.options.nodeBin,
       provider: this.options.provider,
       model: this.options.model,
+      agentDir: this.options.agentDir,
+      args: piResourceArgs(this.options.cwd),
     });
     const session: PiChatSession = {
       client,
@@ -163,6 +174,24 @@ export class PiChatRuntime implements ChatRuntime {
       await session.client.abort();
     }
     await session.client.prompt(input.text);
+  }
+
+  async abort(chatId: string, emit: ChatRuntimeEmit): Promise<void> {
+    const session = this.sessions.get(chatId);
+    if (session) {
+      await session.started;
+      await session.client.abort();
+    }
+    emit('run.aborted', { chatId, reason: 'user' });
+  }
+
+  async dispose(): Promise<void> {
+    const sessions = [...this.sessions.values()];
+    this.sessions.clear();
+    await Promise.allSettled(sessions.map(async (session) => {
+      await session.started.catch(() => undefined);
+      await session.client.stop();
+    }));
   }
 }
 

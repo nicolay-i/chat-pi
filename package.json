@@ -1,11 +1,12 @@
 {
   "name": "pi-agents-mobile-web-workspace",
   "private": true,
-  "packageManager": "pnpm@latest",
+  "packageManager": "pnpm@9.15.1",
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
+    "export:web": "pnpm --filter @pi-agents/mobile export:web",
     "dev:api": "pnpm --filter @pi-agents/api dev",
     "dev:web": "pnpm --filter @pi-agents/mobile web",
     "dev:tailscale": "pnpm --parallel --filter @pi-agents/api --filter @pi-agents/mobile dev"
