@@ -22,6 +22,9 @@ services:
       PI_BIN: ${PI_BIN:-/usr/local/bin/pi}
       PI_PROVIDER: ${PI_PROVIDER:-}
       PI_MODEL: ${PI_MODEL:-}
+      # Keep provider secrets out of Git. A Pi child receives this value only
+      # when its name is explicitly present in PI_SANDBOX_ENV_ALLOWLIST.
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
       # bwrap isolates every Pi child to its selected worktree, JSONL session
       # directory and Pi state. It needs Linux user namespaces on the VPS.
       PI_SANDBOX_MODE: ${PI_SANDBOX_MODE:-bwrap}
