@@ -2,7 +2,7 @@ import type { EventType, SendMessageInput } from '@pi-agents/contracts';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { RealtimeEventDraft } from '../realtime/eventStore';
-import { PiRpcClient, type PiProcessInfo } from './piRpcClient';
+import { getPiAgentEndError, PiRpcClient, type PiProcessInfo } from './piRpcClient';
 import { mapPiEventToEnvelope } from './piEventMap';
 import { piResourceArgs } from './piResources';
 import { createPiSandboxLaunch, type PiSandboxOptions } from './piSandbox';
@@ -175,6 +175,7 @@ export interface PiRuntimeAdapterOptions {
 interface AdapterSessionState {
   client: PiRpcClient;
   started: Promise<void>;
+  terminalError?: Error;
 }
 
 /**
@@ -250,7 +251,9 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       command: sandbox.command,
       commandArgs: sandbox.commandArgs,
     });
+    const state: AdapterSessionState = { client, started: Promise.resolve() };
     client.onEvent((event) => {
+      state.terminalError ??= getPiAgentEndError(event);
       const envelope = mapPiEventToEnvelope(event, { sessionId });
       if (!envelope) return;
       const set = this.subscribers.get(sessionId);
@@ -263,8 +266,7 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
         }
       }
     });
-    const started = client.start();
-    const state: AdapterSessionState = { client, started };
+    state.started = client.start();
     this.sessions.set(sessionId, state);
     return state;
   }
@@ -293,8 +295,10 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       .map((a) => a.uri);
     const images = imageUris && imageUris.length > 0 ? imageUris : undefined;
     try {
+      state.terminalError = undefined;
       await state.client.prompt(input.text, images);
       await state.client.waitForIdle();
+      if (state.terminalError) throw state.terminalError;
     } catch (err) {
       this.emit(sessionId, 'run.error', {
         message: err instanceof Error ? err.message : String(err),
