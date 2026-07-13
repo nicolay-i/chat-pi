@@ -7,7 +7,8 @@ yet proven by automated tests and remain release gates.
 ## End-to-end runtime
 
 - No CI test connects a running Hono process, actual browser bundle and real Pi
-  CLI in one flow.
+  CLI in one flow. A manual Tailnet-only Web -> VPS -> bwrap -> OpenCode Go
+  discussion flow has been completed; it still needs reproducible CI coverage.
 - The real Pi test is opt-in because it depends on the local CLI, account and
   model availability. Run it before a release after the first Pi launch has
   completed:

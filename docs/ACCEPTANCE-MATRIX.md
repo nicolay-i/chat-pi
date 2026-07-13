@@ -14,10 +14,15 @@ evidence. A green local suite does not replace an explicitly external gate.
 | 14.7 Restart with paused queue | `apps/api/src/services/__tests__/integrationHarness.test.ts` and `piRuntime.test.ts` cover interrupted status, released locks, retained queued follow-ups and recovery context before a new Run. | Covered locally |
 | 14.8 Orchestration | `apps/api/src/server.test.ts` describe block `orchestration chat API` verifies isolated implementation Chats/Tasks, distinct sessions and worktrees, while the orchestration Chat has no writable Task. | Covered locally |
 
+## Manual runtime evidence
+
+- A Web client reached the VPS API through a Tailnet-only HTTPS proxy, selected
+  the registered VPS project, opened a discussion Chat and received a streamed
+  `opencode-go/deepseek-v4-flash` reply. The VPS audit recorded a completed
+  `bwrap` runtime process for the same run.
+
 ## External gates
 
-- Run the real provider-backed bwrap verification on the selected Linux VPS:
-  `docker compose exec -T -e VERIFY_PROJECT_REPO_PATH=/projects/my-repository api pnpm --filter @pi-agents/api verify:vps-bwrap`.
 - Exercise the Android and iOS clients on devices.
 - Verify the configured Ignis host can edit the VPS Markdown vault after a Task.
 

@@ -236,7 +236,6 @@ operation from silently losing its server route.
   arbitrary commands.
 - Docker image build, Compose API health and a real OpenCode Go provider-backed
   `bwrap` Pi turn on the Linux VPS are verified.
-- Device-level QA and a complete browser-to-Pi end-to-end flow remain final
-  release gates.
+- Device-level QA remains the final client release gate.
 
 See `docs/TESTING-GAPS.md` for the test-boundary inventory.
