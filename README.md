@@ -217,6 +217,21 @@ Before accepting a VPS deployment, run a real bwrap Pi turn and confirm its
 After registering the target repository in the application, the containerized
 verifier performs that check and discards its temporary Task afterwards:
 
+### Ignis vault
+
+The compose stack also runs Ignis `0.8.8` for the current `chat-pi` project.
+It mounts only `${PROJECTS_ROOT}/chat-pi` as `/vaults/chat-pi`, persists Ignis
+state/assets in named volumes and binds `8083` to loopback. After deployment,
+publish its private HTTPS origin through Tailscale:
+
+```bash
+tailscale serve --https=8443 --bg http://127.0.0.1:8083
+```
+
+Set the returned `https://<node>.<tailnet>:8443` origin as the project's
+`ignisUrl` through Project settings. It must remain Tailnet-only; Ignis has no
+built-in authentication. `IGNIS_WS_ORIGINS` can restrict its WebSocket origin.
+
 ```powershell
 docker compose exec -T -e VERIFY_PROJECT_REPO_PATH=/projects/my-repository api node --import tsx src/scripts/verifyBwrapRuntime.ts
 ```

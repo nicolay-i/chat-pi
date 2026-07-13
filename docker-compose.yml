@@ -49,5 +49,32 @@ services:
     restart: unless-stopped
     init: true
 
+  # Ignis serves the current Pi Agents repository as a private Markdown vault.
+  # It is exposed separately through `tailscale serve` on a loopback port.
+  ignis:
+    image: nobbe/ignis:0.8.8
+    environment:
+      PORT: 8080
+      OBSIDIAN_VERSION: 1.12.7
+      PUID: ${IGNIS_PUID:-1000}
+      PGID: ${IGNIS_PGID:-1000}
+      VAULT_ROOT: /vaults
+      DATA_ROOT: /app/data
+      WS_ORIGINS: ${IGNIS_WS_ORIGINS:-}
+    ports:
+      - "${IGNIS_BIND_ADDRESS:-127.0.0.1}:${IGNIS_PORT:-8083}:8080"
+    volumes:
+      # The API project is `/projects/chat-pi` inside its container. Expose the
+      # matching host directory as the sole Ignis vault, not all projects.
+      - type: bind
+        source: ${PROJECTS_ROOT:?Set PROJECTS_ROOT to the host directory containing managed repositories}/chat-pi
+        target: /vaults/chat-pi
+      - ignis-data:/app/data
+      - ignis-obsidian-app:/app/obsidian-app
+    restart: unless-stopped
+    init: true
+
 volumes:
   api-data:
+  ignis-data:
+  ignis-obsidian-app:
