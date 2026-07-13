@@ -26,7 +26,11 @@ yet proven by automated tests and remain release gates.
 ## Device and visual verification
 
 - Android/iOS flows have not been checked on physical devices after the explicit
-  navigation migration.
+  navigation migration. A local Pixel 3a API 34 emulator was prepared with Expo
+  Go 57.0.2, but its Expo host process crashed with `SIGSEGV` in `mqt_v_js`
+  after Metro delivered the bundle; a concurrent system Bluetooth crash also
+  destabilized the AVD. Repeat the flow on a stable emulator, development build
+  or physical device.
 - The experimental provider oRPC client is integration-tested in Node only.
   It has not yet been added to the Expo bundle or tested on iOS/Android.
 - There is no visual-regression suite for React Native Web, responsive layout,
@@ -65,6 +69,9 @@ yet proven by automated tests and remain release gates.
   phase. The production CORS allowlist, body cap and per-process package-
   resolution rate limit are in place; public exposure remains unsupported.
   Multi-instance deployment needs a shared rate-limit store.
+- The selected OpenVZ VPS has no `/dev/net/tun`. Tailscale is provisioned in
+  userspace networking mode and is awaiting its one-time Tailnet authorization;
+  a persistent VPS Tailnet endpoint cannot be verified until that is complete.
 - Backup and integrity-checked staging restore cover SQLite, allowed `.agents`
   resources, runtime session files and Git refs. Guarded activation can rebind
   an explicit clean checkout only when every restored task branch has the exact
