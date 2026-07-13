@@ -71,6 +71,12 @@ services:
         target: /vaults/chat-pi
       - ignis-data:/app/data
       - ignis-obsidian-app:/app/obsidian-app
+      # Obsidian reads `window.parent` during boot. This page gives it a
+      # same-origin parent when the Chat web client embeds Ignis cross-origin.
+      - type: bind
+        source: ./deploy/ignis/embed.html
+        target: /app/obsidian-app/embed.html
+        read_only: true
     restart: unless-stopped
     init: true
 
