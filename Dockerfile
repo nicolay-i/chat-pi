@@ -26,7 +26,7 @@ COPY packages/contracts packages/contracts
 
 RUN pnpm --filter @pi-agents/contracts typecheck \
   && pnpm --filter @pi-agents/api exec tsc --project tsconfig.runtime.json --noEmit \
-  && pnpm --filter @pi-agents/api deploy --prod /runtime
+  && pnpm --filter @pi-agents/api deploy --prod --legacy /runtime
 
 FROM node:24-bookworm-slim AS runtime
 

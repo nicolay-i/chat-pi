@@ -66,9 +66,8 @@ yet proven by automated tests and remain release gates.
 ## Security and operations
 
 - User authentication is intentionally excluded from the current Tailnet-only
-  phase. The production CORS allowlist, body cap and per-process package-
-  resolution rate limit are in place; public exposure remains unsupported.
-  Multi-instance deployment needs a shared rate-limit store.
+  phase. The production CORS allowlist and body cap are in place; public
+  exposure remains unsupported.
 - The selected OpenVZ VPS has no `/dev/net/tun`. Tailscale is provisioned in
   userspace networking mode and is awaiting its one-time Tailnet authorization;
   a persistent VPS Tailnet endpoint cannot be verified until that is complete.
