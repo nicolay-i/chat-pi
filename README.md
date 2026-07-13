@@ -23,11 +23,15 @@
 ## Требования
 
 - Node.js 24+.
-- pnpm 9.15.1 (`corepack enable`).
+- pnpm 10.28.0 (`corepack enable`).
 - Git в `PATH`.
 - Для локального opt-in smoke-теста Pi: CLI и его авторизация. Это не является
   пользовательским execution mode и не заменяет VPS runtime.
 - Для запуска на Android/iOS: Expo Go либо локальная native-сборка.
+
+На Windows глобальный `pnpm` из Chocolatey может иметь другой приоритет в
+`PATH`. В таком случае запускайте команды через `corepack pnpm`, чтобы
+гарантированно использовать закреплённую версию из `packageManager`.
 
 ## Установка и проверка
 

@@ -25,12 +25,10 @@ yet proven by automated tests and remain release gates.
 
 ## Device and visual verification
 
-- Android/iOS flows have not been checked on physical devices after the explicit
-  navigation migration. A local Pixel 3a API 34 emulator was prepared with Expo
-  Go 57.0.2, but its Expo host process crashed with `SIGSEGV` in `mqt_v_js`
-  after Metro delivered the bundle; a concurrent system Bluetooth crash also
-  destabilized the AVD. Repeat the flow on a stable emulator, development build
-  or physical device.
+- A native Android debug build was assembled on Windows and opened on a local
+  Pixel 3a API 34 emulator, showing the setup screen after Metro served the
+  bundle. A complete native Chat-to-VPS flow and physical Android/iOS device
+  QA remain release gates.
 - The experimental provider oRPC client is integration-tested in Node only.
   It has not yet been added to the Expo bundle or tested on iOS/Android.
 - There is no visual-regression suite for React Native Web, responsive layout,
@@ -38,8 +36,7 @@ yet proven by automated tests and remain release gates.
 - VSCode Web remains unsupported. Ignis has a configured Tailnet URL and a
   web/native launch surface, but no end-to-end editing flow against a live
   Ignis host has been verified.
-- Current React 19 tests still emit several `act(...)` warnings. They do not
-  fail the suite, but each affected interaction should be cleaned up.
+- The current Mobile test suite completes without React `act(...)` warnings.
 
 ## External integrations
 
