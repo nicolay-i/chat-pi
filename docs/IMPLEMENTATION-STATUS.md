@@ -62,7 +62,7 @@ This file describes the current worktree, not the earlier generated scaffold.
 3. **Packages and MCP.** Package installation and trust UI are deferred. MCP
    test checks configuration but never executes configured commands.
 4. **External product surfaces.** VSCode Web remains unsupported. Ignis is a
-   configured Tailnet URL with web iframe/native external opening; deployment
+   configured Tailnet URL rendered by a web iframe or native WebView; deployment
    and end-to-end editing against a real Ignis host remain release gates.
 5. **Release validation.** The VPS deployment has a healthy `/health`; a Web
    client completed a browser-to-Pi discussion through Tailnet-only HTTPS, and

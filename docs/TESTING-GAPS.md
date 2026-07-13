@@ -41,8 +41,8 @@ yet proven by automated tests and remain release gates.
 - There is no visual-regression suite for React Native Web, responsive layout,
   dark theme or screen-reader traversal.
 - VSCode Web remains unsupported. Ignis has a configured Tailnet URL and a
-  web/native launch surface, but no end-to-end editing flow against a live
-  Ignis host has been verified.
+  web iframe/native WebView surface, but no end-to-end editing flow against a
+  live Ignis host has been verified.
 - The current Mobile test suite completes without React `act(...)` warnings.
 
 ## External integrations
@@ -68,9 +68,9 @@ yet proven by automated tests and remain release gates.
 - User authentication is intentionally excluded from the current Tailnet-only
   phase. The production CORS allowlist and body cap are in place; public
   exposure remains unsupported.
-- The selected OpenVZ VPS has no `/dev/net/tun`. Tailscale is provisioned in
-  userspace networking mode and is awaiting its one-time Tailnet authorization;
-  a persistent VPS Tailnet endpoint cannot be verified until that is complete.
+- The selected OpenVZ VPS has no `/dev/net/tun`. Tailscale therefore runs in
+  userspace networking mode; the private `tailscale serve` endpoint is used for
+  deployment verification.
 - Backup and integrity-checked staging restore cover SQLite, allowed `.agents`
   resources, runtime session files and Git refs. Guarded activation can rebind
   an explicit clean checkout only when every restored task branch has the exact
