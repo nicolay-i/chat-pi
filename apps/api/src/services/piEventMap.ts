@@ -49,10 +49,9 @@ function withRawPiEvent(event: Record<string, unknown>, payload: Record<string, 
  * is unrecognized or the payload is malformed. Never throws — all access is
  * narrowed defensively.
  *
- * Choice for `message_update` text_end: we emit `message.delta` carrying the
- * full `content` chunk (not skipped). Clients accumulate deltas, and since the
- * text_delta already carried the same bytes this is idempotent — we prefer the
- * extra data over silently dropping a content chunk the client may rely on.
+ * `text_end` carries the complete text for a content part. Mark it as a
+ * replacement so clients that already received text_delta events do not append
+ * the same text a second time.
  */
 export function mapPiEventToEnvelope(
   event: unknown,
@@ -97,7 +96,11 @@ export function mapPiEventToEnvelope(
         return { ...base, type: 'message.delta', payload: withRawPiEvent(event, { delta: asString(ame.delta) ?? '' }) };
       }
       if (subType === 'text_end') {
-        return { ...base, type: 'message.delta', payload: withRawPiEvent(event, { delta: asString(ame.content) ?? '' }) };
+        return {
+          ...base,
+          type: 'message.delta',
+          payload: withRawPiEvent(event, { delta: asString(ame.content) ?? '', replace: true }),
+        };
       }
       return null;
     }

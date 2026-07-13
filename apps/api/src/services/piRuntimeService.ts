@@ -48,6 +48,12 @@ function tick(): Promise<void> {
   return new Promise((r) => setTimeout(r, 0));
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
 /**
  * Shared lock + subscription bookkeeping used by both the fake runtime and
  * the real adapter stub so that lock semantics stay consistent and testable.
@@ -176,6 +182,29 @@ interface AdapterSessionState {
   client: PiRpcClient;
   started: Promise<void>;
   terminalError?: Error;
+  assistantMessageId?: string;
+}
+
+function correlateAssistantMessage(
+  event: RealtimeEventDraft,
+  state: AdapterSessionState,
+): RealtimeEventDraft {
+  const payload = asRecord(event.payload);
+  if (!payload) return event;
+  const nextPayload = { ...payload };
+
+  if (event.type === 'message.created' && nextPayload.role === 'assistant') {
+    state.assistantMessageId ??= newId();
+    nextPayload.id = state.assistantMessageId;
+    nextPayload.messageId = state.assistantMessageId;
+  } else if (
+    state.assistantMessageId
+    && (event.type === 'message.delta' || (event.type === 'message.completed' && nextPayload.role === 'assistant'))
+  ) {
+    nextPayload.messageId = state.assistantMessageId;
+  }
+
+  return { ...event, payload: nextPayload };
 }
 
 /**
@@ -256,11 +285,12 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
       state.terminalError ??= getPiAgentEndError(event);
       const envelope = mapPiEventToEnvelope(event, { sessionId });
       if (!envelope) return;
+      const correlated = correlateAssistantMessage(envelope, state);
       const set = this.subscribers.get(sessionId);
       if (!set) return;
       for (const handler of set) {
         try {
-          handler(envelope);
+          handler(correlated);
         } catch {
           /* a listener must not break the fan-out */
         }
@@ -296,6 +326,7 @@ export class PiRuntimeAdapter extends BaseRuntime implements PiRuntime {
     const images = imageUris && imageUris.length > 0 ? imageUris : undefined;
     try {
       state.terminalError = undefined;
+      state.assistantMessageId = undefined;
       await state.client.prompt(input.text, images);
       await state.client.waitForIdle();
       if (state.terminalError) throw state.terminalError;

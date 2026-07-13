@@ -123,6 +123,18 @@ describe('eventReducer', () => {
     expect(state.messagesByChat.c1[0].text).toBe('Hello');
   });
 
+  it('message.delta replaces streamed text when Pi sends a text_end snapshot', () => {
+    const state = reduceMany([
+      envelope('01J', 'message.created', {
+        chatId: 'c1', id: 'a1', role: 'assistant', text: '', createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+      envelope('02J', 'message.delta', { chatId: 'c1', messageId: 'a1', delta: 'Hello' }),
+      envelope('03J', 'message.delta', { chatId: 'c1', messageId: 'a1', delta: 'Hello world', replace: true }),
+    ]);
+
+    expect(state.messagesByChat.c1[0].text).toBe('Hello world');
+  });
+
   it('message.delta does not mutate other chats when messageId is missing', () => {
     const state = reduceMany([
       envelope('01J', 'message.created', {

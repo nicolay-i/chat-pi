@@ -123,6 +123,7 @@ export function eventReducer(
       const chatId = eventChatId(event, payload);
       const messageId = asString(payload.messageId);
       const delta = asString(payload.delta);
+      const replace = payload.replace === true;
       if (!chatId || !messageId || delta === undefined) {
         return next;
       }
@@ -136,7 +137,7 @@ export function eventReducer(
       }
       const realIdx = list.length - 1 - idx;
       const target = list[realIdx];
-      const updated: MessageView = { ...target, text: target.text + delta };
+      const updated: MessageView = { ...target, text: replace ? delta : target.text + delta };
       const newList = list.slice();
       newList[realIdx] = updated;
       next.messagesByChat = {

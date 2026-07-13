@@ -61,7 +61,7 @@ describe('mapPiEventToEnvelope', () => {
     expect(env?.payload).toMatchObject({ delta: 'ok' });
   });
 
-  it('maps message_update text_end -> message.delta with full content chunk', () => {
+  it('maps message_update text_end -> replacement message.delta with full content chunk', () => {
     const env = mapPiEventToEnvelope(
       {
         type: 'message_update',
@@ -71,7 +71,7 @@ describe('mapPiEventToEnvelope', () => {
       ctx,
     );
     expect(env?.type).toBe('message.delta');
-    expect(env?.payload).toMatchObject({ delta: 'ok' });
+    expect(env?.payload).toMatchObject({ delta: 'ok', replace: true });
   });
 
   it('maps message_end -> message.completed', () => {
