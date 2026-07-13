@@ -38,11 +38,10 @@ yet proven by automated tests and remain release gates.
 
 ## External integrations
 
-- The OpenCode environment-provider path was exercised on the VPS through a
-  real `bwrap` Pi turn. It currently stops at OpenCode's `CreditsError` because
-  the account balance is insufficient; repeat the same test after billing is
-  enabled to prove a content-producing response. Provider records still expose
-  only symbolic secret references and have no server-side secret store.
+- The OpenCode Go environment-provider path was exercised on the VPS through a
+  real completed `bwrap` Pi turn using `opencode-go/deepseek-v4-flash`. Provider
+  records still expose only symbolic secret references and have no server-side
+  secret store.
 - The provider oRPC experiment does not yet generate an OpenAPI document:
   `@orpc/openapi` is deliberately not a production dependency until the mobile
   transport decision is made.
@@ -55,10 +54,9 @@ yet proven by automated tests and remain release gates.
   `/health` response, and the VPS has run the pinned Pi CLI (`0.80.3`) through
   the configured `bubblewrap` namespace. The active profile stays
   unprivileged: it does not mount procfs and passes only the required device
-  nodes, worktree, session directory, Pi state and explicit provider
-  allowlist. A successful provider response remains blocked by the current
-  OpenCode account balance. Replace `unconfined` seccomp with a reviewed custom
-  profile before a hardened deployment.
+  nodes, worktree, session directory, Pi state and explicit provider allowlist.
+  Replace `unconfined` seccomp with a reviewed custom profile before a hardened
+  deployment.
 
 ## Security and operations
 

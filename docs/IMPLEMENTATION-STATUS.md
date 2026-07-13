@@ -64,11 +64,10 @@ This file describes the current worktree, not the earlier generated scaffold.
 4. **External product surfaces.** VSCode Web remains unsupported. Ignis is a
    configured Tailnet URL with web iframe/native external opening; deployment
    and end-to-end editing against a real Ignis host remain release gates.
-5. **Release validation.** Android/iOS device QA and a successful provider
-   response remain required. The VPS deployment has a healthy `/health`, and a
-   real OpenCode turn has been audited with `sandbox_mode = bwrap`. The current
-   OpenCode account returns `CreditsError` because it has insufficient balance,
-   so a content-producing turn must be repeated after billing is enabled.
+5. **Release validation.** Android/iOS device QA and a complete browser-to-Pi
+   flow remain required. The VPS deployment has a healthy `/health`, and a real
+   OpenCode Go (`opencode-go/deepseek-v4-flash`) turn completed with
+   `sandbox_mode = bwrap`.
 6. **oRPC decision.** The provider experiment proves Hono transport and
    server/client type inference, but it has not yet been bundled into the Expo
    application or evaluated for OpenAPI generation. Existing `/api/*` routes

@@ -234,9 +234,8 @@ operation from silently losing its server route.
   provider secrets are not yet stored by the backend.
 - MCP configuration is persisted, but validation deliberately does not execute
   arbitrary commands.
-- Docker image build, Compose API health and a local `bwrap` Pi CLI smoke test
-  are verified. A real provider-backed sandbox turn on the Linux VPS remains a
-  release gate.
+- Docker image build, Compose API health and a real OpenCode Go provider-backed
+  `bwrap` Pi turn on the Linux VPS are verified.
 - Device-level QA and a complete browser-to-Pi end-to-end flow remain final
   release gates.
 
