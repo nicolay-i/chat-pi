@@ -64,6 +64,22 @@ pnpm dev:web
 явная навигация синхронизирует route с адресной строкой; на iOS/Android тот же
 route registry преобразуется в native stack.
 
+### Android debug build (Windows)
+
+Для нативной debug-сборки нужен установленный Android SDK. Если SDK находится в
+стандартном каталоге пользователя, сборка выполняется без записи локальных путей
+в репозиторий:
+
+```powershell
+$env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+Push-Location apps/mobile/android
+.\gradlew.bat :app:assembleDebug -PreactNativeArchitectures=x86_64 --no-daemon
+Pop-Location
+```
+
+APK будет расположен в `apps/mobile/android/app/build/outputs/apk/debug/`.
+
 ### Локальный Pi smoke-тест
 
 `apps/api/.env.example` содержит шаблон. В PowerShell:
