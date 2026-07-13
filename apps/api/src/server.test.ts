@@ -17,6 +17,15 @@ import { FixedWindowRateLimiter } from './app/rateLimiter';
 
 const app = createApp(createDb(':memory:'));
 
+function createBootstrapProject(db: ReturnType<typeof createDb>) {
+  return createProjectsRepository(db).create({
+    name: 'VPS workspace',
+    repoPath: '/projects/workspace',
+    defaultBranch: 'main',
+    runtimeStatePath: '/projects/workspace.pi-runtime',
+  });
+}
+
 function git(cwd: string, args: string[]): string {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   if (result.error || result.status !== 0) {
@@ -123,23 +132,37 @@ describe('GET /api/projects', () => {
 });
 
 describe('POST /api/chats/bootstrap', () => {
-  it('creates and reuses a local chat', async () => {
-    const first = await app.request('/api/chats/bootstrap', { method: 'POST' });
+  it('creates and reuses a chat in the first configured VPS project', async () => {
+    const db = createDb(':memory:');
+    const project = createBootstrapProject(db);
+    const testApp = createApp(db);
+    const first = await testApp.request('/api/chats/bootstrap', { method: 'POST' });
     expect(first.status).toBe(201);
     const firstChat = await first.json();
     expect(firstChat.id).toBeTruthy();
+    expect(firstChat.projectId).toBe(project.id);
     expect(firstChat.mode).toBe('discussion');
 
-    const second = await app.request('/api/chats/bootstrap', { method: 'POST' });
+    const second = await testApp.request('/api/chats/bootstrap', { method: 'POST' });
     expect(second.status).toBe(201);
     const secondChat = await second.json();
     expect(secondChat.id).toBe(firstChat.id);
+  });
+
+  it('requires an explicit VPS project instead of creating one from container cwd', async () => {
+    const testApp = createApp(createDb(':memory:'));
+    const response = await testApp.request('/api/chats/bootstrap', { method: 'POST' });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'project_required' });
   });
 });
 
 describe('POST /api/chats/:id/abort', () => {
   it('rejects abort when no shared PiSession runtime is active', async () => {
-    const testApp = createApp(createDb(':memory:'));
+    const db = createDb(':memory:');
+    createBootstrapProject(db);
+    const testApp = createApp(db);
     const created = await testApp.request('/api/chats/bootstrap', { method: 'POST' });
     const chat = await created.json();
 
@@ -151,6 +174,7 @@ describe('POST /api/chats/:id/abort', () => {
 describe('chat lifecycle endpoints', () => {
   it('updates, traces, exports and archives persisted chats', async () => {
     const db = createDb(':memory:');
+    createBootstrapProject(db);
     const app = createApp(db);
     const created = await app.request('/api/chats/bootstrap', { method: 'POST' });
     const chat = await created.json();

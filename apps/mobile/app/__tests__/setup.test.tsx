@@ -44,6 +44,17 @@ const VALID_CAPABILITIES = {
   supportsIgnis: false,
 };
 
+const VPS_PROJECT = {
+  id: 'project-1',
+  name: 'VPS workspace',
+  repoPath: '/projects/workspace',
+  defaultBranch: 'main',
+  agentsDir: '.agents',
+  ignisUrl: null,
+  activeTaskCount: 0,
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
 const typeUrl = async (
   getByTestId: (id: string) => { props: { value?: string } },
   value: string,
@@ -80,6 +91,7 @@ describe('SetupScreen', () => {
       const u = typeof input === 'string' ? input : input.toString();
       if (u.endsWith('/health')) return jsonRes({ ok: true, time: '2026-01-01T00:00:00Z' });
       if (u.endsWith('/api/capabilities')) return jsonRes(VALID_CAPABILITIES);
+      if (u.endsWith('/api/projects')) return jsonRes([VPS_PROJECT]);
       if (u.endsWith('/api/chats/bootstrap')) {
         return jsonRes({
           id: 'chat-1',
@@ -123,6 +135,28 @@ describe('SetupScreen', () => {
     });
 
     expect(await findByText(/Не удалось подключиться/)).toBeTruthy();
+  });
+
+  it('opens VPS project creation when no project is registered', async () => {
+    const fetchMock = jest.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const u = typeof input === 'string' ? input : input.toString();
+      if (u.endsWith('/health')) return jsonRes({ ok: true, time: '2026-01-01T00:00:00Z' });
+      if (u.endsWith('/api/capabilities')) return jsonRes(VALID_CAPABILITIES);
+      if (u.endsWith('/api/projects')) return jsonRes([]);
+      throw new Error(`unexpected fetch ${u}`);
+    });
+    setFetch(fetchMock);
+
+    const { getByTestId } = await render(
+      <RootStoreProvider store={store}><SetupScreen /></RootStoreProvider>,
+    );
+    await typeUrl(getByTestId, 'https://pi.example.internal');
+    await act(async () => {
+      fireEvent.press(getByTestId('setup.testConnection'));
+    });
+
+    fireEvent.press(getByTestId('setup.continue'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/projects/new'));
   });
 
   it('shows invalid-URL error without calling fetch', async () => {

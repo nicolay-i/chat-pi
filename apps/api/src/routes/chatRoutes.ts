@@ -3,7 +3,6 @@ import { CreateChatInputSchema, ManagedImplementationSchema, RunModeSchema, Send
 import { z } from 'zod';
 import { sendApiError } from '../app/apiError';
 import type { ServiceContainer } from '../app/serviceContainer';
-import { config } from '../config';
 
 export const chatRouteOperationIds = [
   'chats.list', 'chats.create', 'chats.bootstrap', 'chats.get', 'chats.update', 'chats.archive',
@@ -30,9 +29,10 @@ export function createChatRoutes({ projectService, chatService, taskService, eve
     catch (error) { return sendApiError(c, 500, 'create_failed', (error as Error).message); }
   });
   routes.post('/api/chats/bootstrap', async (c) => {
-    const repoPath = config.agentCwd ?? process.cwd();
-    let project = (await projectService.list()).find((item) => item.repoPath === repoPath);
-    if (!project) project = await projectService.create({ name: 'Local workspace', repoPath, defaultBranch: 'main' });
+    const [project] = await projectService.list();
+    if (!project) {
+      return sendApiError(c, 409, 'project_required', 'Create a VPS project before opening a chat');
+    }
     const chat = (await chatService.list(project.id))[0] ?? await chatService.create(project.id, { title: 'Новый чат', mode: 'discussion' });
     return c.json(chat, 201);
   });
