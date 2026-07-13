@@ -93,6 +93,7 @@ export type Config = {
   piSandboxEnvAllowlist: string[];
   piRunTimeoutMs: number;
   piProjectsRoot: string | undefined;
+  webRoot: string | undefined;
   corsOrigins: string[];
   maxBodyBytes: number;
   packageResolveRateLimit: number;
@@ -138,6 +139,7 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
     piSandboxEnvAllowlist: parseCsv(env.PI_SANDBOX_ENV_ALLOWLIST),
     piRunTimeoutMs: parsePositiveInteger(env.PI_RUN_TIMEOUT_SECONDS, 1_200, 'PI_RUN_TIMEOUT_SECONDS', 86_400) * 1_000,
     piProjectsRoot: optionalString(env.PI_PROJECTS_ROOT),
+    webRoot: optionalString(env.WEB_ROOT),
     corsOrigins,
     maxBodyBytes: parseByteLimit(env.MAX_BODY_BYTES, 1024 * 1024),
     packageResolveRateLimit: parsePositiveInteger(env.PACKAGE_RESOLVE_RATE_LIMIT, 10, 'PACKAGE_RESOLVE_RATE_LIMIT', 10_000),

@@ -21,12 +21,14 @@ import { createPromptRoutes, promptRouteOperationIds } from './routes/promptRout
 import { createMcpRoutes, mcpRouteOperationIds } from './routes/mcpRoutes';
 import { createThemeRoutes, themeRouteOperationIds } from './routes/themeRoutes';
 import { providerRpcRouter } from './orpc/providerRouter';
+import { createWebClientMiddleware } from './webClient';
 
 export type CreateAppOptions = CreateServiceContainerOptions & {
   corsPolicy?: Pick<Config, 'nodeEnv' | 'corsOrigins'> & Partial<Pick<Config, 'trustProxy'>>;
   maxBodyBytes?: number;
   packageResolveRateLimit?: Pick<Config, 'packageResolveRateLimit' | 'packageResolveRateWindowMs'>;
   rateLimiter?: FixedWindowRateLimiter;
+  webRoot?: string;
 };
 
 export const registeredApiOperationIds = [
@@ -130,6 +132,7 @@ export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): App
   app.route('/', createPromptRoutes(services));
   app.route('/', createMcpRoutes(services));
   app.route('/', createThemeRoutes(services));
+  app.use('*', createWebClientMiddleware(options.webRoot ?? config.webRoot));
   if (corsPolicy.nodeEnv !== 'production') app.get('/__throws', () => { throw new Error('boom'); });
   app.onError((error, context) => context.json(ApiErrorSchema.parse({
     code: 'internal_error', message: error.message, retryable: false,

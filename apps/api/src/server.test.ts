@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createApp } from './server';
 import { createDb } from './db';
 import { CreateProjectInputSchema, CapabilitiesSchema } from '@pi-agents/contracts';
@@ -41,6 +42,38 @@ describe('GET /health', () => {
     const body = await res.json();
     expect(body).toMatchObject({ ok: true });
     expect(typeof body.time).toBe('string');
+  });
+});
+
+describe('exported Web client', () => {
+  it('serves exported assets and falls back to index.html only for browser navigations', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'pi-agents-web-'));
+    try {
+      mkdirSync(join(root, '_expo', 'static'), { recursive: true });
+      writeFileSync(join(root, 'index.html'), '<!doctype html><title>Pi Agents</title>');
+      writeFileSync(join(root, '_expo', 'static', 'app.js'), 'console.log("web");');
+      const webApp = createApp(createDb(':memory:'), { webRoot: root });
+
+      const rootResponse = await webApp.request('/');
+      expect(rootResponse.headers.get('content-type')).toContain('text/html');
+      expect(await rootResponse.text()).toContain('Pi Agents');
+
+      const assetResponse = await webApp.request('/_expo/static/app.js');
+      expect(assetResponse.headers.get('cache-control')).toContain('immutable');
+      expect(await assetResponse.text()).toContain('console.log');
+
+      const deepLink = await webApp.request('/projects/project-1/chats/chat-1', {
+        headers: { accept: 'text/html,application/xhtml+xml' },
+      });
+      expect(deepLink.status).toBe(200);
+      expect(await deepLink.text()).toContain('Pi Agents');
+
+      const apiMiss = await webApp.request('/api/not-a-route', { headers: { accept: 'text/html' } });
+      expect(apiMiss.status).toBe(404);
+      await webApp.dispose();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

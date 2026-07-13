@@ -6,9 +6,17 @@ RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/mobile/package.json apps/mobile/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 
-RUN pnpm --filter @pi-agents/api... install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
+
+FROM dependencies AS web
+
+COPY apps/mobile apps/mobile
+COPY packages/contracts packages/contracts
+
+RUN pnpm --filter @pi-agents/mobile export:web
 
 FROM dependencies AS verify
 
@@ -36,12 +44,14 @@ RUN apt-get update \
   && chown -R node:node /data /projects
 
 COPY --from=verify --chown=node:node /runtime /app
+COPY --from=web --chown=node:node /app/apps/mobile/dist /app/web
 
 ENV NODE_ENV=production
 ENV PORT=8787
 ENV DB_PATH=/data/app.db
 ENV PI_BIN=/usr/local/bin/pi
 ENV PI_CODING_AGENT_DIR=/data/pi-agent
+ENV WEB_ROOT=/app/web
 
 EXPOSE 8787
 

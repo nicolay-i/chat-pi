@@ -140,8 +140,10 @@ fetch or overwrite Git repositories. Backup excludes `.env`, credentials,
 
 ## Docker / VPS
 
-The repository contains a VPS-oriented API compose file. It persists SQLite,
-Pi agent state and managed Git repositories on the VPS. The container runs Git
+The repository contains a VPS-oriented compose file. It builds the Expo Web
+client into the production image and serves it from the same private origin as
+the Hono API. It persists SQLite, Pi agent state and managed Git repositories
+on the VPS. The container runs Git
 and Pi; clients connect only through the Tailnet. The HTTP port remains bound
 to localhost by default until a specific Tailnet IP is configured.
 
