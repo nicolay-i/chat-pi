@@ -67,7 +67,9 @@ This file describes the current worktree, not the earlier generated scaffold.
 5. **Release validation.** The VPS deployment has a healthy `/health`; a Web
    client completed a browser-to-Pi discussion through Tailnet-only HTTPS, and
    the real OpenCode Go (`opencode-go/deepseek-v4-flash`) turn completed with
-   `sandbox_mode = bwrap`. Android/iOS device QA remains required.
+   `sandbox_mode = bwrap`. A standalone Android release APK completed the
+   Tailnet setup and native SSE connection in a Pixel 3a API 34 emulator.
+   Physical Android/iOS device QA and production APK signing remain required.
 6. **oRPC decision.** The provider experiment proves Hono transport and
    server/client type inference, but it has not yet been bundled into the Expo
    application or evaluated for OpenAPI generation. Existing `/api/*` routes

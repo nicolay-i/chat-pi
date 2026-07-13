@@ -82,6 +82,25 @@ APK будет расположен в `apps/mobile/android/app/build/outputs/ap
 Это development debug build: для запуска на устройстве ему нужен доступный
 Metro server. Для автономной установки нужен отдельный release artifact.
 
+### Android release build (Windows)
+
+Проверочный автономный APK собирается с уже встроенным JavaScript bundle и не
+требует Metro при запуске:
+
+```powershell
+$env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+$env:NODE_ENV = 'production'
+Push-Location apps/mobile/android
+.\gradlew.bat :app:assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
+Pop-Location
+```
+
+Artifact: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`.
+Сейчас release variant подписывается debug keystore и предназначен только для
+локальной проверки. Перед распространением требуется отдельная production
+signing configuration.
+
 ### Локальный Pi smoke-тест
 
 `apps/api/.env.example` содержит шаблон. В PowerShell:
