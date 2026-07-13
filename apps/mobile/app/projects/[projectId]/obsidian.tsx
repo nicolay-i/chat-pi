@@ -15,10 +15,13 @@ export default function IgnisScreen() {
 
   useEffect(() => {
     if (!baseUrl || !projectId) {
+      setAccess(null);
       setError('Backend URL is not configured');
       return;
     }
     let active = true;
+    setAccess(null);
+    setError(null);
     void new ApiClient(baseUrl).getIgnisAccess(projectId)
       .then((next) => { if (active) setAccess(next); })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); });
