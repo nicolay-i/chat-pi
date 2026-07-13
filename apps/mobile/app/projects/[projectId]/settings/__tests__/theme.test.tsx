@@ -1,4 +1,4 @@
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithStore as render } from '@/test/renderWithStore';
 
 jest.mock('@/navigation', () => ({
@@ -92,7 +92,11 @@ describe('ThemeScreen', () => {
 
   it('Save calls the theme endpoint with the current overrides', async () => {
     configureBackend('https://backend.example');
-    const fetchMock = jest.fn(async () => jsonRes({ ok: true }));
+    let resolveSave: ((response: Response) => void) | undefined;
+    const saveResponse = new Promise<Response>((resolve) => {
+      resolveSave = resolve;
+    });
+    const fetchMock = jest.fn(() => saveResponse);
     setFetch(fetchMock);
 
     const { findByTestId } = await render(<ThemeScreen />);
@@ -100,7 +104,11 @@ describe('ThemeScreen', () => {
     fireEvent.changeText(primaryInput, '#112233');
 
     const saveBtn = await findByTestId('theme.save');
-    fireEvent.press(saveBtn);
+    await act(async () => {
+      fireEvent.press(saveBtn);
+      resolveSave?.(jsonRes({ ok: true }));
+      await saveResponse;
+    });
 
     await findByTestId('theme.saved');
 

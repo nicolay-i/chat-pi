@@ -1,5 +1,4 @@
-import { act } from 'react';
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { renderWithStore as render } from '@/test/renderWithStore';
 
 jest.mock('@/navigation', () => ({
@@ -53,40 +52,53 @@ describe('NewProjectScreen', () => {
     expect(queryByTestId('project.validationResult')).toBeNull();
 
     // Fill required fields first so the local validator passes
-    await act(async () => {
-      fireEvent.changeText(getByTestId('project.name'), 'My workspace');
-      fireEvent.changeText(getByTestId('project.repoPath'), '/var/lib/agents/projects/x/repo');
-    });
+    fireEvent.changeText(getByTestId('project.name'), 'My workspace');
+    await waitFor(() => expect(getByTestId('project.name').props.value).toBe('My workspace'));
+    fireEvent.changeText(getByTestId('project.repoPath'), '/var/lib/agents/projects/x/repo');
+    await waitFor(() => expect(getByTestId('project.repoPath').props.value).toBe('/var/lib/agents/projects/x/repo'));
 
     // Tap Validate (uses local validator)
-    await act(async () => {
-      fireEvent.press(getByTestId('project.validate'));
-    });
+    fireEvent.press(getByTestId('project.validate'));
     await waitFor(() => expect(queryByTestId('project.validationResult')).not.toBeNull());
 
     // Save should now be enabled — press it and assert create API is invoked
-    const createMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    let resolveCreate: ((response: Response) => void) | undefined;
+    const createResponse = new Promise<Response>((resolve) => {
+      resolveCreate = resolve;
+    });
+    let createRequestBody: string | undefined;
+    const createMock = jest.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const u = typeof input === 'string' ? input : input.toString();
       if (u.endsWith('/api/projects') && init?.method === 'POST') {
-        const body = JSON.parse(String(init.body));
-        return jsonRes({
-          id: 'project-new',
-          name: body.name,
-          repoPath: body.repoPath,
-          defaultBranch: body.defaultBranch,
-          agentsDir: body.agentsDir ?? '.agents',
-          activeTaskCount: 0,
-          updatedAt: '2026-01-01T00:00:00.000Z',
-        });
+        createRequestBody = String(init.body);
+        return createResponse;
       }
       throw new Error(`unexpected fetch ${u}`);
     });
     setFetch(createMock);
 
-    await act(async () => {
-      fireEvent.press(getByTestId('project.save'));
-    });
+    fireEvent.press(getByTestId('project.save'));
     await waitFor(() => expect(createMock).toHaveBeenCalled());
-    expect(router.replace).toHaveBeenCalledWith('/projects/project-new');
+    expect(JSON.parse(createRequestBody ?? '{}')).toMatchObject({
+      name: 'My workspace',
+      repoPath: '/var/lib/agents/projects/x/repo',
+      defaultBranch: 'main',
+    });
+    await act(async () => {
+      resolveCreate?.(jsonRes({
+        id: 'project-new',
+        name: 'My workspace',
+        repoPath: '/var/lib/agents/projects/x/repo',
+        defaultBranch: 'main',
+        agentsDir: '.agents',
+        activeTaskCount: 0,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }));
+      await createResponse;
+    });
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith('/projects/project-new');
+      expect(getByTestId('project.save').props.disabled).not.toBe(true);
+    });
   });
 });

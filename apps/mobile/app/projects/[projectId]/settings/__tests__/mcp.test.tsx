@@ -1,5 +1,4 @@
-import { act } from 'react';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import { renderWithStore as render } from '@/test/renderWithStore';
 
 jest.mock('@/navigation', () => ({
@@ -97,6 +96,8 @@ describe('McpScreen', () => {
     const testBtn = await findByTestId('mcp.test.filesystem');
     await act(async () => {
       fireEvent.press(testBtn);
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(await findByText('Tools OK')).toBeTruthy();

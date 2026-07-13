@@ -43,9 +43,14 @@ function response(body: unknown): Response {
 describe('ProjectDashboardScreen', () => {
   const originalFetch = globalThis.fetch;
   let store: RootStore | null = null;
+  let screen: Awaited<ReturnType<typeof render>> | null = null;
 
-  afterEach(() => {
-    store?.dispose();
+  afterEach(async () => {
+    await act(async () => {
+      screen?.unmount();
+      store?.dispose();
+    });
+    screen = null;
     store = null;
     globalThis.fetch = originalFetch;
     jest.clearAllMocks();
@@ -68,7 +73,7 @@ describe('ProjectDashboardScreen', () => {
       storage: { load: async () => 'https://backend.example', save: async () => undefined, clear: async () => undefined },
     });
     store.backend.setBaseUrl('https://backend.example');
-    const screen = await render(
+    screen = await render(
       <RootStoreProvider store={store}>
         <ProjectDashboardScreen />
       </RootStoreProvider>,

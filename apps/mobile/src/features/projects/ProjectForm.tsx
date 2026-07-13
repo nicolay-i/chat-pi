@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { tokens } from '@/theme/tokens';
 import type { CreateProjectInput, ValidateRepoResult } from '@pi-agents/contracts';
@@ -67,11 +67,17 @@ export function ProjectForm({ initialValues, submitLabel, busy, onSubmit }: Proj
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setValidation(null);
-  }, [values.repoPath, values.defaultBranch]);
-
   const canSave = validation?.valid === true && !submitting && !busy;
+
+  const updateRepoPath = (repoPath: string) => {
+    setValues((current) => ({ ...current, repoPath }));
+    setValidation(null);
+  };
+
+  const updateDefaultBranch = (defaultBranch: string) => {
+    setValues((current) => ({ ...current, defaultBranch }));
+    setValidation(null);
+  };
 
   const handleValidate = () => {
     setFormError(null);
@@ -134,7 +140,7 @@ export function ProjectForm({ initialValues, submitLabel, busy, onSubmit }: Proj
           accessibilityLabel="Repository path"
           style={inputStyle}
           value={values.repoPath}
-          onChangeText={(v) => setValues((s) => ({ ...s, repoPath: v }))}
+          onChangeText={updateRepoPath}
           placeholder="/var/lib/agents/projects/my/repo"
           placeholderTextColor={tokens.color.textMuted}
           autoCapitalize="none"
@@ -147,7 +153,7 @@ export function ProjectForm({ initialValues, submitLabel, busy, onSubmit }: Proj
           accessibilityLabel="Default branch"
           style={inputStyle}
           value={values.defaultBranch}
-          onChangeText={(v) => setValues((s) => ({ ...s, defaultBranch: v }))}
+          onChangeText={updateDefaultBranch}
           placeholder="main"
           placeholderTextColor={tokens.color.textMuted}
           autoCapitalize="none"
