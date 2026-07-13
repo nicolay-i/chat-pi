@@ -42,7 +42,10 @@ yet proven by automated tests and remain release gates.
   dark theme or screen-reader traversal.
 - VSCode Web remains unsupported. Ignis has a configured Tailnet URL and a
   web iframe/native WebView surface, but no end-to-end editing flow against a
-  live Ignis host has been verified.
+  live host has been verified. The current `chat-pi` project has no `ignisUrl`.
+  The separately exposed Ignis service currently targets the unrelated
+  `control-runs` vault and fails startup with `ENOENT`/`EROFS`; do not configure
+  it for this project until a writable project vault is mounted.
 - The current Mobile test suite completes without React `act(...)` warnings.
 
 ## External integrations
