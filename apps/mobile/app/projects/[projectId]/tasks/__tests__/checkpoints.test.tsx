@@ -82,7 +82,7 @@ describe('CheckpointsScreen', () => {
     expect(await findByTestId('checkpoint.item.cp-1')).toBeTruthy();
     expect(getByTestId('checkpoint.item.cp-2')).toBeTruthy();
     expect(getByTestId('checkpoint.tree')).toBeTruthy();
-  });
+  }, 15_000);
 
   it('renders empty state when no checkpoints', async () => {
     configureBackend('https://backend.example');

@@ -42,8 +42,9 @@ pnpm -r lint
 но нет ошибок.
 
 `pnpm export:web` проверен и в Linux CI, и локально на Windows. Файл `.npmrc`
-держит pnpm virtual store внутри workspace (`node_modules/.pnpm`): это исключает
-абсолютные Windows-пути в asset names Expo и делает static export воспроизводимым.
+держит pnpm virtual store внутри workspace (`.pnpm`) и ограничивает длину его
+имён: это устраняет Windows path-limit в CMake/React Native и делает static
+export воспроизводимым.
 
 ## Локальный запуск
 

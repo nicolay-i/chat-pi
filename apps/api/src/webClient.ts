@@ -68,6 +68,11 @@ export function createWebClientMiddleware(webRoot: string | undefined): Middlewa
     const relativePath = decodedPath === '/' ? 'index.html' : decodedPath.replace(/^\/+/, '');
     let filePath = resolve(root, relativePath);
     if (!isWithinRoot(root, filePath) || !existingFile(filePath)) {
+      // Expo's static export has no favicon by default. Avoid a noisy 404 while
+      // still preferring a real icon when one is supplied with the web bundle.
+      if (relativePath === 'favicon.ico') {
+        return new Response(null, { status: 204, headers: { 'cache-control': 'no-cache' } });
+      }
       const acceptsHtml = context.req.header('accept')?.includes('text/html') ?? false;
       if (!acceptsHtml || !existingFile(indexPath)) return next();
       filePath = indexPath;

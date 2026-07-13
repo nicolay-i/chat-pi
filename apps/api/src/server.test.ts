@@ -62,6 +62,9 @@ describe('exported Web client', () => {
       expect(assetResponse.headers.get('cache-control')).toContain('immutable');
       expect(await assetResponse.text()).toContain('console.log');
 
+      const faviconResponse = await webApp.request('/favicon.ico');
+      expect(faviconResponse.status).toBe(204);
+
       const deepLink = await webApp.request('/projects/project-1/chats/chat-1', {
         headers: { accept: 'text/html,application/xhtml+xml' },
       });
