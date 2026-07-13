@@ -306,28 +306,6 @@ describe('skillRunner', () => {
     expect(ids).toContain('verify-subagent-output');
   });
 
-  it('listSkills includes package skills only from trusted+enabled', async () => {
-    const source = createLocalPackage('skillpkg', {
-      extensions: [], skills: ['extra-skill'], prompts: [], themes: [], providers: [],
-    });
-    const manifest = await env.packages.resolve({
-      kind: 'local',
-      ref: source,
-    });
-    manifest.resources.skills = ['extra-skill'];
-    const result = await env.packages.install(env.project.id, {
-      source: { kind: 'local', ref: source },
-      manifest,
-    });
-    const before = await env.skills.listSkills(env.project.id);
-    expect(before.every((s) => s.source !== 'package')).toBe(true);
-    await env.packages.trust(result.installId);
-    const after = await env.skills.listSkills(env.project.id);
-    const pkgSkills = after.filter((s) => s.source === 'package');
-    expect(pkgSkills.length).toBe(1);
-    expect(pkgSkills[0].id.endsWith('extra-skill')).toBe(true);
-  });
-
   it('runSkill returns ok', async () => {
     const res = await env.skills.runSkill('update-implementation-state');
     expect(res.ok).toBe(true);

@@ -16,18 +16,11 @@ describe('piResourceArgs', () => {
     repositories.push(repository);
     const agents = join(repository.repoPath, '.agents');
     const extension = join(agents, 'extensions', 'review.mjs');
-    const packageExtension = join(agents, 'packages', 'trusted@1.0.0', 'extensions', 'package.mjs');
     mkdirSync(join(agents, 'extensions'), { recursive: true });
     mkdirSync(join(agents, 'skills', 'review'), { recursive: true });
     mkdirSync(join(agents, 'prompts'), { recursive: true });
     mkdirSync(join(agents, 'themes'), { recursive: true });
     writeFileSync(extension, 'export default {};', 'utf8');
-    mkdirSync(join(agents, 'packages', 'trusted@1.0.0', 'extensions'), { recursive: true });
-    writeFileSync(packageExtension, 'export default {};', 'utf8');
-    writeFileSync(join(agents, 'packages.lock.json'), JSON.stringify({
-      version: 1,
-      packages: [{ installPath: '.agents/packages/trusted@1.0.0' }],
-    }), 'utf8');
     writeFileSync(join(agents, 'skills', 'review', 'SKILL.md'), '# Review', 'utf8');
 
     expect(piResourceArgs(repository.repoPath)).toEqual([
@@ -36,7 +29,6 @@ describe('piResourceArgs', () => {
       '--skill', join(agents, 'skills'),
       '--prompt-template', join(agents, 'prompts'),
       '--theme', join(agents, 'themes'),
-      '--extension', packageExtension,
     ]);
   });
 

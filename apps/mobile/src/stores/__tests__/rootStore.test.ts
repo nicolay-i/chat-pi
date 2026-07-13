@@ -7,7 +7,6 @@ const capabilities = {
   supportsWorktrees: true,
   supportsSse: true,
   supportsWebSocket: false,
-  supportsPackageInstall: true,
   supportsVscodeWeb: false,
   supportsIgnis: false,
 };

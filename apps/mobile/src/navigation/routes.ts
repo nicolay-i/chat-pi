@@ -43,8 +43,6 @@ export const routeDefinitions: readonly RouteDefinition[] = [
   { name: 'ProjectSkill', path: '/projects/:projectId/settings/skills/:skillId', relativeBase: projectSettings, title: 'Skill' },
   { name: 'ProjectPrompts', path: '/projects/:projectId/settings/prompts', relativeBase: projectSettings, title: 'Prompts' },
   { name: 'ProjectPrompt', path: '/projects/:projectId/settings/prompts/:templateId', relativeBase: projectSettings, title: 'Prompt' },
-  { name: 'ProjectPackages', path: '/projects/:projectId/settings/packages', relativeBase: projectSettings, title: 'Packages' },
-  { name: 'ProjectPackageInstall', path: '/projects/:projectId/settings/packages/install', relativeBase: projectSettings, title: 'Install package' },
   { name: 'ProjectMcp', path: '/projects/:projectId/settings/mcp', relativeBase: projectSettings, title: 'MCP' },
   { name: 'ProjectTheme', path: '/projects/:projectId/settings/theme', relativeBase: projectSettings, title: 'Theme' },
 ];

@@ -14,7 +14,6 @@ import { createPiSessionsRepository } from './db/repositories/piSessionsReposito
 import { createCheckpointsRepository } from './db/repositories/checkpointsRepository';
 import { FakePiRuntime } from './services/piRuntimeService';
 import { TemporaryGitRepository } from './test/harness/TemporaryGitRepository';
-import { FixedWindowRateLimiter } from './app/rateLimiter';
 
 const app = createApp(createDb(':memory:'));
 
@@ -154,6 +153,11 @@ describe('GET /api/capabilities', () => {
     const res = await app.request('/api/capabilities');
     const body = await res.json();
     expect(() => CapabilitiesSchema.parse(body)).not.toThrow();
+  });
+
+  it('does not expose the deferred package manager routes', async () => {
+    const response = await app.request('/api/projects/project-1/packages');
+    expect(response.status).toBe(404);
   });
 });
 
@@ -308,76 +312,6 @@ describe('provider endpoints', () => {
     expect(JSON.stringify(provider)).not.toContain('pending-secret-configuration');
     const tested = await app.request(`/api/projects/project-1/providers/${provider.id}/test`, { method: 'POST' });
     expect(await tested.json()).toMatchObject({ ok: true, modelsFound: ['model-1'] });
-  });
-});
-
-describe('package endpoints', () => {
-  it('resolves, installs, trusts and removes project packages', async () => {
-    const repository = new TemporaryGitRepository();
-    try {
-      const sourcePath = join(repository.root, 'local-package');
-      mkdirSync(join(sourcePath, 'extensions'), { recursive: true });
-      writeFileSync(join(sourcePath, 'extensions', 'package.mjs'), 'export default {};\n');
-      writeFileSync(join(sourcePath, 'pi-package.json'), JSON.stringify({
-        name: 'example-package', version: '1.0.0', trusted: false,
-        resources: { extensions: ['package.mjs'], skills: [], prompts: [], themes: [], providers: [] },
-      }));
-      const app = createApp(createDb(':memory:'));
-      const projectResponse = await app.request('/api/projects', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: 'package test', repoPath: repository.repoPath, defaultBranch: 'main' }),
-      });
-      const { id: projectId } = await projectResponse.json() as { id: string };
-      const source = { kind: 'local', ref: sourcePath };
-      const resolved = await app.request(`/api/projects/${projectId}/packages/resolve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(source) });
-      expect(resolved.status).toBe(200);
-      const resolution = await resolved.json();
-      const installed = await app.request(`/api/projects/${projectId}/packages/install`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source, manifest: { ...resolution.manifest, trusted: false } }) });
-      expect(installed.status).toBe(201);
-      const install = await installed.json();
-      expect(install.status).toBe('pending_trust');
-      const trusted = await app.request(`/api/projects/${projectId}/packages/${install.installId}/trust`, { method: 'POST' });
-      expect((await trusted.json()).manifest.trusted).toBe(true);
-      const removed = await app.request(`/api/projects/${projectId}/packages/${install.installId}`, { method: 'DELETE' });
-      expect(await removed.json()).toEqual({ ok: true });
-    } finally {
-      repository.dispose();
-    }
-  });
-
-  it('rate limits package resolution and sends a retry hint', async () => {
-    const app = createApp(createDb(':memory:'), {
-      rateLimiter: new FixedWindowRateLimiter(1, 60_000),
-    });
-    const request = () => app.request('/api/projects/project-1/packages/resolve', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ kind: 'npm', ref: '@scope/example-package' }),
-    });
-
-    expect((await request()).status).toBe(200);
-    const limited = await request();
-    expect(limited.status).toBe(429);
-    expect(limited.headers.get('retry-after')).toBe('60');
-    expect(await limited.json()).toMatchObject({ code: 'rate_limited', retryable: true });
-  });
-
-  it('uses the direct remote address as the client key unless proxy trust is enabled', async () => {
-    const app = createApp(createDb(':memory:'), {
-      rateLimiter: new FixedWindowRateLimiter(1, 60_000),
-    });
-    const request = (address: string) => app.fetch(
-      new Request('http://api.test/api/projects/project-1/packages/resolve', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.200' },
-        body: JSON.stringify({ kind: 'npm', ref: '@scope/example-package' }),
-      }),
-      { incoming: { socket: { remoteAddress: address } } } as never,
-    );
-
-    expect((await request('198.51.100.1')).status).toBe(200);
-    expect((await request('198.51.100.1')).status).toBe(429);
-    expect((await request('198.51.100.2')).status).toBe(200);
   });
 });
 

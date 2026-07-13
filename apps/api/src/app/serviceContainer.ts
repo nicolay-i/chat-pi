@@ -24,7 +24,6 @@ import { createGitTaskService } from '../services/gitTaskService';
 import { createProjectFilesService } from '../services/projectFilesService';
 import { createActionEngine } from '../services/actionEngine';
 import { createProviderService } from '../services/providerService';
-import { createPackageService } from '../services/packageService';
 import { createSkillRunner } from '../services/skillRunner';
 import { createPromptStore } from '../services/promptStore';
 import { createMcpStore } from '../services/mcpStore';
@@ -76,7 +75,6 @@ export function createServiceContainer(db: DatabaseSync, options: CreateAppOptio
   const projectFiles = createProjectFilesService(projectRecords);
   const actionEngine = createActionEngine(db);
   const providerService = createProviderService(db, { eventStore });
-  const packageService = createPackageService(db, { eventStore, projects: projectRecords });
   const skillRunner = createSkillRunner(db, { projects: projectRecords });
   const promptStore = createPromptStore(projectRecords);
   const mcpStore = createMcpStore(projectRecords);
@@ -123,7 +121,7 @@ export function createServiceContainer(db: DatabaseSync, options: CreateAppOptio
     if (failure) throw failure.reason;
   };
 
-  return { projectService, projectRemoteSyncService, ignisService, taskService, chatService, eventStore, chatRuntime, runtimeManager, taskRecords, projectRecords, piSessionRecords, queuedMessages, runtimeProcesses, checkpointService, forkService, rollbackService, mergeService, taskCancellationService, gitTaskService, projectFiles, actionEngine, providerService, packageService, skillRunner, promptStore, mcpStore, themeStore, dispose };
+  return { projectService, projectRemoteSyncService, ignisService, taskService, chatService, eventStore, chatRuntime, runtimeManager, taskRecords, projectRecords, piSessionRecords, queuedMessages, runtimeProcesses, checkpointService, forkService, rollbackService, mergeService, taskCancellationService, gitTaskService, projectFiles, actionEngine, providerService, skillRunner, promptStore, mcpStore, themeStore, dispose };
 }
 
 export type ServiceContainer = ReturnType<typeof createServiceContainer>;

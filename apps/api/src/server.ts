@@ -1,11 +1,10 @@
-import { Hono, type Context, type MiddlewareHandler } from 'hono';
+import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { RPCHandler } from '@orpc/server/fetch';
 import type { DatabaseSync } from 'node:sqlite';
 import { ApiErrorSchema } from '@pi-agents/contracts';
 import { config, type Config } from './config';
-import { FixedWindowRateLimiter } from './app/rateLimiter';
 import { createServiceContainer, type CreateAppOptions as CreateServiceContainerOptions } from './app/serviceContainer';
 import { createHealthRoutes, healthRouteOperationIds } from './routes/healthRoutes';
 import { createProjectRoutes, projectRouteOperationIds } from './routes/projectRoutes';
@@ -15,7 +14,6 @@ import { createRealtimeRoutes, realtimeRouteOperationIds } from './routes/realti
 import { createFileRoutes, fileRouteOperationIds } from './routes/fileRoutes';
 import { createActionRoutes, actionRouteOperationIds } from './routes/actionRoutes';
 import { createProviderRoutes, providerRouteOperationIds } from './routes/providerRoutes';
-import { createPackageRoutes, packageRouteOperationIds } from './routes/packageRoutes';
 import { createSkillRoutes, skillRouteOperationIds } from './routes/skillRoutes';
 import { createPromptRoutes, promptRouteOperationIds } from './routes/promptRoutes';
 import { createMcpRoutes, mcpRouteOperationIds } from './routes/mcpRoutes';
@@ -26,8 +24,6 @@ import { createWebClientMiddleware } from './webClient';
 export type CreateAppOptions = CreateServiceContainerOptions & {
   corsPolicy?: Pick<Config, 'nodeEnv' | 'corsOrigins'> & Partial<Pick<Config, 'trustProxy'>>;
   maxBodyBytes?: number;
-  packageResolveRateLimit?: Pick<Config, 'packageResolveRateLimit' | 'packageResolveRateWindowMs'>;
-  rateLimiter?: FixedWindowRateLimiter;
   webRoot?: string;
 };
 
@@ -40,7 +36,6 @@ export const registeredApiOperationIds = [
   ...fileRouteOperationIds,
   ...actionRouteOperationIds,
   ...providerRouteOperationIds,
-  ...packageRouteOperationIds,
   ...skillRouteOperationIds,
   ...promptRouteOperationIds,
   ...mcpRouteOperationIds,
@@ -59,36 +54,6 @@ export function createCorsMiddleware(policy: Pick<Config, 'nodeEnv' | 'corsOrigi
   });
 }
 
-function requestClientKey(context: Context, trustProxy: boolean): string {
-  if (trustProxy) {
-    const forwarded = context.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-    if (forwarded) return `ip:${forwarded}`;
-  }
-
-  const incoming = (context.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming;
-  return incoming?.socket?.remoteAddress ? `ip:${incoming.socket.remoteAddress}` : 'shared:unknown-client';
-}
-
-export function createPackageResolveRateLimitMiddleware(
-  limiter: FixedWindowRateLimiter,
-  trustProxy: boolean,
-): MiddlewareHandler {
-  return async (context, next) => {
-    if (context.req.method !== 'POST' || !/^\/api\/projects\/[^/]+\/packages\/resolve$/.test(new URL(context.req.url).pathname)) {
-      return next();
-    }
-
-    const result = limiter.consume(requestClientKey(context, trustProxy));
-    if (result.allowed) return next();
-    context.header('Retry-After', String(result.retryAfterSeconds));
-    return context.json(ApiErrorSchema.parse({
-      code: 'rate_limited',
-      message: 'Too many package resolution requests. Try again later.',
-      retryable: true,
-    }), 429);
-  };
-}
-
 export type AppWithLifecycle = Hono & { dispose(): Promise<void> };
 
 export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): AppWithLifecycle {
@@ -96,11 +61,6 @@ export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): App
   const services = createServiceContainer(db, options);
   const providerRpcHandler = new RPCHandler(providerRpcRouter);
   const corsPolicy = options.corsPolicy ?? config;
-  const rateLimitPolicy = options.packageResolveRateLimit ?? config;
-  const rateLimiter = options.rateLimiter ?? new FixedWindowRateLimiter(
-    rateLimitPolicy.packageResolveRateLimit,
-    rateLimitPolicy.packageResolveRateWindowMs,
-  );
   app.use('*', createCorsMiddleware(corsPolicy));
   app.use('/api/*', bodyLimit({
     maxSize: options.maxBodyBytes ?? config.maxBodyBytes,
@@ -110,7 +70,6 @@ export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): App
       retryable: false,
     }), 413),
   }));
-  app.use('/api/*', createPackageResolveRateLimitMiddleware(rateLimiter, corsPolicy.trustProxy ?? config.trustProxy));
   app.use('/rpc/*', async (context, next) => {
     const { matched, response } = await providerRpcHandler.handle(context.req.raw, {
       prefix: '/rpc',
@@ -127,7 +86,6 @@ export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): App
   app.route('/', createFileRoutes(services));
   app.route('/', createActionRoutes(services));
   app.route('/', createProviderRoutes(services));
-  app.route('/', createPackageRoutes(services));
   app.route('/', createSkillRoutes(services));
   app.route('/', createPromptRoutes(services));
   app.route('/', createMcpRoutes(services));

@@ -40,18 +40,13 @@ describe('createConfig', () => {
     expect(() => createConfig({ API_HOST: 'http://example.test' })).toThrow('API_HOST');
   });
 
-  it('parses package resolution limiting and proxy trust explicitly', () => {
+  it('parses proxy trust explicitly', () => {
     const config = createConfig({
-      PACKAGE_RESOLVE_RATE_LIMIT: '25',
-      PACKAGE_RESOLVE_RATE_WINDOW_SECONDS: '30',
       TRUST_PROXY: 'true',
     });
 
-    expect(config.packageResolveRateLimit).toBe(25);
-    expect(config.packageResolveRateWindowMs).toBe(30_000);
     expect(config.trustProxy).toBe(true);
     expect(() => createConfig({ TRUST_PROXY: 'yes' })).toThrow('TRUST_PROXY');
-    expect(() => createConfig({ PACKAGE_RESOLVE_RATE_LIMIT: '0' })).toThrow('PACKAGE_RESOLVE_RATE_LIMIT');
   });
 
   it('parses bounded disk-monitoring settings', () => {

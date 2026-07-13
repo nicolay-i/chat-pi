@@ -13,8 +13,6 @@ import {
   FileNodeSchema,
   HealthResponseSchema,
   IgnisAccessSchema,
-  PackageInstallResultSchema,
-  PackageManifestSchema,
   QueuedMessageSchema,
   PromptTemplateSchema,
   RealtimeEnvelopeSchema,
@@ -45,8 +43,6 @@ import {
   type FileNode,
   type HealthResponse,
   type IgnisAccess,
-  type PackageInstallResult,
-  type PackageManifest,
   type QueuedMessage,
   type PromptTemplate,
   type RealtimeEnvelope,
@@ -617,51 +613,6 @@ export class ApiClient {
     );
     if (!res.ok) throw await this.toError(res);
     return PromptTemplateSchema.parse(await res.json());
-  }
-
-  // --- Settings: packages ---
-  async getPackages(projectId: string): Promise<PackageManifest[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/packages`);
-    if (!res.ok) throw await this.toError(res);
-    return PackageManifestSchema.array().parse(await res.json());
-  }
-
-  async resolvePackage(projectId: string, input: { kind: 'npm' | 'git' | 'local'; ref: string }): Promise<PackageInstallResult> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/packages/resolve`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) throw await this.toError(res);
-    return PackageInstallResultSchema.parse(await res.json());
-  }
-
-  async installPackage(projectId: string, input: { source: { kind: 'npm' | 'git' | 'local'; ref: string }; manifest: PackageManifest }): Promise<PackageInstallResult> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/packages/install`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) throw await this.toError(res);
-    return PackageInstallResultSchema.parse(await res.json());
-  }
-
-  async trustPackage(projectId: string, installId: string): Promise<PackageInstallResult> {
-    const res = await fetch(
-      `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/packages/${encodeURIComponent(installId)}/trust`,
-      { method: 'POST' },
-    );
-    if (!res.ok) throw await this.toError(res);
-    return PackageInstallResultSchema.parse(await res.json());
-  }
-
-  async removePackage(projectId: string, installId: string): Promise<{ ok: boolean }> {
-    const res = await fetch(
-      `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/packages/${encodeURIComponent(installId)}`,
-      { method: 'DELETE' },
-    );
-    if (!res.ok) throw await this.toError(res);
-    return OkBooleanResultSchema.parse(await res.json());
   }
 
   // --- Settings: providers ---

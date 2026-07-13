@@ -38,8 +38,6 @@ import ProjectSkillsScreen from '../../app/projects/[projectId]/settings/skills'
 import ProjectSkillScreen from '../../app/projects/[projectId]/settings/skills/[skillId]';
 import ProjectPromptsScreen from '../../app/projects/[projectId]/settings/prompts';
 import ProjectPromptScreen from '../../app/projects/[projectId]/settings/prompts/[templateId]';
-import ProjectPackagesScreen from '../../app/projects/[projectId]/settings/packages';
-import ProjectPackageInstallScreen from '../../app/projects/[projectId]/settings/packages/install';
 import ProjectMcpScreen from '../../app/projects/[projectId]/settings/mcp';
 import ProjectThemeScreen from '../../app/projects/[projectId]/settings/theme';
 
@@ -87,8 +85,6 @@ const screens: Record<string, ScreenComponent> = {
   ProjectSkill: ProjectSkillScreen,
   ProjectPrompts: ProjectPromptsScreen,
   ProjectPrompt: ProjectPromptScreen,
-  ProjectPackages: ProjectPackagesScreen,
-  ProjectPackageInstall: ProjectPackageInstallScreen,
   ProjectMcp: ProjectMcpScreen,
   ProjectTheme: ProjectThemeScreen,
 };

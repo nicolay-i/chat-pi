@@ -54,10 +54,6 @@ yet proven by automated tests and remain release gates.
 - The provider oRPC experiment does not yet generate an OpenAPI document:
   `@orpc/openapi` is deliberately not a production dependency until the mobile
   transport decision is made.
-- Local package resolution reads `pi-package.json` without executing package
-  code; trust materializes it under `.agents/packages`. npm and Git sources are
-  still review-only and must remain trust-gated when real fetch/install support
-  is added.
 - MCP configuration test intentionally does not spawn the configured process.
 - The Docker image builds locally, Compose starts the API with a healthy
   `/health` response, and the VPS has run the pinned Pi CLI (`0.80.3`) through

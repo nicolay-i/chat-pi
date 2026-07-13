@@ -16,6 +16,8 @@
   доступ к файловой системе репозиториев. Для unit-тестов доступен `fake` runtime.
 - **Git workflow:** реальные worktree, persistent Pi sessions, checkpoint, fork,
   rollback, rebase/stale detection и squash/no-ff merge.
+- **Отложено:** package installation, marketplace и trust UI не входят в
+  текущую Tailnet-only фазу; клиент и API не предоставляют package endpoints.
 
 Детальный статус и оставшиеся ограничения: `docs/IMPLEMENTATION-STATUS.md`.
 Проверяемые сценарии из нормативного плана: `docs/ACCEPTANCE-MATRIX.md`.
@@ -130,8 +132,6 @@ planning получают основной repo только с read-only tools.
 | `PI_PROVIDER` / `PI_MODEL` | Pi default | Optional provider/model selection. |
 | `CORS_ORIGINS` | empty in development | Comma-separated allowed browser origins. Required in production. |
 | `MAX_BODY_BYTES` | `1048576` | Maximum HTTP request body size. |
-| `PACKAGE_RESOLVE_RATE_LIMIT` | `10` | Per-client requests allowed for package resolution per time window. |
-| `PACKAGE_RESOLVE_RATE_WINDOW_SECONDS` | `60` | Package-resolution rate-limit window. |
 | `TRUST_PROXY` | `false` | Trust `X-Forwarded-For` only when a reverse proxy overwrites it. |
 | `DISK_WARNING_FREE_BYTES` | `1073741824` | Free-space threshold for a structured API warning near `DB_PATH`. |
 | `DISK_CHECK_INTERVAL_SECONDS` | `300` | Interval for the API storage-capacity check. |
@@ -139,9 +139,6 @@ planning получают основной repo только с read-only tools.
 `NODE_ENV=production` without `CORS_ORIGINS` deliberately prevents API startup.
 Use full origins only, for example
 `https://chat.tailnet.ts.net,http://100.116.45.50:8092`; paths are rejected.
-`POST /packages/resolve` is limited per client and returns `429` with
-`Retry-After`; this is a per-process limiter and must be replaced with shared
-storage before running several API replicas.
 The API emits JSON lifecycle logs, checks storage adjacent to `DB_PATH`, and
 handles `SIGINT`/`SIGTERM` by closing the listener before exit.
 

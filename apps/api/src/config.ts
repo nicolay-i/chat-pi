@@ -96,8 +96,6 @@ export type Config = {
   webRoot: string | undefined;
   corsOrigins: string[];
   maxBodyBytes: number;
-  packageResolveRateLimit: number;
-  packageResolveRateWindowMs: number;
   trustProxy: boolean;
   diskWarningFreeBytes: number;
   diskCheckIntervalMs: number;
@@ -142,8 +140,6 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webRoot: optionalString(env.WEB_ROOT),
     corsOrigins,
     maxBodyBytes: parseByteLimit(env.MAX_BODY_BYTES, 1024 * 1024),
-    packageResolveRateLimit: parsePositiveInteger(env.PACKAGE_RESOLVE_RATE_LIMIT, 10, 'PACKAGE_RESOLVE_RATE_LIMIT', 10_000),
-    packageResolveRateWindowMs: parsePositiveInteger(env.PACKAGE_RESOLVE_RATE_WINDOW_SECONDS, 60, 'PACKAGE_RESOLVE_RATE_WINDOW_SECONDS', 3_600) * 1000,
     trustProxy: parseBoolean(env.TRUST_PROXY, false, 'TRUST_PROXY'),
     diskWarningFreeBytes: parsePositiveInteger(env.DISK_WARNING_FREE_BYTES, 1024 * 1024 * 1024, 'DISK_WARNING_FREE_BYTES', Number.MAX_SAFE_INTEGER),
     diskCheckIntervalMs: parsePositiveInteger(env.DISK_CHECK_INTERVAL_SECONDS, 300, 'DISK_CHECK_INTERVAL_SECONDS', 86_400) * 1000,

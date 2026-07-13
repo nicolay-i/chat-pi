@@ -52,7 +52,6 @@ export function ProjectWebShell({
         <NavItem href={`${base}/settings/providers`} label="Providers" />
         <NavItem href={`${base}/settings/skills`} label="Skills" />
         <NavItem href={`${base}/settings/prompts`} label="Prompts" />
-        <NavItem href={`${base}/settings/packages`} label="Packages" />
         <NavItem href={`${base}/settings/mcp`} label="MCP" />
         <NavItem href={`${base}/settings/theme`} label="Theme" />
       </View>

@@ -1,5 +1,8 @@
 # 02. Спецификация экранов
 
+> Статус: исторический design draft. Экран package installation из этого файла
+> не входит в текущий релиз согласно `plans/2.md`.
+
 Каждый экран ниже должен иметь: route, states, actions, API dependencies, empty/error/loading states, verification.
 
 ## 1. Connection / Server Setup

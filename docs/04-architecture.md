@@ -1,5 +1,8 @@
 # 04. Architecture
 
+> Status: historical architecture draft. Package Manager is deferred by
+> `plans/2.md` and is not mounted in the current application.
+
 ## 1. High-level architecture
 
 ```text

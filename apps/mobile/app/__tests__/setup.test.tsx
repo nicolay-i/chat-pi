@@ -39,7 +39,6 @@ const VALID_CAPABILITIES = {
   supportsWorktrees: true,
   supportsSse: true,
   supportsWebSocket: false,
-  supportsPackageInstall: true,
   supportsVscodeWeb: false,
   supportsIgnis: false,
 };

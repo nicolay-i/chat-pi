@@ -188,7 +188,6 @@ export const CapabilitiesSchema = z.object({
   supportsWorktrees: z.boolean(),
   supportsSse: z.boolean(),
   supportsWebSocket: z.boolean(),
-  supportsPackageInstall: z.boolean(),
   supportsVscodeWeb: z.boolean(),
   supportsIgnis: z.boolean(),
 });

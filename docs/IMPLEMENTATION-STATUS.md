@@ -11,7 +11,7 @@ This file describes the current worktree, not the earlier generated scaffold.
 | Typed API | Shared Zod contracts plus `apiOperations.ts`, backend route operation IDs and `apiParity.test.ts`; an isolated provider domain also has an oRPC transport mounted in Hono. |
 | Chat/task runtime | One persistent PiSession is created for each Chat. Discussion/planning run it in the primary repo with Pi read-only tools; writable Tasks reuse it in their own worktrees. PiSession locks are writer-scoped, checkpoints are created for completed Task steps, and follow-up queue entries persist across restart. Fork/rollback create a new Pi JSONL branch through the selected checkpoint ancestry and update its header cwd before Pi opens the next worktree. |
 | Git workflow | Worktree isolation, checkpoints without empty commits, explicit archive/discard cancellation, diff, rollback within a Chat, fork into a separate Chat, manual fetch/rebase/push and merge flows are tested against temporary Git repositories. New projects keep runtime state beside, rather than inside, the canonical Git checkout; checkpoint patches live under `runtimeStatePath/checkpoints/<taskId>` and merge/rebase are serialized per project. |
-| Project configuration | Files, actions, skills, prompts, packages, providers, MCP and theme routes have client, Hono route and persistence paths. MCP configuration persists in `.agents/mcp.json`; trusted local packages are copied to `.agents/packages` and recorded in `packages.lock.json`. |
+| Project configuration | Files, actions, skills, prompts, providers, MCP and theme routes have client, Hono route and persistence paths. MCP configuration persists in `.agents/mcp.json`. Package installation remains deferred and is not exposed by the current API or client. |
 | CI baseline | Pinned pnpm, frozen-lockfile install, typecheck/test/lint and Web export in GitHub Actions. |
 | Deployment baseline | Expo Web is built into the VPS image and served from the same private origin as the API; production CORS allowlist, explicit loopback bind for standalone API, request body cap, per-client package-resolve rate limit, structured lifecycle logs, disk monitoring, graceful Pi-child cleanup, pinned Pi CLI in Dockerfile, compose, SQLite volume and private-by-default port binding. |
 | Pi sandbox | `PI_SANDBOX_MODE=bwrap` launches Pi in Linux user/PID/IPC/UTS namespaces. It mounts only the active worktree, JSONL session directory and dedicated Pi state; discussion/planning mounts the primary repo read-only. `/data/pi-agent` and session directories are created before the first launch. |
@@ -47,8 +47,8 @@ This file describes the current worktree, not the earlier generated scaffold.
 - Persistent Pi-session locks use a unique API-instance owner, atomic
   acquire-with-expiry, owner-scoped heartbeats and stale-lock cleanup during
   interrupted-run recovery.
-- Only trusted and enabled package paths from `packages.lock.json` are exposed
-  to a new Pi session; untrusted or disabled package directories are ignored.
+- Pi sessions load only project-owned `.agents` resources. Package-provided
+  resources are deferred and are not loaded in the current phase.
 
 ## Current phase boundaries / release gates
 
@@ -59,8 +59,8 @@ This file describes the current worktree, not the earlier generated scaffold.
    only symbolic `env:`/`secret:` references and rejects raw keys. Secure secret
    resolution and a real provider transport must be added before provider
    configuration is a production feature.
-3. **Packages and MCP.** Package resolution does not fetch arbitrary remote code.
-   MCP test checks configuration but never executes configured commands.
+3. **Packages and MCP.** Package installation and trust UI are deferred. MCP
+   test checks configuration but never executes configured commands.
 4. **External product surfaces.** VSCode Web remains unsupported. Ignis is a
    configured Tailnet URL with web iframe/native external opening; deployment
    and end-to-end editing against a real Ignis host remain release gates.

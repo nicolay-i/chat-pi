@@ -1,5 +1,8 @@
 # 05. API contract draft
 
+> Status: draft. Package endpoints described below are deferred by `plans/2.md`
+> and are not part of the current API registry.
+
 Use this as a starting point for shared contracts. Exact implementation may use Hono RPC or oRPC. Streaming endpoints remain separate.
 
 ## 1. Health/capabilities

@@ -2,10 +2,6 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFile
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { Skill } from '@pi-agents/contracts';
-import {
-  createPackagesRepository,
-  type PackagesRepository,
-} from '../db';
 import type { ProjectsRepository } from '../db/repositories/projectsRepository';
 
 const DEFAULT_SKILLS: Skill[] = [
@@ -42,23 +38,16 @@ export interface SkillRunner {
   ): Promise<RunSkillResult>;
 }
 
-export type SkillRunnerDeps = {
-  packages?: PackagesRepository;
-  projects: ProjectsRepository;
-};
+export type SkillRunnerDeps = { projects: ProjectsRepository };
 
 /**
  * Catalog-backed skill listing. Default project skills mirror the repo's
- * own `.agents/skills`. Package-provided skills are included ONLY when the
- * owning package is both trusted AND enabled — same gate as extensions
- * (untrusted sources do not contribute executable artifacts).
+ * own `.agents/skills`.
  */
 export function createSkillRunner(
-  db: DatabaseSync,
+  _db: DatabaseSync,
   deps: SkillRunnerDeps,
 ): SkillRunner {
-  const packages: PackagesRepository =
-    deps.packages ?? createPackagesRepository(db);
   const projects = deps.projects;
 
   const projectRoot = (projectId: string) => {
@@ -85,19 +74,10 @@ export function createSkillRunner(
       });
   };
 
-  const packageSkills = (projectId: string): Skill[] => {
-    const out: Skill[] = [];
-    for (const pkg of packages.listByProject(projectId)) {
-      if (!pkg.trusted || !pkg.enabled) continue;
-      for (const skillId of pkg.manifest.resources.skills) out.push({ id: `${pkg.name}/${skillId}`, name: skillId, source: 'package', enabled: true, path: `${pkg.installPath}/skills/${skillId}/SKILL.md` });
-    }
-    return out;
-  };
-
   return {
     async listSkills(projectId) {
       const local = projectSkills(projectId);
-      return [...(local.length > 0 ? local : DEFAULT_SKILLS), ...packageSkills(projectId)];
+      return local.length > 0 ? local : DEFAULT_SKILLS;
     },
 
     async getSkill(projectId, skillId) { return (await this.listSkills(projectId)).find((skill) => skill.id === skillId); },

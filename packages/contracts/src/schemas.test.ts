@@ -80,7 +80,6 @@ describe('CapabilitiesSchema', () => {
       supportsWorktrees: true,
       supportsSse: true,
       supportsWebSocket: false,
-      supportsPackageInstall: true,
       supportsVscodeWeb: false,
       supportsIgnis: false,
     });
@@ -97,7 +96,6 @@ describe('CapabilitiesSchema', () => {
         supportsWorktrees: true,
         supportsSse: true,
         supportsWebSocket: false,
-        supportsPackageInstall: true,
         supportsVscodeWeb: false,
       }),
     ).toThrow();

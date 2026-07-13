@@ -1,5 +1,8 @@
 # 09. Test strategy
 
+> Status: historical test plan. Package-install scenarios are deferred by
+> `plans/2.md` and are excluded from the current acceptance matrix.
+
 ## 1. Levels
 
 ### Unit

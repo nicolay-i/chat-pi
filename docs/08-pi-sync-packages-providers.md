@@ -1,5 +1,8 @@
 # 08. Pi sync, packages, providers
 
+> Status: deferred design. Package installation and package-provided Pi
+> resources are not exposed or loaded in the current phase (`plans/2.md`).
+
 ## 1. `.agents` compatibility layer
 
 The app treats `.agents` as source of truth:

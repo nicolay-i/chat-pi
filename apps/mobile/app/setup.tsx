@@ -27,7 +27,6 @@ const CAPABILITY_ROWS: ReadonlyArray<{ key: keyof Capabilities; label: string }>
   { key: 'supportsWorktrees', label: 'Worktrees' },
   { key: 'supportsSse', label: 'SSE' },
   { key: 'supportsWebSocket', label: 'WebSocket' },
-  { key: 'supportsPackageInstall', label: 'Package install' },
   { key: 'supportsVscodeWeb', label: 'VSCode Web' },
   { key: 'supportsIgnis', label: 'Ignis' },
 ];

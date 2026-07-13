@@ -8,7 +8,7 @@ const BACKUP_VERSION = 1;
 const EXCLUDED_DIRECTORY_NAMES = new Set(['.git', 'node_modules']);
 const EXCLUDED_FILE_NAMES = new Set(['auth.json', 'credentials.json', 'secrets.json']);
 const EXCLUDED_FILE_SUFFIXES = ['.key', '.pem', '.p12', '.p8', '.mobileprovision'];
-const AGENT_PATHS = ['skills', 'prompts', 'extensions', 'packages', 'packages.lock.json', 'providers.json', 'mcp.json'];
+const AGENT_PATHS = ['skills', 'prompts', 'extensions', 'providers.json', 'mcp.json'];
 const RUNTIME_PATHS = ['sessions', 'prompts.json', 'theme.json'];
 
 export type BackupProject = {
