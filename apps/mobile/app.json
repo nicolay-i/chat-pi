@@ -11,6 +11,9 @@
       "bundler": "metro",
       "output": "single"
     },
-    "plugins": []
+    "plugins": [],
+    "android": {
+      "package": "com.nic34.piagents"
+    }
   }
 }
