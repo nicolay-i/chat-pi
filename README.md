@@ -79,6 +79,8 @@ Pop-Location
 ```
 
 APK будет расположен в `apps/mobile/android/app/build/outputs/apk/debug/`.
+Это development debug build: для запуска на устройстве ему нужен доступный
+Metro server. Для автономной установки нужен отдельный release artifact.
 
 ### Локальный Pi smoke-тест
 

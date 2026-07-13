@@ -27,8 +27,12 @@ yet proven by automated tests and remain release gates.
 
 - A native Android debug build was assembled on Windows and opened on a local
   Pixel 3a API 34 emulator, showing the setup screen after Metro served the
-  bundle. A complete native Chat-to-VPS flow and physical Android/iOS device
-  QA remain release gates.
+  bundle. The debug APK is not a standalone release artifact: it requires a
+  reachable Metro server. On the current Windows Codex host, `agent-device
+  metro prepare` cannot start its detached Metro child and the emulator cannot
+  reach a localhost-bound manual server through `10.0.2.2`. A complete native
+  Chat-to-VPS flow, a release APK and physical Android/iOS device QA remain
+  release gates.
 - The experimental provider oRPC client is integration-tested in Node only.
   It has not yet been added to the Expo bundle or tested on iOS/Android.
 - There is no visual-regression suite for React Native Web, responsive layout,
