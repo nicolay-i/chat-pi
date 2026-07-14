@@ -40,12 +40,13 @@ yet proven by automated tests and remain release gates.
   It has not yet been added to the Expo bundle or tested on iOS/Android.
 - There is no visual-regression suite for React Native Web, responsive layout,
   dark theme or screen-reader traversal.
-- VSCode Web remains unsupported. Ignis has a configured Tailnet URL and a
-  web iframe/native WebView surface, but no end-to-end editing flow against a
-  live host has been verified. The current `chat-pi` project has no `ignisUrl`.
-  The separately exposed Ignis service currently targets the unrelated
-  `control-runs` vault and fails startup with `ENOENT`/`EROFS`; do not configure
-  it for this project until a writable project vault is mounted.
+- VSCode Web remains unsupported. Ignis now has a configured Tailnet URL and
+  a writable `chat-pi` vault. A fresh Web browser session has resolved the
+  project route and loaded the live vault through Ignis's API. The Web route
+  opens Ignis at top level: the upstream Obsidian bundle reads its top-level
+  parent and therefore cannot run in a cross-origin iframe. Android/iOS use a
+  native WebView. A full edit made after a completed Task still needs release
+  verification.
 - The current Mobile test suite completes without React `act(...)` warnings.
 
 ## External integrations

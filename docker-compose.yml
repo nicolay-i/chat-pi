@@ -52,9 +52,7 @@ services:
   # Ignis serves the current Pi Agents repository as a private Markdown vault.
   # It is exposed separately through `tailscale serve` on a loopback port.
   ignis:
-    build:
-      context: .
-      dockerfile: deploy/ignis/Dockerfile
+    image: nobbe/ignis:0.8.8
     environment:
       PORT: 8080
       OBSIDIAN_VERSION: 1.12.7
