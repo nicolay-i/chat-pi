@@ -3,6 +3,10 @@ import { matchPath, routeDefinitions } from '../routes';
 const projectParams = { projectId: 'project-123' };
 
 describe('explicit route registry', () => {
+  it('maps the root URL to the home redirect screen', () => {
+    expect(matchPath('/')?.definition.name).toBe('Home');
+  });
+
   it.each([
     ['ProjectSkills', './skills/new', '/projects/project-123/settings/skills/new'],
     ['ProjectPrompts', './prompts/template-1', '/projects/project-123/settings/prompts/template-1'],

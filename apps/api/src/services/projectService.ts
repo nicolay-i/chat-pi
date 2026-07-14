@@ -87,11 +87,23 @@ export function createProjectService(db: DatabaseSync, options: { projectsRoot?:
       return rec ? toProject(rec) : undefined;
     },
     async remove(id) {
-      db.prepare('DELETE FROM chat_events WHERE project_id = ?').run(id);
-      db.prepare('DELETE FROM runtime_processes WHERE project_id = ?').run(id);
-      db.prepare('DELETE FROM tasks WHERE project_id = ?').run(id);
-      db.prepare('DELETE FROM chats WHERE project_id = ?').run(id);
-      projects.delete(id);
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        db.prepare('DELETE FROM chat_events WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM runtime_processes WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM queued_messages WHERE chat_id IN (SELECT id FROM chats WHERE project_id = ?)').run(id);
+        db.prepare('DELETE FROM task_checkpoints WHERE task_id IN (SELECT id FROM tasks WHERE project_id = ?)').run(id);
+        db.prepare('DELETE FROM tasks WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM pi_sessions WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM chats WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM packages WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM providers WHERE project_id = ?').run(id);
+        projects.delete(id);
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
     },
     async validateRepo(input) {
       const repoPath = input.repoPath?.trim();

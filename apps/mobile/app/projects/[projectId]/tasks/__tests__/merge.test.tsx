@@ -101,9 +101,6 @@ describe('MergeScreen', () => {
     await findByTestId('merge.submit');
 
     await act(async () => {
-      fireEvent.press(getByTestId('merge.strategy.rebase'));
-    });
-    await act(async () => {
       fireEvent.press(getByTestId('merge.submit'));
     });
     await act(async () => {
@@ -115,7 +112,7 @@ describe('MergeScreen', () => {
     expect(String(mergeCall?.[0])).toBe('https://backend.example/api/tasks/task-1/merge');
     expect(mergeCall?.[1]?.method).toBe('POST');
     const body = JSON.parse(String(mergeCall?.[1]?.body)) as { strategy: string; commitMessage: string };
-    expect(body.strategy).toBe('rebase');
+    expect(body.strategy).toBe('squash');
     expect(body.commitMessage).toContain('Implement debounce');
   });
 

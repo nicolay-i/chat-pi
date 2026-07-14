@@ -4,6 +4,7 @@ import { ArrowRight, Plus, RotateCcw, Square } from 'lucide-react-native';
 import type { Chat, ManagedImplementation, SendMessageInput } from '@pi-agents/contracts';
 import { Composer } from '@/components/chat/Composer';
 import { MessageBubble } from '@/components/chat/MessageBubble';
+import { QueuePanel } from '@/components/chat/QueuePanel';
 import { ToolCard } from '@/components/chat/ToolCard';
 import { observer } from '@/lib/observer';
 import { useRootStore } from '@/providers/RootStoreProvider';
@@ -35,6 +36,9 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
   const [implementationTitle, setImplementationTitle] = useState('');
   const [creatingImplementation, setCreatingImplementation] = useState(false);
   const [orchestrationError, setOrchestrationError] = useState<string | null>(null);
+  const [nextTaskTitle, setNextTaskTitle] = useState('');
+  const [creatingNextTask, setCreatingNextTask] = useState(false);
+  const [nextTaskError, setNextTaskError] = useState<string | null>(null);
   const { chats } = useRootStore();
   const { baseUrl } = useBackend();
   const chat = useMemo(() => chats.getOrCreate(chatId), [chatId, chats]);
@@ -44,8 +48,9 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
     const client = new ApiClient(baseUrl);
     const next = await client.getChat(chatId);
     setMetadata(next);
+    chat.applyChat(next);
     if (next.mode === 'orchestration') setManaged(await client.getManagedImplementations(chatId));
-  }, [baseUrl, chatId]);
+  }, [baseUrl, chat, chatId]);
 
   useEffect(() => {
     if (!baseUrl) return;
@@ -76,6 +81,23 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
       })
       .catch((error: unknown) => setOrchestrationError(error instanceof Error ? error.message : String(error)))
       .finally(() => setCreatingImplementation(false));
+  };
+
+  const createNextTask = (): void => {
+    const title = nextTaskTitle.trim();
+    if (!baseUrl || !title || creatingNextTask) return;
+    setCreatingNextTask(true);
+    setNextTaskError(null);
+    const client = new ApiClient(baseUrl);
+    void client.createTaskForChat(chatId, { title, mode: 'implementation' })
+      .then(async () => {
+        setNextTaskTitle('');
+        const next = await client.getChat(chatId);
+        setMetadata(next);
+        chat.applyChat(next);
+      })
+      .catch((error: unknown) => setNextTaskError(error instanceof Error ? error.message : String(error)))
+      .finally(() => setCreatingNextTask(false));
   };
 
   const send = (): void => {
@@ -132,9 +154,44 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
         ) : null}
       </View>
 
+      <QueuePanel key={`${baseUrl ?? 'none'}:${chatId}`} baseUrl={baseUrl} chatId={chatId} pendingCount={chat.queue.pending} />
+
       {chat.isOffline ? (
         <View testID="chat.screen.offlineBanner" style={{ backgroundColor: tokens.color.danger, paddingHorizontal: 16, paddingVertical: 8 }}>
           <Text style={{ color: '#FFFFFF', fontSize: tokens.fontSize.sm }}>Нет соединения. Переподключение…</Text>
+        </View>
+      ) : null}
+
+      {metadata?.mode === 'implementation' && !chat.activeTaskId ? (
+        <View testID="chat.screen.nextTask" style={{ borderBottomWidth: 1, borderBottomColor: tokens.color.border, padding: 12, gap: 8 }}>
+          <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: tokens.fontSize.sm }}>
+            Нет активной задачи
+          </Text>
+          <Text style={{ color: tokens.color.textMuted, fontSize: tokens.fontSize.xs }}>
+            Обсуждение остаётся доступным. Для следующего изменения создайте новую Task в этом же Chat.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              testID="chat.screen.nextTaskTitle"
+              accessibilityLabel="Next task title"
+              value={nextTaskTitle}
+              onChangeText={setNextTaskTitle}
+              placeholder="Название следующей Task"
+              placeholderTextColor={tokens.color.textMuted}
+              style={{ flex: 1, borderWidth: 1, borderColor: tokens.color.border, borderRadius: tokens.radius.sm, color: tokens.color.text, paddingHorizontal: 10, paddingVertical: 8 }}
+            />
+            <Pressable
+              testID="chat.screen.createNextTask"
+              accessibilityRole="button"
+              accessibilityLabel="Create next task in this chat"
+              disabled={!nextTaskTitle.trim() || creatingNextTask}
+              onPress={createNextTask}
+              style={{ width: 40, borderRadius: tokens.radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: tokens.color.primary, opacity: !nextTaskTitle.trim() || creatingNextTask ? 0.5 : 1 }}
+            >
+              <Plus size={18} color="#FFFFFF" />
+            </Pressable>
+          </View>
+          {nextTaskError ? <Text testID="chat.screen.nextTaskError" style={{ color: tokens.color.danger, fontSize: tokens.fontSize.xs }}>{nextTaskError}</Text> : null}
         </View>
       ) : null}
 

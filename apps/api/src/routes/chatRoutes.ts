@@ -20,6 +20,16 @@ const UpdateChatInputSchema = z.object({
 
 export function createChatRoutes({ projectService, chatService, taskService, eventStore, runtimeManager, queuedMessages }: ServiceContainer): Hono {
   const routes = new Hono();
+  const publishQueueState = async (chat: { id: string; projectId: string }, reason: string): Promise<void> => {
+    await eventStore.append({
+      stream: 'chat',
+      streamId: chat.id,
+      projectId: chat.projectId,
+      chatId: chat.id,
+      type: 'queue.updated',
+      payload: { pending: queuedMessages.listPending(chat.id).length, reason },
+    });
+  };
   routes.get('/api/projects/:id/chats', async (c) => c.json(await chatService.list(c.req.param('id'))));
   routes.post('/api/projects/:id/chats', async (c) => {
     let input;
@@ -102,20 +112,27 @@ export function createChatRoutes({ projectService, chatService, taskService, eve
     if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
     const input = z.object({ ids: z.array(z.string().min(1)) }).safeParse(await c.req.json().catch(() => null));
     if (!input.success) return sendApiError(c, 400, 'invalid_input', input.error.message);
-    try { return c.json(queuedMessages.reorder(chat.id, input.data.ids)); }
+    try {
+      const queue = queuedMessages.reorder(chat.id, input.data.ids);
+      await publishQueueState(chat, 'user_reordered');
+      return c.json(queue);
+    }
     catch (error) { return sendApiError(c, 409, 'queue_reorder_failed', error instanceof Error ? error.message : String(error)); }
   });
   routes.delete('/api/chats/:chatId/queue/:itemId', async (c) => {
     const chat = await chatService.get(c.req.param('chatId'));
     if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
-    return queuedMessages.remove(chat.id, c.req.param('itemId'))
-      ? c.json({ ok: true })
-      : sendApiError(c, 404, 'not_found', 'pending queue item not found');
+    if (!queuedMessages.remove(chat.id, c.req.param('itemId'))) {
+      return sendApiError(c, 404, 'not_found', 'pending queue item not found');
+    }
+    await publishQueueState(chat, 'user_removed');
+    return c.json({ ok: true });
   });
   routes.post('/api/chats/:id/queue/clear', async (c) => {
     const chat = await chatService.get(c.req.param('id'));
     if (!chat) return sendApiError(c, 404, 'not_found', 'chat not found');
     queuedMessages.clear(chat.id);
+    await publishQueueState(chat, 'user_cleared');
     return c.json({ ok: true });
   });
   routes.post('/api/chats/:id/export', async (c) => {

@@ -1,5 +1,6 @@
 
 import { renderWithStore as render } from '@/test/renderWithStore';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 
 jest.mock('@/navigation', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
@@ -74,6 +75,7 @@ describe('TaskDetailScreen', () => {
     expect(await findByTestId('taskDetail.tabs.merge')).toBeTruthy();
     expect(getByText('Implement debounce')).toBeTruthy();
     expect(getByText('feat/debounce')).toBeTruthy();
+    expect(getByText('5')).toBeTruthy();
   });
 
   it('renders runtime data, task transitions and collapsed dangerous actions on overview', async () => {
@@ -94,5 +96,43 @@ describe('TaskDetailScreen', () => {
 
     const { findByTestId } = await render(<TaskDetailScreen />);
     expect(await findByTestId('taskDetail.error')).toBeTruthy();
+  });
+
+  it('confirms a lifecycle action and opens the created fork task', async () => {
+    configureBackend('https://backend.example');
+    const reviewTask = { ...TASK, status: 'needs_review' };
+    const forkTask = { ...reviewTask, id: 'task-fork', sourceChatId: 'chat-fork' };
+    const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/trace')) return jsonRes(TRACE);
+      if (url.endsWith('/fork') && init?.method === 'POST') return jsonRes(forkTask);
+      return jsonRes(reviewTask);
+    });
+    setFetch(fetchMock);
+
+    const screen = await render(<TaskDetailScreen />);
+    await screen.findByTestId('taskDetail.header');
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('taskDetail.dangerousActions'));
+    });
+    await waitFor(() => expect(screen.getByTestId('taskDetail.dangerousActions.panel')).toBeTruthy());
+    expect(screen.getByTestId('taskDetail.action.abort').props.accessibilityState.disabled).toBe(true);
+
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('taskDetail.action.fork'));
+    });
+    await waitFor(() => expect(screen.getByTestId('taskDetail.action.confirmDialog')).toBeTruthy());
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('taskDetail.action.confirm'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      'https://backend.example/api/tasks/task-1/fork',
+      { method: 'POST' },
+    ));
+    const navigation = jest.requireMock('@/navigation') as { router: { push: jest.Mock } };
+    await waitFor(() => expect(navigation.router.push).toHaveBeenCalledWith('/projects/project-demo/tasks/task-fork'));
   });
 });

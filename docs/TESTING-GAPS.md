@@ -36,19 +36,59 @@ yet proven by automated tests and remain release gates.
   completed setup, opened the persisted Chat and established the native SSE
   transport without Metro. Physical Android/iOS device QA and production APK
   signing remain release gates.
+- On 14 July 2026, `agent-device 0.16.7` was retried for current Android/iOS
+  device enumeration. Restricted user/C:\tmp state caused the initial daemon
+  startup failures (`mrk0yl3c-8b11b7b1`, `mrk0zoax-1e6323ad`). A writable
+  workspace state directory let the daemon start, but Android discovery then
+  reached its 90-second request timeout (`mrk1p2jk-5aacca0a`); no
+  emulator/qemu/adb process was present. This is an automation-host/device
+  availability blocker, not evidence that either native client works on a
+  physical device.
 - The experimental provider oRPC client is integration-tested in Node only.
   It has not yet been added to the Expo bundle or tested on iOS/Android.
+- Explicit remote sync has a component test and a real local Chromium/Git pass
+  for the fast-forward path. Diverged/local-ahead visual states and stale-Task
+  presentation still lack browser fixtures.
 - There is no visual-regression suite for React Native Web, responsive layout,
-  dark theme or screen-reader traversal.
+  dark theme or screen-reader traversal. A manual Chromium pass at 390x844
+  checked 25 URLs after the responsive shell fix; 23 supported routes had no
+  document-level horizontal overflow or runtime console errors, while two
+  unfinished `new` detail IDs rendered their error states. This is not
+  screenshot regression coverage.
 - VSCode Web remains unsupported. Ignis now has a configured Tailnet URL and
   a writable `chat-pi` vault. A fresh Web browser session has resolved the
   project route and loaded the live vault through Ignis's API. The Web route
   opens Ignis at top level: the upstream Obsidian bundle reads its top-level
   parent and therefore cannot run in a cross-origin iframe. Android/iOS use a
   native WebView. Ignis-only `.obsidian/` state is ignored locally in the
-  managed clone. A full edit made after a completed Task still needs release
-  verification.
+  managed clone. A full Web edit after completed Task activity was verified
+  against the live vault: the note survived reload, reopened with identical
+  content, appeared in the VPS managed clone and produced no console errors.
+  The temporary verification note was removed and the clone remained clean.
 - The current Mobile test suite completes without React `act(...)` warnings.
+- The mobile browser pass exercised root restoration, project creation,
+  project navigation, Chat creation/message delivery, settings and local
+  approval actions. A second 390x844 pass exercised a populated persistent
+  Chat queue end to end: open, reorder, remove, confirmed clear and SSE count
+  refresh. A temporary real implementation Task also exercised the Task
+  overview lifecycle panel and confirmed archive-cancel through the API.
+  A subsequent temporary real Git Task supplied a checkpoint, a two-file diff
+  and fake-runtime events: Chromium at 390x844 rendered Diff and patch content,
+  Checkpoints and checkpoint diff, Fork/Rollback confirmations, disabled and
+  enabled Merge states, and Message/Tool call details for real event IDs with
+  no console errors. A later 390x844 pass submitted and confirmed a real
+  squash-only Merge, reached the success screen, verified Task/HEAD SHA parity,
+  a clean checkout and a one-parent commit containing exactly the QA file.
+  A real conflict fixture and mobile conflict recovery remain unproven; the
+  current conflict screen explicitly states that in-app resolution is
+  unsupported.
+- A separate 390x844 pass exercised the sequential-Task UI that was previously
+  API-only: an implementation Chat with no active Task created the next Task,
+  refreshed its active ID and retained the same Chat/PiSession while Git
+  verification showed a new clean worktree and the console remained clean.
+- Approvals currently resolves mock rows only. `Skills -> New` reaches an
+  unfinished detail path and `Extract from chat` has no backend-backed action;
+  these must not be treated as production-complete workflows.
 
 ## External integrations
 

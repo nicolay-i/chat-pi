@@ -3,8 +3,6 @@ import {
   checksSummaryFor,
   defaultCommitMessage,
   isConflict,
-  STRATEGY_OPTIONS,
-  type MergeStrategy,
 } from '../mergeRules';
 
 describe('mergeRules', () => {
@@ -43,11 +41,6 @@ describe('mergeRules', () => {
   });
 
   describe('helpers', () => {
-    it('STRATEGY_OPTIONS exposes 4 strategies', () => {
-      const values = STRATEGY_OPTIONS.map((o) => o.value);
-      expect(values).toEqual<MergeStrategy[]>(['squash', 'merge', 'rebase', 'patch']);
-    });
-
     it('defaultCommitMessage uses the title and trims empty', () => {
       expect(defaultCommitMessage('Add login')).toBe('feat: merge Add login');
       expect(defaultCommitMessage('   ')).toBe('feat: merge task');

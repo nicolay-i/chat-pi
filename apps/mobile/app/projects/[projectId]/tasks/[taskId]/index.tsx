@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from '@/navigation';
 import type { RealtimeEnvelope } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
@@ -10,6 +10,7 @@ import { useTask } from '@/features/tasks/useTasks';
 import { TaskStatusBadge } from '@/features/tasks/TaskStatusBadge';
 
 type TabKey = 'overview' | 'diff' | 'checkpoints' | 'merge';
+type TaskAction = 'abort' | 'rollback' | 'fork' | 'rebase' | 'cancel_archive' | 'cancel_discard';
 
 const TABS: ReadonlyArray<{ key: TabKey; label: string; route?: string }> = [
   { key: 'overview', label: 'Overview' },
@@ -17,6 +18,43 @@ const TABS: ReadonlyArray<{ key: TabKey; label: string; route?: string }> = [
   { key: 'checkpoints', label: 'Checkpoints', route: './checkpoints' },
   { key: 'merge', label: 'Merge', route: './merge' },
 ];
+
+const ACTION_COPY: Record<TaskAction, { label: string; title: string; description: string; destructive?: boolean }> = {
+  abort: {
+    label: 'Прервать запуск',
+    title: 'Прервать текущий запуск?',
+    description: 'Изменения в worktree сохранятся, задача перейдёт в paused-состояние.',
+    destructive: true,
+  },
+  rollback: {
+    label: 'Откатить к checkpoint',
+    title: 'Создать задачу из последнего checkpoint?',
+    description: 'Откат продолжится в этом же Chat и PiSession, но в новой Task и worktree.',
+  },
+  fork: {
+    label: 'Создать fork',
+    title: 'Создать независимый fork?',
+    description: 'Будут созданы новый Chat, новая PiSession и отдельная Task от выбранной истории.',
+  },
+  rebase: {
+    label: 'Rebase на актуальную базу',
+    title: 'Выполнить rebase?',
+    description: 'Операция изменит историю ветки Task и может привести к конфликту.',
+    destructive: true,
+  },
+  cancel_archive: {
+    label: 'Отменить и архивировать',
+    title: 'Отменить Task с сохранением?',
+    description: 'Ветка и worktree будут сохранены для последующего просмотра.',
+    destructive: true,
+  },
+  cancel_discard: {
+    label: 'Отменить и удалить worktree',
+    title: 'Безвозвратно удалить worktree?',
+    description: 'Незакоммиченные изменения и рабочая копия Task будут удалены.',
+    destructive: true,
+  },
+};
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -54,6 +92,10 @@ export default function TaskDetailScreen() {
   const { data: task, status, error, refetch } = useTask(taskId);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [dangerOpen, setDangerOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<TaskAction | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const { baseUrl } = useBackend();
 
   if (status === 'loading') {
     return (
@@ -99,6 +141,39 @@ export default function TaskDetailScreen() {
       return;
     }
     setActiveTab(tab.key);
+  };
+
+  const running = ['queued', 'running', 'aborting', 'checks_running', 'merge_running'].includes(task.status);
+  const terminal = ['merged', 'cancelled_archived', 'cancelled_discarded', 'archived'].includes(task.status);
+
+  const runAction = (): void => {
+    if (!baseUrl || !confirmAction || actionBusy) return;
+    const action = confirmAction;
+    const client = new ApiClient(baseUrl);
+    setActionBusy(true);
+    setActionError(null);
+
+    const operation = action === 'abort'
+      ? client.abort(task.id)
+      : action === 'rollback'
+        ? client.rollbackTask(task.id)
+        : action === 'fork'
+          ? client.forkTask(task.id)
+          : action === 'rebase'
+            ? client.rebaseTask(task.id)
+            : client.cancelTask(task.id, action === 'cancel_archive' ? 'archive' : 'discard');
+
+    void operation
+      .then((result) => {
+        setConfirmAction(null);
+        if ((action === 'rollback' || action === 'fork') && 'id' in result) {
+          router.push(`/projects/${projectId}/tasks/${result.id}`);
+          return;
+        }
+        refetch();
+      })
+      .catch((actionFailure: unknown) => setActionError(actionFailure instanceof Error ? actionFailure.message : String(actionFailure)))
+      .finally(() => setActionBusy(false));
   };
 
   return (
@@ -176,10 +251,7 @@ export default function TaskDetailScreen() {
               </Pressable>
             </View>
 
-            <Pressable
-              testID="taskDetail.dangerousActions"
-              accessibilityLabel="Toggle dangerous actions"
-              onPress={() => setDangerOpen((v) => !v)}
+            <View
               style={{
                 marginTop: 16,
                 backgroundColor: tokens.color.surface,
@@ -189,22 +261,100 @@ export default function TaskDetailScreen() {
                 borderColor: tokens.color.border,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Pressable
+                testID="taskDetail.dangerousActions"
+                accessibilityRole="button"
+                accessibilityLabel="Toggle dangerous actions"
+                accessibilityState={{ expanded: dangerOpen }}
+                onPress={() => setDangerOpen((v) => !v)}
+                style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+              >
                 <Text style={{ color: tokens.color.danger, fontWeight: '700' }}>Dangerous actions</Text>
                 <Text style={{ color: tokens.color.textMuted }}>{dangerOpen ? '▲' : '▼'}</Text>
-              </View>
+              </Pressable>
               {dangerOpen ? (
-                <View style={{ marginTop: 12 }}>
+                <View testID="taskDetail.dangerousActions.panel" style={{ marginTop: 8, gap: 8 }}>
                   <Text style={{ color: tokens.color.textMuted, fontSize: tokens.fontSize.sm }}>
-                    Abort, rollback, and rebase actions are available here. Disabled while running.
+                    Операции Git и отмена недоступны во время активного запуска. Abort сохраняет текущие файлы.
                   </Text>
+                  {actionError ? <Text testID="taskDetail.action.error" style={{ color: tokens.color.danger, fontSize: tokens.fontSize.sm }}>{actionError}</Text> : null}
+                  {(Object.keys(ACTION_COPY) as TaskAction[]).map((action) => {
+                    const historyAction = action === 'rollback' || action === 'fork';
+                    const disabled = actionBusy
+                      || (action === 'abort' ? !running || task.status === 'aborting' : running)
+                      || (terminal && !historyAction);
+                    return (
+                      <Pressable
+                        key={action}
+                        testID={`taskDetail.action.${action}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={ACTION_COPY[action].label}
+                        disabled={disabled}
+                        onPress={() => setConfirmAction(action)}
+                        style={{
+                          minHeight: 44,
+                          paddingHorizontal: 12,
+                          justifyContent: 'center',
+                          borderRadius: tokens.radius.md,
+                          borderWidth: 1,
+                          borderColor: ACTION_COPY[action].destructive ? tokens.color.danger : tokens.color.border,
+                          opacity: disabled ? 0.4 : 1,
+                        }}
+                      >
+                        <Text style={{ color: ACTION_COPY[action].destructive ? tokens.color.danger : tokens.color.text, fontWeight: '700' }}>
+                          {ACTION_COPY[action].label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               ) : null}
-            </Pressable>
+            </View>
           </View>
         ) : null}
 
       </View>
+
+      <Modal
+        testID="taskDetail.action.confirmDialog"
+        visible={confirmAction !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!actionBusy) setConfirmAction(null); }}
+      >
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ width: '100%', maxWidth: 460, backgroundColor: tokens.color.surface, borderRadius: tokens.radius.lg, padding: 20 }}>
+            <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: tokens.fontSize.lg }}>
+              {confirmAction ? ACTION_COPY[confirmAction].title : ''}
+            </Text>
+            <Text style={{ color: tokens.color.textMuted, marginTop: 8, fontSize: tokens.fontSize.sm }}>
+              {confirmAction ? ACTION_COPY[confirmAction].description : ''}
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <Pressable
+                testID="taskDetail.action.cancel"
+                accessibilityRole="button"
+                accessibilityLabel="Отмена"
+                disabled={actionBusy}
+                onPress={() => setConfirmAction(null)}
+                style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', opacity: actionBusy ? 0.5 : 1 }}
+              >
+                <Text style={{ color: tokens.color.text }}>Отмена</Text>
+              </Pressable>
+              <Pressable
+                testID="taskDetail.action.confirm"
+                accessibilityRole="button"
+                accessibilityLabel="Подтвердить действие"
+                disabled={actionBusy}
+                onPress={runAction}
+                style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', borderRadius: tokens.radius.md, backgroundColor: confirmAction && ACTION_COPY[confirmAction].destructive ? tokens.color.danger : tokens.color.primary, opacity: actionBusy ? 0.5 : 1 }}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{actionBusy ? 'Выполняется…' : 'Подтвердить'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

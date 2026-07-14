@@ -587,7 +587,7 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       await expect(service.getDiffFile(taskId, '../README.md')).rejects.toThrow(/repository-relative/);
   });
 
-  it('no-ff merge creates a merge commit on target', async () => {
+  it('rejects a non-squash merge without mutating task state', async () => {
     const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
     const taskId = 'task-mg-2';
     const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
@@ -614,18 +614,15 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       tasks: env.tasks,
     });
 
-    const result = await mergeService.mergeTask({
+    await expect(mergeService.mergeTask({
       taskId,
       strategy: 'merge',
       commitMessage: 'agent: noff merge',
       repoPath: repo.repoPath,
-    });
+    } as unknown as Parameters<typeof mergeService.mergeTask>[0])).rejects.toThrow(/use squash/);
 
-    expect(result.mergedSha).not.toBe(repo.mainHead);
-    const parents = git(repo.repoPath, ['rev-list', '--parents', '-n', '1', 'HEAD']).split(' ');
-    expect(parents.length).toBeGreaterThanOrEqual(3);
-    const taskAfter = env.tasks.getById(taskId);
-    expect(taskAfter?.status).toBe('merged');
+    expect(git(repo.repoPath, ['rev-parse', 'HEAD'])).toBe(repo.mainHead);
+    expect(env.tasks.getById(taskId)?.status).toBe('idle');
   });
 
   it('merge is refused while the task is running', async () => {
@@ -668,11 +665,13 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
     expect(taskAfter?.status).toBe('running');
   });
 
-  it('patch strategy throws a clear not-implemented error', async () => {
+  it('keeps a reviewable task retryable when the primary checkout is dirty', async () => {
     const projectId = seedProject(env, repo.repoPath, repo.runtimePath);
-    const taskId = 'task-mg-4';
-    const seed = await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
-    moveStatus(env, taskId, 'idle');
+    const taskId = 'task-mg-dirty-primary';
+    await seedTask({ env, projectId, taskId, repoPath: repo.repoPath, runtimePath: repo.runtimePath });
+    moveStatus(env, taskId, 'running');
+    env.tasks.updateStatus(taskId, 'needs_review');
+    writeFileSync(join(repo.repoPath, 'local-only.txt'), 'dirty\n');
 
     const mergeService = createMergeService(env.db, {
       worktree: env.worktree,
@@ -680,14 +679,16 @@ describe('git flows: checkpoint / fork / rollback / merge (real git)', () => {
       tasks: env.tasks,
     });
 
-    await expect(
-      mergeService.mergeTask({
-        taskId,
-        strategy: 'patch',
-        commitMessage: 'patch attempt',
-        repoPath: repo.repoPath,
-      }),
-    ).rejects.toThrow(/not implemented/);
-    void seed;
+    await expect(mergeService.mergeTask({
+      taskId,
+      strategy: 'squash',
+      commitMessage: 'must remain retryable',
+      repoPath: repo.repoPath,
+      runtimePath: repo.runtimePath,
+    })).rejects.toThrow(/clean primary worktree/);
+
+    expect(env.tasks.getById(taskId)?.status).toBe('needs_review');
+    expect(env.events.stream('task', taskId).some((event) => event.type === 'merge.conflict')).toBe(false);
   });
+
 });

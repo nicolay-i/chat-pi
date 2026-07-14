@@ -501,7 +501,8 @@ POST /api/tasks/:taskId/abort
 ### UI
 
 - Target branch selector.
-- Strategy: squash / merge commit / rebase merge / patch only.
+- Strategy: только squash; альтернативные стратегии не предлагаются клиентом
+  и отклоняются публичным API.
 - Checks summary.
 - Commit message editor.
 - Conflict warnings.

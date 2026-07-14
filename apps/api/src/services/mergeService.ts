@@ -17,7 +17,7 @@ export type MergeDeps = {
   operations?: ProjectOperationMutex;
 };
 
-export type MergeStrategy = 'squash' | 'merge' | 'rebase' | 'patch';
+export type MergeStrategy = 'squash';
 
 export type MergeInput = {
   taskId: string;
@@ -69,6 +69,24 @@ export function createMergeService(
       const branchName = task.branchName;
       const target = task.mergeTarget;
 
+      if (strategy !== 'squash') {
+        throw new Error(`merge strategy '${String(strategy)}' is not allowed; use squash`);
+      }
+
+      // Preconditions are not merge conflicts. Validate them before changing
+      // lifecycle state so a user can fix the primary checkout and retry.
+      const primaryStatus = git(['status', '--porcelain'], { cwd: repoPath }).stdout;
+      if (primaryStatus) throw new Error('integration checkout requires a clean primary worktree');
+      const primaryBranch = git(['branch', '--show-current'], { cwd: repoPath }).stdout;
+      if (primaryBranch !== target) {
+        throw new Error(`integration checkout requires primary branch '${target}', got '${primaryBranch || 'detached'}'`);
+      }
+      const integrationPath = join(input.runtimePath ?? join(repoPath, '.pi-agents'), 'integration', taskId);
+      if (existsSync(integrationPath)) {
+        throw new Error(`integration worktree already exists: ${integrationPath}`);
+      }
+      const targetSha = git(['rev-parse', target], { cwd: repoPath }).stdout;
+
       deps.tasks.updateStatus(taskId, 'merge_running');
       try {
         await deps.events.append({
@@ -78,35 +96,13 @@ export function createMergeService(
           payload: { taskId, strategy, target, branchName },
         });
 
-        if (strategy !== 'squash' && strategy !== 'merge') {
-          throw new Error(`merge strategy '${strategy}' not implemented; use squash or merge`);
-        }
-
-        const primaryStatus = git(['status', '--porcelain'], { cwd: repoPath }).stdout;
-        if (primaryStatus) throw new Error('integration checkout requires a clean primary worktree');
-        const primaryBranch = git(['branch', '--show-current'], { cwd: repoPath }).stdout;
-        if (primaryBranch !== target) {
-          throw new Error(`integration checkout requires primary branch '${target}', got '${primaryBranch || 'detached'}'`);
-        }
-        const integrationPath = join(input.runtimePath ?? join(repoPath, '.pi-agents'), 'integration', taskId);
-        if (existsSync(integrationPath)) {
-          throw new Error(`integration worktree already exists: ${integrationPath}`);
-        }
-        const targetSha = git(['rev-parse', target], { cwd: repoPath }).stdout;
         git(['worktree', 'add', '--detach', integrationPath, targetSha], { cwd: repoPath });
         try {
-          if (strategy === 'squash') {
-            git(['merge', '--squash', branchName], { cwd: integrationPath });
-            git(
-              ['-c', authorConfig[0], '-c', authorConfig[1], 'commit', '-m', commitMessage],
-              { cwd: integrationPath },
-            );
-          } else {
-            git(
-              ['-c', authorConfig[0], '-c', authorConfig[1], 'merge', '--no-ff', branchName, '-m', commitMessage],
-              { cwd: integrationPath },
-            );
-          }
+          git(['merge', '--squash', branchName], { cwd: integrationPath });
+          git(
+            ['-c', authorConfig[0], '-c', authorConfig[1], 'commit', '-m', commitMessage],
+            { cwd: integrationPath },
+          );
           const mergedSha = git(['rev-parse', 'HEAD'], { cwd: integrationPath }).stdout;
           git(['reset', '--hard', mergedSha], { cwd: repoPath });
 

@@ -1,6 +1,11 @@
 export const ArrowUp = () => null;
+export const ArrowRight = () => null;
 export const ChevronUp = () => null;
+export const ChevronDown = () => null;
+export const ListOrdered = () => null;
 export const Paperclip = () => null;
+export const Plus = () => null;
 export const RotateCcw = () => null;
 export const Search = () => null;
 export const Square = () => null;
+export const Trash2 = () => null;

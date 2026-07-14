@@ -55,6 +55,12 @@ export class ProjectsStore {
     }
   }
 
+  remember(project: Project): void {
+    this.items.set(project.id, project);
+    this.status = 'loaded';
+    this.error = null;
+  }
+
   clear(): void {
     this.items.clear();
     this.status = 'loading';

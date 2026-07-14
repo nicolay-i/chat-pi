@@ -42,19 +42,37 @@ const ProjectsScreen = observer(function ProjectsScreen() {
       <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ fontSize: 28, fontWeight: '700', color: tokens.color.text }}>Projects</Text>
-          <Pressable
-            testID="projects.new"
-            accessibilityLabel="Create new project"
-            onPress={() => router.push('/projects/new')}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 14,
-              borderRadius: tokens.radius.pill,
-              backgroundColor: tokens.color.primary,
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>New project</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Pressable
+              testID="projects.approvals"
+              accessibilityLabel="Open approvals"
+              onPress={() => router.push('/approvals')}
+              style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+            >
+              <Text style={{ color: tokens.color.primary, fontWeight: '700' }}>Approvals</Text>
+            </Pressable>
+            <Pressable
+              testID="projects.settings"
+              accessibilityLabel="Open settings"
+              onPress={() => router.push('/settings')}
+              style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+            >
+              <Text style={{ color: tokens.color.primary, fontWeight: '700' }}>Settings</Text>
+            </Pressable>
+            <Pressable
+              testID="projects.new"
+              accessibilityLabel="Create new project"
+              onPress={() => router.push('/projects/new')}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: tokens.radius.pill,
+                backgroundColor: tokens.color.primary,
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>New</Text>
+            </Pressable>
+          </View>
         </View>
 
         <TextInput

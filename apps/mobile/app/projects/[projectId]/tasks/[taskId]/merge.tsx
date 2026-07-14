@@ -11,8 +11,6 @@ import {
   checksSummaryFor,
   defaultCommitMessage,
   isConflict,
-  STRATEGY_OPTIONS,
-  type MergeStrategy,
 } from '@/features/merge/mergeRules';
 
 const CHECKS_TEXT = { running: 'Checks running…', failed: 'Checks failed', passed: 'Checks passed' } as const;
@@ -21,7 +19,6 @@ export default function MergeScreen() {
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const { data: task, status, error, refetch } = useTask(taskId);
   const { baseUrl } = useBackend();
-  const [strategy, setStrategy] = useState<MergeStrategy>('squash');
   const [commitMessage, setCommitMessage] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -83,7 +80,7 @@ export default function MergeScreen() {
     setSubmitError(null);
     const client = new ApiClient(baseUrl);
     client
-      .mergeTask(taskId, { strategy, commitMessage: message })
+      .mergeTask(taskId, { strategy: 'squash', commitMessage: message })
       .then(() => {
         setDone(true);
         setConfirmOpen(false);
@@ -165,33 +162,8 @@ export default function MergeScreen() {
 
       <View style={{ marginTop: 16 }}>
         <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: tokens.fontSize.md }}>Стратегия</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
-          {STRATEGY_OPTIONS.map((opt) => {
-            const active = opt.value === strategy;
-            return (
-              <Pressable
-                key={opt.value}
-                testID={`merge.strategy.${opt.value}`}
-                accessibilityRole="button"
-                accessibilityLabel={`Strategy ${opt.label}`}
-                onPress={() => setStrategy(opt.value)}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 14,
-                  marginRight: 8,
-                  marginBottom: 8,
-                  borderRadius: tokens.radius.pill,
-                  borderWidth: 1,
-                  borderColor: active ? tokens.color.primary : tokens.color.border,
-                  backgroundColor: active ? tokens.color.primary : tokens.color.surface,
-                }}
-              >
-                <Text style={{ color: active ? '#FFFFFF' : tokens.color.textMuted, fontWeight: '700', fontSize: tokens.fontSize.sm }}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+        <View testID="merge.strategy.squash" style={{ marginTop: 8, paddingVertical: 8, paddingHorizontal: 14, alignSelf: 'flex-start', borderRadius: tokens.radius.pill, backgroundColor: tokens.color.primary }}>
+          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: tokens.fontSize.sm }}>Squash</Text>
         </View>
       </View>
 
@@ -271,7 +243,7 @@ export default function MergeScreen() {
           <View style={{ backgroundColor: tokens.color.surface, borderRadius: tokens.radius.lg, padding: 20, width: '80%' }}>
             <Text style={{ color: tokens.color.text, fontWeight: '700', fontSize: tokens.fontSize.lg }}>Слить в repo?</Text>
             <Text style={{ color: tokens.color.textMuted, marginTop: 8, fontSize: tokens.fontSize.sm }}>
-              {`Стратегия: ${strategy}\nСообщение: ${message}`}
+              {`Стратегия: squash\nСообщение: ${message}`}
             </Text>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
               <Pressable

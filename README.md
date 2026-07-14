@@ -15,7 +15,7 @@
   только Hono backend на VPS. Web/Android/iOS не запускают Pi и не получают
   доступ к файловой системе репозиториев. Для unit-тестов доступен `fake` runtime.
 - **Git workflow:** реальные worktree, persistent Pi sessions, checkpoint, fork,
-  rollback, rebase/stale detection и squash/no-ff merge.
+  rollback, rebase/stale detection и подтверждаемый squash-only merge.
 - **Отложено:** package installation, marketplace и trust UI не входят в
   текущую Tailnet-only фазу; клиент и API не предоставляют package endpoints.
 

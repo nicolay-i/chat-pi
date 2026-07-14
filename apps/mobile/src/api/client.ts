@@ -390,7 +390,7 @@ export class ApiClient {
 
   async mergeTask(
     taskId: string,
-    options: { strategy: 'squash' | 'merge' | 'rebase' | 'patch'; commitMessage?: string },
+    options: { strategy: 'squash'; commitMessage?: string },
   ): Promise<Task> {
     const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/merge`, {
       method: 'POST',

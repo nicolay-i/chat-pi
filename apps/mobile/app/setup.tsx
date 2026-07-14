@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from '@/navigation';
 import { observer } from '@/lib/observer';
-import { ApiClient } from '@/api/client';
 import { tokens } from '@/theme/tokens';
 import type { Capabilities } from '@pi-agents/contracts';
 import { useRootStore } from '@/providers/RootStoreProvider';
@@ -41,7 +40,7 @@ function isValidBackendUrl(value: string): boolean {
 
 export default observer(function SetupScreen() {
   const store = useRootStore();
-  const { backend, chats } = store;
+  const { backend } = store;
   const [url, setUrl] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
@@ -71,19 +70,12 @@ export default observer(function SetupScreen() {
   };
 
   const handleContinue = async (): Promise<void> => {
-    try {
-      if (!backend.baseUrl) throw new Error('Backend URL is not configured');
-      const projects = await new ApiClient(backend.baseUrl).getProjects();
-      if (projects.length === 0) {
-        router.replace('/projects/new');
-        return;
-      }
-      const createdChat = await chats.bootstrap();
-      router.replace(`/chat/${createdChat.id}`);
-    } catch (e) {
+    if (!backend.baseUrl) {
       setPhase('serverUnreachable');
-      setError(e instanceof Error ? e.message : String(e));
+      setError('Backend URL is not configured');
+      return;
     }
+    router.replace('/projects');
   };
 
   const handleReset = async (): Promise<void> => {

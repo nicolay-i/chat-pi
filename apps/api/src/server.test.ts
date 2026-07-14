@@ -12,6 +12,7 @@ import { createTasksRepository } from './db/repositories/tasksRepository';
 import { createEventsRepository } from './db/repositories/eventsRepository';
 import { createPiSessionsRepository } from './db/repositories/piSessionsRepository';
 import { createCheckpointsRepository } from './db/repositories/checkpointsRepository';
+import { createQueuedMessagesRepository } from './db/repositories/queuedMessagesRepository';
 import { FakePiRuntime } from './services/piRuntimeService';
 import { TemporaryGitRepository } from './test/harness/TemporaryGitRepository';
 
@@ -32,6 +33,22 @@ function git(cwd: string, args: string[]): string {
     throw new Error(`git ${args.join(' ')} failed: ${(result.stderr ?? '').trim() || result.error?.message}`);
   }
   return (result.stdout ?? '').trim();
+}
+
+class WritingFakePiRuntime extends FakePiRuntime {
+  readonly prepared = new Map<string, { cwd: string; sessionPath: string }>();
+
+  override async prepare(session: Parameters<FakePiRuntime['prepare']>[0]): Promise<void> {
+    this.prepared.set(session.sessionId, { cwd: session.cwd, sessionPath: session.sessionPath });
+    await super.prepare(session);
+  }
+
+  override async prompt(sessionId: string, input: Parameters<FakePiRuntime['prompt']>[1]): Promise<void> {
+    const session = this.prepared.get(sessionId);
+    if (!session) throw new Error(`missing runtime context for ${sessionId}`);
+    writeFileSync(join(session.cwd, `${sessionId}.txt`), `${input.text}\n`);
+    await super.prompt(sessionId, input);
+  }
 }
 
 describe('GET /health', () => {
@@ -759,22 +776,7 @@ describe('implementation milestone over public API', () => {
   it('runs two isolated tasks, checkpoints both, then merges one and stales its sibling', async () => {
     const repo = new TemporaryGitRepository();
     const db = createDb(':memory:');
-    class WritingRuntime extends FakePiRuntime {
-      readonly prepared = new Map<string, { cwd: string; sessionPath: string }>();
-
-      override async prepare(session: Parameters<FakePiRuntime['prepare']>[0]): Promise<void> {
-        this.prepared.set(session.sessionId, { cwd: session.cwd, sessionPath: session.sessionPath });
-        await super.prepare(session);
-      }
-
-      override async prompt(sessionId: string, input: Parameters<FakePiRuntime['prompt']>[1]): Promise<void> {
-        const session = this.prepared.get(sessionId);
-        if (!session) throw new Error(`missing runtime context for ${sessionId}`);
-        writeFileSync(join(session.cwd, `${sessionId}.txt`), `${input.text}\n`);
-        await super.prompt(sessionId, input);
-      }
-    }
-    const runtime = new WritingRuntime();
+    const runtime = new WritingFakePiRuntime();
     const api = createApp(db, { taskRuntime: runtime });
     const postJson = (path: string, body: unknown) => api.request(path, {
       method: 'POST',
@@ -831,6 +833,16 @@ describe('implementation milestone over public API', () => {
         waitForStatus(secondChat.activeTaskId, 'needs_review'),
       ]);
 
+      const firstTaskSummary = await (await api.request(`/api/tasks/${firstChat.activeTaskId}`)).json() as {
+        changedFiles: number;
+      };
+      expect(firstTaskSummary.changedFiles).toBe(1);
+      const taskList = await (await api.request(`/api/projects/${project.id}/tasks`)).json() as Array<{
+        id: string;
+        changedFiles: number;
+      }>;
+      expect(taskList.find((task) => task.id === firstChat.activeTaskId)?.changedFiles).toBe(1);
+
       const firstRuntime = runtime.prepared.get(firstChat.piSessionId);
       const secondRuntime = runtime.prepared.get(secondChat.piSessionId);
       expect(firstRuntime).toBeDefined();
@@ -848,11 +860,24 @@ describe('implementation milestone over public API', () => {
         expect((await trace.json()).some((event: { type: string }) => event.type === 'run.completed')).toBe(true);
       }
 
+      const nonSquash = await postJson(`/api/tasks/${firstChat.activeTaskId}/merge`, {
+        strategy: 'merge',
+        commitMessage: 'must be rejected',
+      });
+      expect(nonSquash.status).toBe(400);
+      expect((await (await api.request(`/api/tasks/${firstChat.activeTaskId}`)).json() as { status: string }).status)
+        .toBe('needs_review');
+
       const merged = await postJson(`/api/tasks/${firstChat.activeTaskId}/merge`, {
         strategy: 'squash',
         commitMessage: 'agent: merge first task',
       });
-      expect(merged.status, JSON.stringify(await merged.json())).toBe(200);
+      const mergedBody = await merged.json();
+      expect(merged.status, JSON.stringify(mergedBody)).toBe(200);
+      expect(mergedBody).toMatchObject({
+        id: firstChat.activeTaskId,
+        status: 'merged',
+      });
 
       const firstTask = await (await api.request(`/api/tasks/${firstChat.activeTaskId}`)).json() as { status: string };
       const secondTask = await (await api.request(`/api/tasks/${secondChat.activeTaskId}`)).json() as { status: string };
@@ -896,6 +921,163 @@ describe('implementation milestone over public API', () => {
   }, 15_000);
 });
 
+describe('chat queue management endpoints', () => {
+  it('reorders, removes, and clears pending messages while publishing the resulting count', async () => {
+    const db = createDb(':memory:');
+    const queueApp = createApp(db);
+    const project = createBootstrapProject(db);
+    const chat = createChatsRepository(db).create({
+      projectId: project.id,
+      title: 'Queue controls',
+      mode: 'implementation',
+    });
+    const queue = createQueuedMessagesRepository(db);
+    const first = queue.enqueue({ chatId: chat.id, text: 'first' });
+    const second = queue.enqueue({ chatId: chat.id, text: 'second' });
+
+    try {
+      const reordered = await queueApp.request(`/api/chats/${chat.id}/queue`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [second.id, first.id] }),
+      });
+      expect(reordered.status).toBe(200);
+      expect((await reordered.json() as Array<{ id: string }>).map((item) => item.id)).toEqual([second.id, first.id]);
+
+      const removed = await queueApp.request(`/api/chats/${chat.id}/queue/${first.id}`, { method: 'DELETE' });
+      expect(removed.status).toBe(200);
+      const cleared = await queueApp.request(`/api/chats/${chat.id}/queue/clear`, { method: 'POST' });
+      expect(cleared.status).toBe(200);
+      expect((await (await queueApp.request(`/api/chats/${chat.id}/queue`)).json())).toEqual([]);
+
+      const queueEvents = createEventsRepository(db).listByChat(chat.id)
+        .filter((event) => event.type === 'queue.updated');
+      expect(queueEvents.map((event) => event.payload)).toEqual([
+        { pending: 2, reason: 'user_reordered' },
+        { pending: 1, reason: 'user_removed' },
+        { pending: 0, reason: 'user_cleared' },
+      ]);
+    } finally {
+      await queueApp.dispose();
+    }
+  });
+});
+
+describe('multiple projects and chats over public API', () => {
+  it('runs chats from two repositories concurrently without crossing project boundaries', async () => {
+    const firstRepo = new TemporaryGitRepository();
+    const secondRepo = new TemporaryGitRepository();
+    const db = createDb(':memory:');
+    const runtime = new WritingFakePiRuntime();
+    const api = createApp(db, { taskRuntime: runtime });
+    const postJson = (path: string, body: unknown) => api.request(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const waitForReview = async (taskId: string): Promise<void> => {
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const task = await (await api.request(`/api/tasks/${taskId}`)).json() as { status: string };
+        if (task.status === 'needs_review') return;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error(`task ${taskId} did not reach needs_review`);
+    };
+
+    try {
+      const createProject = async (name: string, repoPath: string) => {
+        const response = await postJson('/api/projects', { name, repoPath, defaultBranch: 'main' });
+        expect(response.status).toBe(201);
+        return response.json() as Promise<{ id: string; name: string }>;
+      };
+      const [firstProject, secondProject] = await Promise.all([
+        createProject('first project', firstRepo.repoPath),
+        createProject('second project', secondRepo.repoPath),
+      ]);
+
+      const projectList = await (await api.request('/api/projects')).json() as { id: string }[];
+      expect(projectList.map((project) => project.id).sort()).toEqual([
+        firstProject.id,
+        secondProject.id,
+      ].sort());
+
+      const createTaskChat = async (projectId: string, title: string) => {
+        const response = await postJson(`/api/projects/${projectId}/chats`, {
+          title,
+          mode: 'implementation',
+          createTask: true,
+        });
+        expect(response.status).toBe(201);
+        return response.json() as Promise<{
+          id: string;
+          projectId: string;
+          activeTaskId: string;
+          piSessionId: string;
+        }>;
+      };
+      const [firstChat, secondChat, thirdChat] = await Promise.all([
+        createTaskChat(firstProject.id, 'first project / chat A'),
+        createTaskChat(firstProject.id, 'first project / chat B'),
+        createTaskChat(secondProject.id, 'second project / chat A'),
+      ]);
+
+      const firstProjectChats = await (await api.request(`/api/projects/${firstProject.id}/chats`)).json() as { id: string }[];
+      const secondProjectChats = await (await api.request(`/api/projects/${secondProject.id}/chats`)).json() as { id: string }[];
+      expect(firstProjectChats.map((chat) => chat.id).sort()).toEqual([firstChat.id, secondChat.id].sort());
+      expect(secondProjectChats.map((chat) => chat.id)).toEqual([thirdChat.id]);
+
+      const send = (chatId: string, text: string) => postJson(`/api/chats/${chatId}/messages`, {
+        text,
+        behavior: 'send',
+      });
+      const runResponses = await Promise.all([
+        send(firstChat.id, 'change only first project from chat A'),
+        send(secondChat.id, 'change only first project from chat B'),
+        send(thirdChat.id, 'change only second project'),
+      ]);
+      expect(runResponses.map((response) => response.status)).toEqual([200, 200, 200]);
+      await Promise.all([
+        waitForReview(firstChat.activeTaskId),
+        waitForReview(secondChat.activeTaskId),
+        waitForReview(thirdChat.activeTaskId),
+      ]);
+
+      const firstProjectRecord = createProjectsRepository(db).getById(firstProject.id)!;
+      const secondProjectRecord = createProjectsRepository(db).getById(secondProject.id)!;
+      const firstRuntime = runtime.prepared.get(firstChat.piSessionId)!;
+      const secondRuntime = runtime.prepared.get(secondChat.piSessionId)!;
+      const thirdRuntime = runtime.prepared.get(thirdChat.piSessionId)!;
+
+      expect(new Set([firstRuntime.cwd, secondRuntime.cwd, thirdRuntime.cwd]).size).toBe(3);
+      expect(new Set([firstRuntime.sessionPath, secondRuntime.sessionPath, thirdRuntime.sessionPath]).size).toBe(3);
+      expect(firstRuntime.cwd.startsWith(firstProjectRecord.runtimeStatePath)).toBe(true);
+      expect(secondRuntime.cwd.startsWith(firstProjectRecord.runtimeStatePath)).toBe(true);
+      expect(thirdRuntime.cwd.startsWith(secondProjectRecord.runtimeStatePath)).toBe(true);
+      expect(firstRuntime.sessionPath.startsWith(firstProjectRecord.runtimeStatePath)).toBe(true);
+      expect(secondRuntime.sessionPath.startsWith(firstProjectRecord.runtimeStatePath)).toBe(true);
+      expect(thirdRuntime.sessionPath.startsWith(secondProjectRecord.runtimeStatePath)).toBe(true);
+      expect(firstRuntime.cwd.startsWith(secondProjectRecord.runtimeStatePath)).toBe(false);
+      expect(thirdRuntime.cwd.startsWith(firstProjectRecord.runtimeStatePath)).toBe(false);
+
+      const firstProjectTasks = await (await api.request(`/api/projects/${firstProject.id}/tasks`)).json() as { id: string }[];
+      const secondProjectTasks = await (await api.request(`/api/projects/${secondProject.id}/tasks`)).json() as { id: string }[];
+      expect(firstProjectTasks.map((task) => task.id).sort()).toEqual([
+        firstChat.activeTaskId,
+        secondChat.activeTaskId,
+      ].sort());
+      expect(secondProjectTasks.map((task) => task.id)).toEqual([thirdChat.activeTaskId]);
+      expect(readFileSync(join(firstRuntime.cwd, `${firstChat.piSessionId}.txt`), 'utf8')).toContain('first project');
+      expect(readFileSync(join(thirdRuntime.cwd, `${thirdChat.piSessionId}.txt`), 'utf8')).toContain('second project');
+      expect(git(firstRepo.repoPath, ['status', '--porcelain'])).toBe('');
+      expect(git(secondRepo.repoPath, ['status', '--porcelain'])).toBe('');
+    } finally {
+      await api.dispose();
+      firstRepo.dispose();
+      secondRepo.dispose();
+    }
+  }, 15_000);
+});
+
 describe('POST /api/projects', () => {
   it('creates a project and returns 201', async () => {
     const input = CreateProjectInputSchema.parse({
@@ -912,6 +1094,28 @@ describe('POST /api/projects', () => {
     const body = await res.json();
     expect(body.id).toBeTruthy();
     expect(body.name).toBe('demo');
+  });
+
+  it('deletes a project after its chats have accumulated queue history', async () => {
+    const db = createDb(':memory:');
+    const deleteApp = createApp(db);
+    const project = createBootstrapProject(db);
+    const chat = createChatsRepository(db).create({
+      projectId: project.id,
+      title: 'Disposable queued chat',
+      mode: 'discussion',
+    });
+    createQueuedMessagesRepository(db).enqueue({ chatId: chat.id, text: 'queued before deletion' });
+
+    try {
+      const response = await deleteApp.request(`/api/projects/${project.id}`, { method: 'DELETE' });
+      expect(response.status).toBe(204);
+      expect(createProjectsRepository(db).getById(project.id)).toBeUndefined();
+      expect(createChatsRepository(db).getById(chat.id)).toBeUndefined();
+      expect(createQueuedMessagesRepository(db).listPending(chat.id)).toEqual([]);
+    } finally {
+      await deleteApp.dispose();
+    }
   });
 });
 

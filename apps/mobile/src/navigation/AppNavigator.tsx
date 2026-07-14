@@ -7,6 +7,7 @@ import { navigationRef, type RootStackParamList, type ScreenParams } from './ind
 import { routeDefinitions } from './routes';
 
 import SetupScreen from '../../app/setup';
+import HomeScreen from '../../app/index';
 import ApprovalsScreen from '../../app/approvals';
 import SettingsScreen from '../../app/settings';
 import ProjectsScreen from '../../app/projects';
@@ -53,6 +54,7 @@ const linking = {
 
 type ScreenComponent = ComponentType;
 const screens: Record<string, ScreenComponent> = {
+  Home: HomeScreen,
   Setup: SetupScreen,
   Approvals: ApprovalsScreen,
   Settings: SettingsScreen,
@@ -104,7 +106,7 @@ function projectScreen(Component: ScreenComponent) {
 export function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef} linking={linking}>
-      <Stack.Navigator initialRouteName="Setup" screenOptions={{ headerBackTitle: 'Back' }}>
+      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerBackTitle: 'Back' }}>
         {routeDefinitions.map((definition) => {
           const Component = screens[definition.name];
           const isProjectScreen = definition.path.startsWith('/projects/:projectId');
@@ -113,7 +115,10 @@ export function AppNavigator() {
               key={definition.name}
               name={definition.name}
               component={isProjectScreen ? projectScreen(Component) : Component}
-              options={{ title: definition.title, headerShown: definition.name !== 'Setup' }}
+              options={{
+                title: definition.title,
+                headerShown: definition.name !== 'Home' && definition.name !== 'Setup',
+              }}
             />
           );
         })}

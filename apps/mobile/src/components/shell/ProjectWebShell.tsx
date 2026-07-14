@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link } from '@/navigation';
-import { Platform, View, Text, StyleSheet } from 'react-native';
+import { Platform, ScrollView, View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { tokens } from '@/theme/tokens';
 
 /**
@@ -17,6 +17,23 @@ import { tokens } from '@/theme/tokens';
  */
 const SIDEBAR_WIDTH = 240;
 const CONTEXT_WIDTH = 280;
+const MOBILE_BREAKPOINT = 768;
+
+const PROJECT_LINKS = [
+  ['Dashboard', ''],
+  ['Chats', '/chats'],
+  ['Tasks', '/tasks'],
+  ['Files', '/files'],
+  ['Actions', '/actions'],
+] as const;
+
+const SETTINGS_LINKS = [
+  ['Providers', '/settings/providers'],
+  ['Skills', '/settings/skills'],
+  ['Prompts', '/settings/prompts'],
+  ['MCP', '/settings/mcp'],
+  ['Theme', '/settings/theme'],
+] as const;
 
 function NavItem({ href, label }: { href: string; label: string }) {
   return (
@@ -33,27 +50,43 @@ export function ProjectWebShell({
   projectId: string;
   children: ReactNode;
 }) {
+  const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   if (!isWeb) {
     return <>{children}</>;
   }
 
   const base = `/projects/${projectId}`;
+  if (width < MOBILE_BREAKPOINT) {
+    return (
+      <View style={styles.mobileShell}>
+        <ScrollView
+          horizontal
+          style={styles.mobileNavScroll}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.mobileNav}
+          accessibilityLabel="Project navigation"
+        >
+          {[...PROJECT_LINKS, ...SETTINGS_LINKS].map(([label, suffix]) => (
+            <NavItem key={label} href={`${base}${suffix}`} label={label} />
+          ))}
+        </ScrollView>
+        <View style={styles.center}>{children}</View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.shell}>
       <View style={styles.sidebar}>
         <Text style={styles.sidebarTitle}>Project</Text>
-        <NavItem href={`${base}`} label="Dashboard" />
-        <NavItem href={`${base}/chats`} label="Chats" />
-        <NavItem href={`${base}/tasks`} label="Tasks" />
-        <NavItem href={`${base}/files`} label="Files" />
-        <NavItem href={`${base}/actions`} label="Actions" />
+        {PROJECT_LINKS.map(([label, suffix]) => (
+          <NavItem key={label} href={`${base}${suffix}`} label={label} />
+        ))}
         <Text style={[styles.sidebarTitle, { marginTop: 16 }]}>Settings</Text>
-        <NavItem href={`${base}/settings/providers`} label="Providers" />
-        <NavItem href={`${base}/settings/skills`} label="Skills" />
-        <NavItem href={`${base}/settings/prompts`} label="Prompts" />
-        <NavItem href={`${base}/settings/mcp`} label="MCP" />
-        <NavItem href={`${base}/settings/theme`} label="Theme" />
+        {SETTINGS_LINKS.map(([label, suffix]) => (
+          <NavItem key={label} href={`${base}${suffix}`} label={label} />
+        ))}
       </View>
       <View style={styles.center}>{children}</View>
       <View style={styles.context}>
@@ -69,6 +102,25 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     backgroundColor: tokens.color.background,
+  },
+  mobileShell: {
+    flex: 1,
+    backgroundColor: tokens.color.background,
+  },
+  mobileNav: {
+    minHeight: 48,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 2,
+  },
+  mobileNavScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: tokens.color.border,
+    backgroundColor: tokens.color.surface,
   },
   sidebar: {
     width: SIDEBAR_WIDTH,

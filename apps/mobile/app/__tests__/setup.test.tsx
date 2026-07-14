@@ -43,17 +43,6 @@ const VALID_CAPABILITIES = {
   supportsIgnis: false,
 };
 
-const VPS_PROJECT = {
-  id: 'project-1',
-  name: 'VPS workspace',
-  repoPath: '/projects/workspace',
-  defaultBranch: 'main',
-  agentsDir: '.agents',
-  ignisUrl: null,
-  activeTaskCount: 0,
-  updatedAt: '2026-01-01T00:00:00Z',
-};
-
 const typeUrl = async (
   getByTestId: (id: string) => { props: { value?: string } },
   value: string,
@@ -85,23 +74,11 @@ describe('SetupScreen', () => {
     expect(getByTestId('setup.testConnection')).toBeTruthy();
   });
 
-  it('enables continue and shows diagnostics on a valid mock backend', async () => {
+  it('opens the projects list after a valid backend is saved', async () => {
     const fetchMock = jest.fn(async (input: RequestInfo | URL): Promise<Response> => {
       const u = typeof input === 'string' ? input : input.toString();
       if (u.endsWith('/health')) return jsonRes({ ok: true, time: '2026-01-01T00:00:00Z' });
       if (u.endsWith('/api/capabilities')) return jsonRes(VALID_CAPABILITIES);
-      if (u.endsWith('/api/projects')) return jsonRes([VPS_PROJECT]);
-      if (u.endsWith('/api/chats/bootstrap')) {
-        return jsonRes({
-          id: 'chat-1',
-          projectId: 'project-1',
-          title: 'Новый чат',
-          mode: 'discussion',
-          piSessionId: 'session-1',
-          activeLeafEntryId: null,
-          updatedAt: '2026-01-01T00:00:00Z',
-        });
-      }
       throw new Error(`unexpected fetch ${u}`);
     });
     setFetch(fetchMock);
@@ -118,7 +95,8 @@ describe('SetupScreen', () => {
     expect(await findByText(/Версия API: 1\.2\.3/)).toBeTruthy();
 
     fireEvent.press(getByTestId('setup.continue'));
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/chat/chat-1'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/projects'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows server-unreachable error when fetch rejects', async () => {
@@ -136,12 +114,11 @@ describe('SetupScreen', () => {
     expect(await findByText(/Не удалось подключиться/)).toBeTruthy();
   });
 
-  it('opens VPS project creation when no project is registered', async () => {
+  it('does not query projects before opening the projects list', async () => {
     const fetchMock = jest.fn(async (input: RequestInfo | URL): Promise<Response> => {
       const u = typeof input === 'string' ? input : input.toString();
       if (u.endsWith('/health')) return jsonRes({ ok: true, time: '2026-01-01T00:00:00Z' });
       if (u.endsWith('/api/capabilities')) return jsonRes(VALID_CAPABILITIES);
-      if (u.endsWith('/api/projects')) return jsonRes([]);
       throw new Error(`unexpected fetch ${u}`);
     });
     setFetch(fetchMock);
@@ -155,7 +132,8 @@ describe('SetupScreen', () => {
     });
 
     fireEvent.press(getByTestId('setup.continue'));
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/projects/new'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/projects'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows invalid-URL error without calling fetch', async () => {

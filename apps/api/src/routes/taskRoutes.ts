@@ -13,6 +13,16 @@ export const taskRouteOperationIds = [
 
 export function createTaskRoutes({ taskService, chatService, runtimeManager, taskRecords, projectRecords, piSessionRecords, checkpointService, forkService, rollbackService, mergeService, taskCancellationService, gitTaskService, eventStore }: ServiceContainer): Hono {
   const routes = new Hono();
+  const includeChangedFiles = async <T extends { id: string; changedFiles: number }>(task: T): Promise<T> => {
+    try {
+      const diff = await gitTaskService.listDiff(task.id);
+      return { ...task, changedFiles: diff.length };
+    } catch {
+      // Historical discarded tasks no longer have a worktree. Keep their
+      // persisted summary available instead of failing the whole metadata API.
+      return task;
+    }
+  };
   const contextFor = (taskId: string) => {
     const task = taskRecords.getById(taskId);
     const project = task ? projectRecords.getById(task.projectId) : undefined;
@@ -50,10 +60,13 @@ export function createTaskRoutes({ taskService, chatService, runtimeManager, tas
     await chatService.update(chat.id, { activeTaskId: result.task.id });
     return result.task;
   };
-  routes.get('/api/projects/:id/tasks', async (c) => c.json(await taskService.listByProject(c.req.param('id'))));
+  routes.get('/api/projects/:id/tasks', async (c) => {
+    const tasks = await taskService.listByProject(c.req.param('id'));
+    return c.json(await Promise.all(tasks.map(includeChangedFiles)));
+  });
   routes.get('/api/tasks/:id', async (c) => {
     const task = await taskService.get(c.req.param('id'));
-    return task ? c.json(task) : sendApiError(c, 404, 'not_found', 'task not found');
+    return task ? c.json(await includeChangedFiles(task)) : sendApiError(c, 404, 'not_found', 'task not found');
   });
   routes.get('/api/tasks/:id/trace', (c) => {
     const task = taskRecords.getById(c.req.param('id'));
@@ -173,10 +186,16 @@ export function createTaskRoutes({ taskService, chatService, runtimeManager, tas
   });
   routes.post('/api/tasks/:id/merge', async (c) => {
     const body = await c.req.json().catch(() => null) as { strategy?: unknown; commitMessage?: unknown } | null;
-    if (!body || (body.strategy !== 'squash' && body.strategy !== 'merge') || typeof body.commitMessage !== 'string' || !body.commitMessage.trim()) return sendApiError(c, 400, 'invalid_input', 'strategy and commitMessage are required');
+    if (!body || body.strategy !== 'squash' || typeof body.commitMessage !== 'string' || !body.commitMessage.trim()) return sendApiError(c, 400, 'invalid_input', 'strategy must be squash and commitMessage is required');
     const context = contextFor(c.req.param('id'));
     if (!context) return sendApiError(c, 404, 'not_found', 'task not found');
-    try { return c.json(await mergeService.mergeTask({ taskId: context.task.id, strategy: body.strategy, commitMessage: body.commitMessage.trim(), repoPath: context.project.repoPath, runtimePath: context.project.runtimeStatePath })); }
+    try {
+      await mergeService.mergeTask({ taskId: context.task.id, strategy: body.strategy, commitMessage: body.commitMessage.trim(), repoPath: context.project.repoPath, runtimePath: context.project.runtimeStatePath });
+      const task = await taskService.get(context.task.id);
+      return task
+        ? c.json(await includeChangedFiles(task))
+        : sendApiError(c, 500, 'merge_failed', 'merged task was not found');
+    }
     catch (error) { return sendApiError(c, 409, 'merge_failed', (error as Error).message); }
   });
   routes.get('/api/tasks/:id/diff', async (c) => {

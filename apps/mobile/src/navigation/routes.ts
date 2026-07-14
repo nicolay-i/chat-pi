@@ -11,6 +11,7 @@ const chat = (params: Record<string, string>) => `${project(params)}/chats/${par
 const projectSettings = (params: Record<string, string>) => `${project(params)}/settings`;
 
 export const routeDefinitions: readonly RouteDefinition[] = [
+  { name: 'Home', path: '/', relativeBase: () => '/' },
   { name: 'Setup', path: '/setup', relativeBase: () => '/' },
   { name: 'Approvals', path: '/approvals', relativeBase: () => '/', title: 'Approvals' },
   { name: 'Settings', path: '/settings', relativeBase: () => '/', title: 'Settings' },
