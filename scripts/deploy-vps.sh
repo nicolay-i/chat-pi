@@ -37,4 +37,8 @@ else
 fi
 
 "${compose[@]}" --env-file .env.docker up --build --detach --remove-orphans
+projects_root="$(sed -n 's/^PROJECTS_ROOT=//p' .env.docker | tail -n 1)"
+if [[ -n "$projects_root" && -d "$projects_root/chat-pi/.git" ]]; then
+  ./scripts/ignore-ignis-vault-state.sh "$projects_root/chat-pi"
+fi
 "${compose[@]}" --env-file .env.docker ps

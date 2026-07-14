@@ -231,6 +231,8 @@ tailscale serve --https=8443 --bg http://127.0.0.1:8083
 Set the returned `https://<node>.<tailnet>:8443` origin as the project's
 `ignisUrl` through Project settings. It must remain Tailnet-only; Ignis has no
 built-in authentication. `IGNIS_WS_ORIGINS` can restrict its WebSocket origin.
+The deployment script keeps Ignis's local `.obsidian/` settings and temporary
+`.OBSIDIANTEST` outside Git status through the managed clone's local exclude.
 
 ```powershell
 docker compose exec -T -e VERIFY_PROJECT_REPO_PATH=/projects/my-repository api node --import tsx src/scripts/verifyBwrapRuntime.ts

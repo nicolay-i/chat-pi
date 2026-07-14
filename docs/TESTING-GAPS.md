@@ -45,7 +45,8 @@ yet proven by automated tests and remain release gates.
   project route and loaded the live vault through Ignis's API. The Web route
   opens Ignis at top level: the upstream Obsidian bundle reads its top-level
   parent and therefore cannot run in a cross-origin iframe. Android/iOS use a
-  native WebView. A full edit made after a completed Task still needs release
+  native WebView. Ignis-only `.obsidian/` state is ignored locally in the
+  managed clone. A full edit made after a completed Task still needs release
   verification.
 - The current Mobile test suite completes without React `act(...)` warnings.
 
