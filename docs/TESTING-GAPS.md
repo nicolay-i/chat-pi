@@ -49,12 +49,12 @@ yet proven by automated tests and remain release gates.
 - Explicit remote sync has a component test and a real local Chromium/Git pass
   for the fast-forward path. Diverged/local-ahead visual states and stale-Task
   presentation still lack browser fixtures.
-- There is no visual-regression suite for React Native Web, responsive layout,
-  dark theme or screen-reader traversal. A manual Chromium pass at 390x844
-  checked 25 URLs after the responsive shell fix; 23 supported routes had no
-  document-level horizontal overflow or runtime console errors, while two
-  unfinished `new` detail IDs rendered their error states. This is not
-  screenshot regression coverage.
+- There is no automated screenshot-regression suite for React Native Web, dark
+  theme or screen-reader traversal. Manual Chromium passes cover the broad
+  route inventory at `390x844` and the core Projects -> Dashboard -> Chat flow
+  at `1440x900`, `1024x768`, `768x1024` and `390x844`. Those core responsive
+  viewports had no document-level horizontal overflow or runtime console
+  errors, but this remains manual evidence rather than CI coverage.
 - VSCode Web remains unsupported. Ignis now has a configured Tailnet URL and
   a writable `chat-pi` vault. A fresh Web browser session has resolved the
   project route and loaded the live vault through Ignis's API. The Web route

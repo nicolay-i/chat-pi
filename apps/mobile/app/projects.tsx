@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { router } from '@/navigation';
 import type { Project } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
@@ -8,7 +8,7 @@ import { observer } from '@/lib/observer';
 
 type Filter = 'all' | 'active' | 'needs_review' | 'stale';
 
-const FILTERS: ReadonlyArray<{ key: Filter; label: string }> = [
+const FILTERS: readonly { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'active', label: 'Active' },
   { key: 'needs_review', label: 'Needs review' },
@@ -31,15 +31,18 @@ function filterProjects(projects: Project[], filter: Filter, query: string): Pro
 }
 
 const ProjectsScreen = observer(function ProjectsScreen() {
+  const { width } = useWindowDimensions();
   const { status, data, error, refetch } = useProjects();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
 
   const visible = useMemo(() => (data ? filterProjects(data, filter, query) : []), [data, filter, query]);
+  const columnCount = width >= 1024 ? 2 : 1;
+  const contentWidth = Math.min(Math.max(width - 32, 0), 1200);
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.background }}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+      <View style={{ width: contentWidth, maxWidth: '100%', alignSelf: 'center', paddingTop: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ fontSize: 28, fontWeight: '700', color: tokens.color.text }}>Projects</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -176,10 +179,14 @@ const ProjectsScreen = observer(function ProjectsScreen() {
 
         {status === 'loaded' ? (
           <FlatList
+            key={`projects-${columnCount}`}
             testID="projects.list"
             data={visible}
+            numColumns={columnCount}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+            style={{ width: contentWidth, maxWidth: '100%', alignSelf: 'center' }}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            columnWrapperStyle={columnCount > 1 ? { gap: 12 } : undefined}
             ListEmptyComponent={
               <View style={{ padding: 24, alignItems: 'center' }}>
                 <Text style={{ color: tokens.color.textMuted }}>No projects match the current filters.</Text>
@@ -191,6 +198,8 @@ const ProjectsScreen = observer(function ProjectsScreen() {
                 accessibilityLabel={`Open project ${item.name}`}
                 onPress={() => router.push(`/projects/${item.id}`)}
                 style={{
+                  flex: 1,
+                  minWidth: 0,
                   backgroundColor: tokens.color.surface,
                   borderRadius: tokens.radius.lg,
                   padding: 16,
@@ -200,8 +209,8 @@ const ProjectsScreen = observer(function ProjectsScreen() {
                 <Text style={{ fontSize: tokens.fontSize.lg, fontWeight: '700', color: tokens.color.text }}>
                   {item.name}
                 </Text>
-                <Text style={{ marginTop: 4, color: tokens.color.textMuted }}>{item.repoPath}</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                <Text numberOfLines={2} style={{ marginTop: 4, color: tokens.color.textMuted }}>{item.repoPath}</Text>
+                <View style={{ flexDirection: width >= 520 ? 'row' : 'column', justifyContent: 'space-between', gap: 4, marginTop: 8 }}>
                   <Text style={{ color: tokens.color.primary, fontWeight: '700' }}>
                     {item.activeTaskCount} active task{item.activeTaskCount === 1 ? '' : 's'}
                   </Text>

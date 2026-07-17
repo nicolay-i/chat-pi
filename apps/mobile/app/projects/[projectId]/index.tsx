@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Link, useLocalSearchParams } from '@/navigation';
-import type { Chat, Project, Task } from '@pi-agents/contracts';
+import type { Chat, Project } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { ApiClient } from '@/api/client';
 import { observer } from '@/lib/observer';
@@ -11,6 +11,7 @@ import { useBackend } from '@/stores/useBackend';
 type Status = 'loading' | 'loaded' | 'error';
 
 const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
+  const { width } = useWindowDimensions();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { baseUrl } = useBackend();
   const { tasks: tasksStore } = useRootStore();
@@ -97,12 +98,12 @@ const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
 
   return (
     <ScrollView testID="dashboard.loaded" style={{ flex: 1, backgroundColor: tokens.color.background }} contentContainerStyle={{ padding: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: width < 520 ? 'column' : 'row', alignItems: width < 520 ? 'stretch' : 'center', justifyContent: 'space-between', gap: 8 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ fontSize: 24, fontWeight: '700', color: tokens.color.text }}>{project.name}</Text>
           <Text style={{ color: tokens.color.textMuted, marginTop: 2 }}>{project.repoPath}</Text>
         </View>
-        <Link href={`/projects/${projectId}/settings/project`} style={{ color: tokens.color.primary, fontWeight: '700' }}>
+        <Link href={`/projects/${projectId}/settings/project`} style={{ color: tokens.color.primary, fontWeight: '700', alignSelf: width < 520 ? 'flex-start' : 'auto' }}>
           Settings
         </Link>
       </View>

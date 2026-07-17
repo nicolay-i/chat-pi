@@ -8,8 +8,8 @@ import { ProjectWebShell } from '@/components/shell/ProjectWebShell';
  * Native: renders the bare <Slot /> so the root Stack's per-screen header
  * (with back button) drives mobile navigation.
  *
- * Web: wraps children in the 3-column ProjectWebShell (sidebar + content +
- * context panel). If web shell breaks a particular screen, set
+ * Web: wraps children in the responsive ProjectWebShell (navigation +
+ * bounded content). If web shell breaks a particular screen, set
  * `headerShown: false` on that screen rather than removing this layout.
  */
 export default function ProjectLayout() {

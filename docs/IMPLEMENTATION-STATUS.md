@@ -7,7 +7,7 @@ This file describes the current worktree, not the earlier generated scaffold.
 | Area | Evidence |
 | --- | --- |
 | Cross-platform navigation | Explicit React Navigation adapter and route registry in `apps/mobile/src/navigation/`; URL and native stack share the same route definitions. |
-| Entry and responsive navigation | The root route waits for persisted backend restoration and opens Projects when configured or Setup when not configured. Setup completion opens Projects and never bootstraps a Chat. The Web project shell collapses to a horizontal navigation strip below 768 px, keeps the active screen full-width and omits the desktop context rail. |
+| Entry and responsive navigation | The root route waits for persisted backend restoration and opens Projects when configured or Setup when not configured. Setup completion opens Projects and never bootstraps a Chat. The Web project shell uses a 48 px horizontal navigation strip below 720 px, a compact 196 px tablet rail, and a 232 px desktop rail with content bounded to 1180 px. The empty context rail was removed. Projects use a two-column desktop grid from 1024 px. |
 | State | MobX `RootStore`, chat/task/theme stores, real `mobx-react-lite` observers and store integration tests. `RootStoreProvider` creates/disposes its own store per mount; production code has no global backend-store adapter. Screen tests inject an isolated store through the same Provider. |
 | Typed API | Shared Zod contracts plus `apiOperations.ts`, backend route operation IDs and `apiParity.test.ts`; an isolated provider domain also has an oRPC transport mounted in Hono. |
 | Chat/task runtime | One persistent PiSession is created for each Chat. Discussion/planning run it in the primary repo with Pi read-only tools; writable Tasks reuse it in their own worktrees. PiSession locks are writer-scoped, checkpoints are created for completed Task steps, and follow-up queue entries persist across restart. The Chat UI lists that queue and supports reorder, single-item removal and confirmed clearing; every mutation publishes the resulting pending count through `queue.updated`. Fork/rollback create a new Pi JSONL branch through the selected checkpoint ancestry and update its header cwd before Pi opens the next worktree. |
@@ -24,6 +24,11 @@ This file describes the current worktree, not the earlier generated scaffold.
 
 ## Verified integration gates
 
+- Chromium rendered the responsive project dashboard and Chat at `1440x900`,
+  `1024x768`, `768x1024` and `390x844`. Every viewport matched its intended
+  desktop/tablet/mobile shell, had `scrollWidth === innerWidth`, and produced no
+  console warning or error. The mobile composer enabled after typing and its
+  mode menu opened with all options visible.
 - A public Hono integration test creates two Chats, checkpoints their Tasks,
   merges one and marks its sibling stale; it then creates another Task in the
   first Chat, proving a new worktree with the same PiSession and session path.

@@ -16,6 +16,12 @@ evidence. A green local suite does not replace an explicitly external gate.
 
 ## Manual runtime evidence
 
+- A local Chromium responsive pass exercised Projects, Dashboard and Chat at
+  desktop `1440x900`, tablet landscape `1024x768`, tablet portrait `768x1024`
+  and mobile `390x844`. The tablet shell retained a compact usable sidebar,
+  desktop content stayed bounded, mobile navigation stayed horizontally
+  scrollable, and all four viewports reported no document-level overflow. In
+  Chat, typing enabled Send and the mode sheet opened without console errors.
 - A Web client reached the VPS API through a Tailnet-only HTTPS proxy, selected
   the registered VPS project, opened a discussion Chat and received a streamed
   `opencode-go/deepseek-v4-flash` reply. The VPS audit recorded a completed
