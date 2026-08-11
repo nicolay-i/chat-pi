@@ -60,8 +60,26 @@ export default function App() {
     };
   }, []);
   const applyPwaUpdate = (): void => {
-    pwaRegistration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
-    if (typeof window !== 'undefined') window.location.reload();
+    if (typeof window === 'undefined') return;
+    const waiting = pwaRegistration?.waiting;
+    if (!waiting || !('serviceWorker' in navigator)) {
+      window.location.reload();
+      return;
+    }
+
+    let reloaded = false;
+    const reload = (): void => {
+      if (reloaded) return;
+      reloaded = true;
+      navigator.serviceWorker.removeEventListener('controllerchange', reload);
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', reload);
+    waiting.postMessage({ type: 'SKIP_WAITING' });
+    // A browser may not emit controllerchange when the tab has no active
+    // controller yet. Keep the action bounded instead of leaving the banner
+    // in a permanently waiting state.
+    window.setTimeout(reload, 5_000);
   };
   const installPwa = async (): Promise<void> => {
     const prompt = pwaInstallPrompt;

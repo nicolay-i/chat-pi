@@ -94,8 +94,10 @@ release gates.
   пройдена в `1440x900`, `1024x768` и `390x844`. Встроенный Chromium также
   подтвердил `display=standalone`, активированный service worker и обход API
   shell-кэша. Синтетическое `beforeinstallprompt` показало banner и вызов
-  `prompt()`; не пройдены release-проверки фактической установки, standalone
-  launch, update flow и сохранения draft во время обновления в Chromium/Edge.
+  `prompt()`. Экспорт теперь вычисляет revision service-worker cache из
+  `index.html`, а unit-тесты подтверждают server-scoped draft storage и
+  metadata snapshots проектов; не пройдены release-проверки фактической
+  установки, standalone launch и browser update flow в Chromium/Edge.
 - Windows guard проверен: `pi+bwrap` отклоняется с требованием WSL2/Linux-
   контейнера, а native `pi+none` без `PI_TRUSTED_MODE=true` не запускается.
   Production sandbox, эквивалентный Linux `bwrap`, на Windows всё ещё не

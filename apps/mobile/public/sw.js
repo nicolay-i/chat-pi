@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pi-agents-shell-v1';
+const CACHE_NAME = 'pi-agents-shell-__PI_AGENTS_CACHE_VERSION__';
 const SHELL = ['/', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('message', (event) => {

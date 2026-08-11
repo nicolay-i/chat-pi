@@ -1,5 +1,5 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import type { Capabilities, Chat, SendMessageInput, TaskStatus } from '@pi-agents/contracts';
+import type { Capabilities, Chat, Project, SendMessageInput, TaskStatus } from '@pi-agents/contracts';
 import {
   ApiClient,
   ApiClientError,
@@ -12,8 +12,11 @@ import {
   clearBackendUrl,
   loadBackendConnections,
   loadBackendUrl,
+  loadBackendProjectsSnapshot,
   saveBackendConnections,
   saveBackendUrl,
+  saveBackendProjectsSnapshot,
+  clearBackendProjectsSnapshot,
   clearBackendCredential,
   loadBackendCredential,
   saveBackendCredential,
@@ -45,6 +48,9 @@ export type BackendStorage = {
   loadConnections?(): Promise<StoredBackendConnection[]>;
   saveConnections?(connections: StoredBackendConnection[]): Promise<void>;
   clearConnections?(): Promise<void>;
+  loadProjectsSnapshot?(serverId: string): Promise<Project[]>;
+  saveProjectsSnapshot?(serverId: string, projects: Project[]): Promise<void>;
+  clearProjectsSnapshot?(serverId: string): Promise<void>;
   loadCredential?(serverId: string): Promise<string | null>;
   saveCredential?(serverId: string, token: string): Promise<void>;
   clearCredential?(serverId: string): Promise<void>;
@@ -100,6 +106,9 @@ const defaultDependencies: RootStoreDependencies = {
     loadConnections: loadBackendConnections,
     saveConnections: saveBackendConnections,
     clearConnections: clearBackendConnections,
+    loadProjectsSnapshot: loadBackendProjectsSnapshot,
+    saveProjectsSnapshot: saveBackendProjectsSnapshot,
+    clearProjectsSnapshot: clearBackendProjectsSnapshot,
     loadCredential: loadBackendCredential,
     saveCredential: saveBackendCredential,
     clearCredential: clearBackendCredential,
@@ -917,10 +926,13 @@ export class RootStore {
       (serverId) => {
         this.chats?.closeServer(serverId);
         this.tasks?.disposeServer(serverId);
-        this.projects?.clearServer(serverId);
+        this.projects?.forgetServer(serverId);
       },
     );
-    this.projects = new ProjectsStore(this.backend, dependencies);
+    this.projects = new ProjectsStore(this.backend, {
+      apiClientFactory: dependencies.apiClientFactory,
+      snapshotStorage: dependencies.storage,
+    });
     this.tasks = new TasksStore(this.backend, this.realtimeHub, dependencies);
     this.chats = new ChatsStore(
       this.backend,

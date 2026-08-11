@@ -7,6 +7,11 @@ export type ProjectsStatus = 'loading' | 'loaded' | 'empty' | 'error';
 
 type ProjectsStoreDependencies = {
   apiClientFactory: (baseUrl: string, serverId?: string) => ApiClient;
+  snapshotStorage?: {
+    loadProjectsSnapshot?: (serverId: string) => Promise<Project[]>;
+    saveProjectsSnapshot?: (serverId: string, projects: Project[]) => Promise<void>;
+    clearProjectsSnapshot?: (serverId: string) => Promise<void>;
+  };
 };
 
 export class ProjectsStore {
@@ -39,6 +44,25 @@ export class ProjectsStore {
     return this.data.find((project) => project.id === projectId);
   }
 
+  private async restoreSnapshot(serverId: string): Promise<void> {
+    const projects = await this.dependencies.snapshotStorage?.loadProjectsSnapshot?.(serverId);
+    if (!projects?.length) return;
+    runInAction(() => {
+      for (const project of projects) {
+        this.items.set(`${serverId}:${project.id}`, { ...project, serverId });
+      }
+    });
+  }
+
+  private async saveSnapshot(serverId: string, projects: Project[]): Promise<void> {
+    try {
+      await this.dependencies.snapshotStorage?.saveProjectsSnapshot?.(serverId, projects);
+    } catch {
+      // A snapshot is an offline convenience. Storage quota/platform errors
+      // must not turn a successful API refresh into a failed Projects load.
+    }
+  }
+
   async load(): Promise<void> {
     const connections = this.backend.connections;
     if (connections.length === 0 && !this.backend.baseUrl) {
@@ -54,6 +78,16 @@ export class ProjectsStore {
       const targets = connections.length > 0
         ? connections
         : [{ serverId: this.backend.serverId ?? 'legacy', baseUrl: this.backend.baseUrl! }];
+      const targetIds = new Set(targets.map((connection) => connection.serverId));
+      runInAction(() => {
+        for (const [key, project] of this.items.entries()) {
+          if (!targetIds.has(project.serverId ?? 'legacy')) this.items.delete(key);
+        }
+      });
+      await Promise.all(targets.map((connection) => this.restoreSnapshot(connection.serverId).catch(() => undefined)));
+      runInAction(() => {
+        if (this.items.size > 0) this.status = 'loaded';
+      });
       const results = await Promise.allSettled(
         targets.map(async (connection) => {
           const startedAt = Date.now();
@@ -72,7 +106,6 @@ export class ProjectsStore {
       const successful = results.filter((result): result is PromiseFulfilledResult<{ serverId: string; projects: Project[] }> => result.status === 'fulfilled');
       const failed = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
       runInAction(() => {
-        const targetIds = new Set(targets.map((connection) => connection.serverId));
         for (const [key, project] of this.items.entries()) {
           if (!targetIds.has(project.serverId ?? 'legacy')) this.items.delete(key);
         }
@@ -81,7 +114,7 @@ export class ProjectsStore {
         // usable and the UI can mark stale cards explicitly.
         for (const result of successful) {
           this.clearServer(result.value.serverId);
-          for (const project of result.value.projects) this.items.set(this.getKey(project), {
+          for (const project of result.value.projects) this.items.set(`${result.value.serverId}:${project.id}`, {
             ...project,
             serverId: project.serverId ?? result.value.serverId,
           });
@@ -96,6 +129,7 @@ export class ProjectsStore {
             : null;
         }
       });
+      await Promise.all(successful.map((result) => this.saveSnapshot(result.value.serverId, result.value.projects)));
     } catch (error) {
       runInAction(() => {
         this.items.clear();
@@ -112,10 +146,14 @@ export class ProjectsStore {
   }
 
   clear(): void {
+    const serverIds = new Set([...this.items.values()].map((project) => project.serverId).filter((id): id is string => Boolean(id)));
     this.items.clear();
     this.unavailableServerIds.clear();
     this.status = 'loading';
     this.error = null;
+    for (const serverId of serverIds) {
+      void this.dependencies.snapshotStorage?.clearProjectsSnapshot?.(serverId)?.catch(() => undefined);
+    }
   }
 
   clearServer(serverId: string): void {
@@ -123,6 +161,11 @@ export class ProjectsStore {
       if (project.serverId === serverId) this.items.delete(key);
     }
     this.unavailableServerIds.delete(serverId);
+  }
+
+  forgetServer(serverId: string): void {
+    this.clearServer(serverId);
+    void this.dependencies.snapshotStorage?.clearProjectsSnapshot?.(serverId)?.catch(() => undefined);
   }
 
   dispose(): void {

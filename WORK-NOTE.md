@@ -156,8 +156,8 @@ managed clone, поэтому они сохраняются для Ignis, но �
   composer и меню режима отправки остаются доступными. На мобильном dashboard
   действие Settings перенесено на отдельную строку и не пересекается с длинным
   именем проекта.
-- Полные monorepo `typecheck` и тесты прошли: Contracts 16, API 215 passed + 2
-  skipped, Mobile 255. Mobile lint завершился без ошибок, но со 103
+- Полные monorepo `typecheck` и тесты прошли: Contracts 16, API 216 passed + 2
+  skipped, Mobile 262. Mobile lint завершился без ошибок, но со 103
   предупреждениями (в основном существующие правила для тестов и эффектов).
 - API config guard фактически проверен тестами: на Windows `pi+bwrap`
   отклоняется с требованием WSL2/Linux-контейнера, а native `pi+none` требует
@@ -220,6 +220,11 @@ managed clone, поэтому они сохраняются для Ignis, но �
   banner, а нажатие кнопки вызвало `prompt()` и убрало banner. Фактическую
   установку отдельного окна и реальный update с сохранением draft браузерная
   среда не предоставляет, поэтому они остаются release gate.
+- PWA export теперь подставляет hash экспортированного `index.html` в имя
+  service-worker cache; в `dist/sw.js` после сборки нет placeholder. Добавлены
+  unit-проверки server-scoped draft storage и durable per-node metadata
+  snapshots проектов; при недоступности узла после reload сохраняются только
+  project metadata, без credentials, SSE и файлового содержимого.
 - VPS runtime был обновлён сборкой `e0a4591`; текущая документационная ревизия
   — `e90a8d4`. Через Web по HTTPS одновременно добавлены VPS
   `chat-pi.tail6421db.ts.net` и локальный Windows-узел
@@ -245,7 +250,7 @@ managed clone, поэтому они сохраняются для Ignis, но �
   свободных `1.1 GB`. Удалены только остановленные контейнеры и неиспользуемые
   Docker-образы; после очистки осталось `5.5 GB`, deploy завершился успешно.
 - Полный `pnpm test` прошёл при штатном параллельном запуске пакетов:
-  Contracts 16 passed; API 215 passed, 2 skipped; Mobile 255 passed.
+  Contracts 16 passed; API 216 passed, 2 skipped; Mobile 262 passed.
 - Browser e2e: проектный маршрут -> `Open Ignis` -> реальный vault `chat-pi`.
   Проверочная Markdown-заметка была создана через Web, сохранилась после полной
   перезагрузки, повторно открылась с тем же текстом и была подтверждена в

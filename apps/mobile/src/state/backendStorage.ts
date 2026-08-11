@@ -1,8 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
+import { ProjectSchema, type Project } from '@pi-agents/contracts';
 
 const KEY = 'backend.url';
 const CONNECTIONS_KEY = 'backend.connections.v1';
 const CREDENTIAL_PREFIX = 'backend.credential.v1.';
+const PROJECTS_SNAPSHOT_PREFIX = 'backend.projects.snapshot.v1.';
 
 const memoryStore = new Map<string, string>();
 let useMemory = false;
@@ -89,6 +91,97 @@ export type StoredBackendConnection = {
 
 function credentialKey(serverId: string): string {
   return `${CREDENTIAL_PREFIX}${encodeURIComponent(serverId)}`;
+}
+
+function projectsSnapshotKey(serverId: string): string {
+  return `${PROJECTS_SNAPSHOT_PREFIX}${encodeURIComponent(serverId)}`;
+}
+
+function parseProjectsSnapshot(value: string | null): Project[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) => {
+      const result = ProjectSchema.safeParse(item);
+      return result.success ? [result.data] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Project metadata is safe to cache and lets the Web/PWA explain an offline
+ * node after a reload. It deliberately never stores credentials or event
+ * payloads. Native SecureStore is used as the durable fallback; if its value
+ * size limit is reached, the in-memory fallback keeps the current session
+ * usable without failing the network refresh.
+ */
+export async function loadBackendProjectsSnapshot(serverId: string): Promise<Project[]> {
+  const key = projectsSnapshotKey(serverId);
+  const storage = webStorage();
+  if (storage) {
+    try {
+      return parseProjectsSnapshot(storage.getItem(key));
+    } catch {
+      useMemory = true;
+      return parseProjectsSnapshot(memoryStore.get(key) ?? null);
+    }
+  }
+  if (useMemory) return parseProjectsSnapshot(memoryStore.get(key) ?? null);
+  try {
+    return parseProjectsSnapshot(await SecureStore.getItemAsync(key));
+  } catch {
+    useMemory = true;
+    return parseProjectsSnapshot(memoryStore.get(key) ?? null);
+  }
+}
+
+export async function saveBackendProjectsSnapshot(serverId: string, projects: Project[]): Promise<void> {
+  const key = projectsSnapshotKey(serverId);
+  const serialized = JSON.stringify(projects);
+  const storage = webStorage();
+  if (storage) {
+    try {
+      storage.setItem(key, serialized);
+      return;
+    } catch {
+      useMemory = true;
+      memoryStore.set(key, serialized);
+      return;
+    }
+  }
+  if (useMemory) {
+    memoryStore.set(key, serialized);
+    return;
+  }
+  try {
+    await SecureStore.setItemAsync(key, serialized);
+  } catch {
+    useMemory = true;
+    memoryStore.set(key, serialized);
+  }
+}
+
+export async function clearBackendProjectsSnapshot(serverId: string): Promise<void> {
+  const key = projectsSnapshotKey(serverId);
+  memoryStore.delete(key);
+  const storage = webStorage();
+  if (storage) {
+    try {
+      storage.removeItem(key);
+    } catch {
+      useMemory = true;
+    }
+    return;
+  }
+  if (useMemory) return;
+  try {
+    await SecureStore.deleteItemAsync(key);
+  } catch {
+    useMemory = true;
+  }
 }
 
 /**
