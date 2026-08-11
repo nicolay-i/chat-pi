@@ -75,6 +75,32 @@ describe('createRootStore', () => {
     expect(store.backend.baseUrl).toBeNull();
   });
 
+  it('migrates a legacy single baseUrl into the server registry', async () => {
+    const savedConnections: Array<{ serverId: string; name: string; baseUrl: string }> = [];
+    const store = createRootStore({
+      storage: {
+        load: async () => 'https://legacy.example/',
+        save: async () => undefined,
+        clear: async () => undefined,
+        loadConnections: async () => [],
+        saveConnections: async (connections) => { savedConnections.push(...connections); },
+      },
+    });
+
+    await store.backend.restore();
+
+    expect(store.backend.connections).toHaveLength(1);
+    expect(store.backend.baseUrl).toBe('https://legacy.example');
+    expect(store.backend.activeServerId).toMatch(/^legacy-[0-9a-f]+$/);
+    expect(savedConnections).toEqual([
+      {
+        serverId: store.backend.activeServerId,
+        name: 'legacy.example',
+        baseUrl: 'https://legacy.example',
+      },
+    ]);
+  });
+
   it('continues to setup when reading the saved URL does not respond', async () => {
     jest.useFakeTimers();
     const store = createRootStore({

@@ -95,10 +95,13 @@ release gates.
   пройдена в `1440x900`, `1024x768` и `390x844`. Встроенный Chromium также
   подтвердил `display=standalone`, активированный service worker и обход API
   shell-кэша. Синтетическое `beforeinstallprompt` показало banner и вызов
-  `prompt()`. Экспорт теперь вычисляет revision service-worker cache из
-  `index.html`, а unit-тесты подтверждают server-scoped draft storage и
-  metadata snapshots проектов; не пройдены release-проверки фактической
-  установки, standalone launch и browser update flow в Chromium/Edge.
+  `prompt()`. В persistent Chromium-профиле Chrome DevTools
+  `Page.getInstallabilityErrors` вернул пустой список, manifest разобран без
+  ошибок, `display=standalone`, а service worker был `activated`. Экспорт теперь
+  вычисляет revision service-worker cache из `index.html`, а unit-тесты
+  подтверждают server-scoped draft storage и metadata snapshots проектов.
+  Фактический browser-level Install/ярлык и автоматический update с сохранением
+  draft в Chromium/Edge всё ещё требуют отдельной ручной проверки toolbar ОС.
 - Windows guard проверен: `pi+bwrap` отклоняется с требованием WSL2/Linux-
   контейнера, а native `pi+none` без `PI_TRUSTED_MODE=true` не запускается.
   Production sandbox, эквивалентный Linux `bwrap`, на Windows всё ещё не

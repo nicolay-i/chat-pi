@@ -128,8 +128,11 @@
    пользовательская auth/pairing-модель остаётся за пределами Tailnet-only
    фазы.
 2. **Desktop PWA.** Manifest, иконка, service worker, install/update banner и
-   draft persistence реализованы в Web export. Не зафиксированы установка и
-   standalone launch в Chromium/Edge, а также автоматический update QA.
+   draft persistence реализованы в Web export. Persistent Chromium разобрал
+   manifest без ошибок, `Page.getInstallabilityErrors` вернул пустой список,
+   `display=standalone`, service worker активирован. Не зафиксированы
+   browser-level установка/ярлык и автоматический update с сохранением draft
+   в Chromium/Edge.
 3. **Аутентификация приложения.** Node-level bearer включается через
    `PI_AUTH_TOKEN` или `PI_AUTH_TOKEN_FILE`; discovery публичен, API/SSE
    защищены. Login, pairing, отзыв и rotation токенов намеренно вынесены за

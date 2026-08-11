@@ -5,8 +5,10 @@
 > реализованы в рабочем дереве. Через HTTPS/Tailscale фактически проверены
 > одновременная регистрация VPS и Windows-узла, owner-qualified проекты,
 > deep links, независимые Task/SSE и работа доступного узла при потере второго.
-> Фактические standalone/install/update PWA и успешный содержательный VPS
-> provider run остаются release gates.
+> Manifest installability теперь проверена в persistent Chromium-профиле через
+> `Page.getInstallabilityErrors` (ошибок нет), но browser-level Install/ярлык и
+> автоматический update с сохранением draft остаются внешними release gates.
+> Содержательный VPS provider run по-прежнему заблокирован upstream `401`.
 
 ## 1. Цель
 
@@ -202,8 +204,9 @@ Service worker не должен кэшировать изменяющие API-�
    остановки VPS. Содержательный VPS Pi-run остаётся заблокирован provider
    `401 AuthError`.**
 6. Добавить manifest, иконки, service worker, update flow и install UI PWA.
-   **Выполнено; manifest и активированный service worker проверены во
-   встроенном Chromium, standalone/installability QA далее.**
+   **Выполнено; manifest без ошибок разобран persistent Chromium, installability
+   diagnostics пусты и service worker активирован. Browser-level Install/ярлык и
+   update с сохранением draft требуют проверки через toolbar ОС.**
 7. Провести desktop/tablet/mobile browser QA, установленную PWA QA и native QA
    с двумя узлами.
 8. До общего интернет-доступа добавить pairing/token rotation, отзыв устройств

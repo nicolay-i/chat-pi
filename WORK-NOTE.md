@@ -227,6 +227,11 @@ managed clone, поэтому они сохраняются для Ignis, но �
   banner, а нажатие кнопки вызвало `prompt()` и убрало banner. Фактическую
   установку отдельного окна и реальный update с сохранением draft браузерная
   среда не предоставляет, поэтому они остаются release gate.
+- В persistent Chromium-профиле на опубликованном HTTPS origin Chrome DevTools
+  `Page.getInstallabilityErrors` вернул пустой список, manifest разобран без
+  ошибок, а service worker был `activated`. Это подтверждает installability PWA;
+  фактическое нажатие browser-level Install и запуск ярлыка остаются внешней
+  проверкой, потому что Playwright-профиль не даёт доступ к toolbar Chrome.
 - PWA export теперь подставляет hash экспортированного `index.html` в имя
   service-worker cache; в `dist/sw.js` после сборки нет placeholder. Добавлены
   unit-проверки server-scoped draft storage и durable per-node metadata
