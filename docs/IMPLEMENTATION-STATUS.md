@@ -102,7 +102,7 @@
   Chromium при `390x844` показал `fast_forward_available` без изменения HEAD;
   только явно подтверждённое применение выровняло local/remote SHA и оставило
   checkout чистым.
-- После deploy `e0a4591` проведён реальный двухузловой UI/Task smoke: VPS
+- После deploy `834b299` проведён реальный двухузловой UI/Task smoke: VPS
   (`836c4bfc-c22a-4614-bb3a-53f9b7cea142`) и Windows через
   `https://homemi.tail6421db.ts.net:9443` были одновременно зарегистрированы
   в Web-клиенте. `/projects` показал owner-qualified карточки обоих узлов,

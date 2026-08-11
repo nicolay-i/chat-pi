@@ -6,7 +6,7 @@
 
 - Основной checkout: `D:\chat-pi`.
 - Репозиторий: `https://github.com/nicolay-i/chat-pi.git`, ветка `main`.
-- Базовый проверенный commit: `e90a8d4`; актуальную ревизию смотреть через
+- Базовый проверенный commit: `834b299`; актуальную ревизию смотреть через
   `git log -1 --oneline`.
 - Не работать из `D:\Documents\ProjectsPet\chat-pi`: это отдельный устаревший checkout.
 
@@ -225,8 +225,8 @@ managed clone, поэтому они сохраняются для Ignis, но �
   unit-проверки server-scoped draft storage и durable per-node metadata
   snapshots проектов; при недоступности узла после reload сохраняются только
   project metadata, без credentials, SSE и файлового содержимого.
-- VPS runtime был обновлён сборкой `e0a4591`; текущая документационная ревизия
-  — `e90a8d4`. Через Web по HTTPS одновременно добавлены VPS
+- VPS runtime был обновлён сборкой из commit `834b299`; документация и Web export
+  соответствуют той же ревизии. Через Web по HTTPS одновременно добавлены VPS
   `chat-pi.tail6421db.ts.net` и локальный Windows-узел
   `homemi.tail6421db.ts.net:9443`. `/projects` показал проекты обоих узлов с
   владельцами, а переход в локальный проект сформировал URL
