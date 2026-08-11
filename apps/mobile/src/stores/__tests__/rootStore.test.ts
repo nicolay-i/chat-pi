@@ -76,7 +76,7 @@ describe('createRootStore', () => {
   });
 
   it('migrates a legacy single baseUrl into the server registry', async () => {
-    const savedConnections: Array<{ serverId: string; name: string; baseUrl: string }> = [];
+    const savedConnections: { serverId: string; name: string; baseUrl: string }[] = [];
     const store = createRootStore({
       storage: {
         load: async () => 'https://legacy.example/',
