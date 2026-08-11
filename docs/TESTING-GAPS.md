@@ -8,9 +8,10 @@ release gates.
 ## Сквозной runtime
 
 - В CI нет теста, который одновременно подключает работающий процесс Hono,
-  реальный browser bundle и настоящий Pi CLI. Ручной сценарий Tailnet-only
-  Web -> VPS -> bwrap -> OpenCode Go пройден, но ему ещё нужна воспроизводимая
-  CI-проверка.
+  реальный browser bundle и настоящий Pi CLI. В рабочей заметке есть
+  исторический Tailnet-only проход Web -> VPS -> bwrap -> OpenCode Go, но
+  повторная проверка 2026-08-11 остановилась на upstream `401 AuthError`; для
+  текущего состояния нужна воспроизводимая CI-проверка с валидными credentials.
 - Реальный Pi-тест запускается отдельно, поскольку зависит от локального CLI,
   аккаунта и доступности модели. Перед релизом, после завершения первого запуска
   Pi, следует выполнить:
@@ -83,14 +84,17 @@ release gates.
   `serverId`, независимые Chat SSE-потоки и разные sequence ranges; остановка
   локального API не повлияла на health VPS, а перезапуск локального узла
   восстановил новый run. Полный параллельный содержательный Pi-run на VPS пока
-  заблокирован provider `401 AuthError`; также остаётся отдельная проверка UI
-  при одновременно зарегистрированных локальном и VPS URL через доступный
-  HTTPS/Tailscale маршрут.
-- Web export уже содержит manifest, service worker, icon и static index link;
+  заблокирован provider `401 AuthError`; UI при одновременно зарегистрированных
+  локальном и VPS URL через доступный HTTPS/Tailscale маршрут также не засчитан:
+  встроенный браузер блокирует Tailnet URL.
+- Web export уже содержит manifest, service worker, icon, install banner и
+  static index link;
   ручная проверка desktop/tablet/mobile Projects после auth/status правок
-  пройдена в `1440x900`, `1024x768` и `390x844`; не пройдены release-проверки
-  installability, standalone launch, update flow и сохранения draft во время
-  обновления в Chromium/Edge.
+  пройдена в `1440x900`, `1024x768` и `390x844`. Встроенный Chromium также
+  подтвердил `display=standalone`, активированный service worker и обход API
+  shell-кэша. Синтетическое `beforeinstallprompt` показало banner и вызов
+  `prompt()`; не пройдены release-проверки фактической установки, standalone
+  launch, update flow и сохранения draft во время обновления в Chromium/Edge.
 - Windows backend не имеет подтверждённого production sandbox, эквивалентного
   Linux `bwrap`. Требуется отдельное решение на базе контейнера/WSL2 или явно
   ограниченный доверенный режим.
@@ -101,10 +105,11 @@ release gates.
 
 ## Внешние интеграции
 
-- Environment-provider OpenCode Go проверен на VPS в настоящем завершённом
-  `bwrap` Pi turn через `opencode-go/deepseek-v4-flash`. Записи providers по-
-  прежнему предоставляют только символические ссылки на секреты и не имеют
-  серверного хранилища секретов.
+- Environment-provider OpenCode Go на VPS запускается внутри `bwrap`, но
+  последняя проверка `opencode-go/deepseek-v4-flash` завершилась upstream
+  `401 AuthError` после `run.completed`; записи providers по-прежнему
+  предоставляют только символические ссылки на секреты и не имеют серверного
+  хранилища секретов.
 - Эксперимент provider oRPC пока не генерирует OpenAPI-документ:
   `@orpc/openapi` намеренно не добавлен в production-зависимости до решения о
   мобильном транспорте.

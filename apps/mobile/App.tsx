@@ -9,6 +9,11 @@ import { RootStoreProvider } from '@/providers/RootStoreProvider';
 
 const queryClient = new QueryClient();
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
+
 async function registerPwa(onUpdate: () => void): Promise<ServiceWorkerRegistration | null> {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   const documentRef = window.document;
@@ -36,12 +41,34 @@ async function registerPwa(onUpdate: () => void): Promise<ServiceWorkerRegistrat
 export default function App() {
   const [pwaUpdate, setPwaUpdate] = useState(false);
   const [pwaRegistration, setPwaRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [pwaInstallPrompt, setPwaInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   useEffect(() => {
     void registerPwa(() => setPwaUpdate(true)).then(setPwaRegistration).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onBeforeInstallPrompt = (event: Event): void => {
+      event.preventDefault();
+      setPwaInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const onInstalled = (): void => setPwaInstallPrompt(null);
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
   }, []);
   const applyPwaUpdate = (): void => {
     pwaRegistration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
     if (typeof window !== 'undefined') window.location.reload();
+  };
+  const installPwa = async (): Promise<void> => {
+    const prompt = pwaInstallPrompt;
+    if (!prompt) return;
+    setPwaInstallPrompt(null);
+    await prompt.prompt();
+    await prompt.userChoice.catch(() => undefined);
   };
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -60,6 +87,17 @@ export default function App() {
                 <Text style={{ color: '#FFFFFF', flex: 1 }}>Доступна новая версия приложения.</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Обновить приложение" onPress={applyPwaUpdate} style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 7, backgroundColor: '#6258F4' }}>
                   <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Обновить</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {Platform.OS === 'web' && pwaInstallPrompt ? (
+              <View style={{ position: 'absolute', top: pwaUpdate ? 92 : 12, left: 12, right: 12, zIndex: 997, elevation: 997, padding: 10, borderRadius: 10, backgroundColor: '#243047', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ color: '#FFFFFF', flex: 1 }}>Установить Pi Agents как приложение?</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Установить приложение" onPress={() => { void installPwa(); }} style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 7, backgroundColor: '#6258F4' }}>
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Установить</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Скрыть установку приложения" onPress={() => setPwaInstallPrompt(null)} style={{ paddingVertical: 6, paddingHorizontal: 6 }}>
+                  <Text style={{ color: '#CBD5E1' }}>Позже</Text>
                 </Pressable>
               </View>
             ) : null}

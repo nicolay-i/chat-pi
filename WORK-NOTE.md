@@ -6,7 +6,7 @@
 
 - Основной checkout: `D:\chat-pi`.
 - Репозиторий: `https://github.com/nicolay-i/chat-pi.git`, ветка `main`.
-- Базовый проверенный commit: `28533c0`; актуальную ревизию смотреть через
+- Базовый проверенный commit: `db57597`; актуальную ревизию смотреть через
   `git log -1 --oneline`.
 - Не работать из `D:\Documents\ProjectsPet\chat-pi`: это отдельный устаревший checkout.
 
@@ -92,7 +92,8 @@
   `/servers/<serverId>/projects/<projectId>/chats/<chatId>` и прежний query-
   формат `?serverId=...`.
 - Web export копирует manifest, icon и service worker в `dist`; PWA показывает
-  уведомление обновления и сохраняет черновик Chat в Web Storage.
+  install/update UI при поддержке браузера и сохраняет черновик Chat в Web
+  Storage.
 - Узел может включить bearer-защиту через `PI_AUTH_TOKEN` или
   `PI_AUTH_TOKEN_FILE`; discovery остаётся публичным, API/SSE проверяют
   `Authorization`. Native credentials идут в SecureStore, Web credentials не
@@ -107,7 +108,8 @@
 - Полный содержательный двухузловой Pi-сценарий (VPS provider сейчас отвечает
   `401 AuthError`) и UI-проверка одновременно зарегистрированных HTTPS-узлов;
   transport smoke, потеря локального узла и его восстановление уже пройдены.
-- Установка/standalone/update PWA в Chromium/Edge и полная desktop/tablet QA.
+- Установка/standalone/update PWA в Chromium/Edge; desktop/tablet/mobile
+  ручной проход уже выполнен, но не является CI-проверкой.
 - Полноценные pairing/login/token rotation и безопасные credentials для общего
   интернета; сейчас допустим только Tailnet-only HTTPS, node bearer является
   базовой защитой узла, а не пользовательской авторизацией.
@@ -201,7 +203,16 @@ managed clone, поэтому они сохраняются для Ignis, но �
   Chromium при `1440x900`, `1024x768` и `390x844`. На мобильной ширине заголовок
   и действия Projects перенесены на две строки: кнопка `New` не обрезается
   справа. Web export после правки выполнен повторно.
-- VPS обновлён до `7774492`. Реальная двухузловая проверка показала разные
+- Локальный Web export проверен во встроенном Chromium: после сохранения URL
+  Setup открыл `/projects`; `/manifest.webmanifest` распознан как
+  `display=standalone`, service worker перешёл в `activated` и стал controller
+  страницы, а GET `/api/capabilities` вернул 200 через обход service-worker
+  shell-кэша. Синтетическое событие `beforeinstallprompt` показало install
+  banner, а нажатие кнопки вызвало `prompt()` и убрало banner. Фактическую
+  установку отдельного окна и реальный update с сохранением draft браузерная
+  среда не предоставляет, поэтому они остаются release gate.
+- VPS runtime был обновлён сборкой `7774492`, затем checkout синхронизирован
+  до docs-коммита `db57597`. Реальная двухузловая проверка показала разные
   идентичности (`local=11111111-1111-4111-8111-111111111111`,
   `VPS=836c4bfc-c22a-4614-bb3a-53f9b7cea142`): локальный fake Chat отдал
   независимый SSE/run с последовательностями `1..9`, VPS Chat — `290..300`.

@@ -119,7 +119,10 @@ function parsePiSandboxMode(value: string | undefined): PiSandboxMode {
   throw new Error(`Invalid PI_SANDBOX_MODE env var: ${value}`);
 }
 
-export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
+export function createConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): Config {
   const nodeEnv = env.NODE_ENV ?? 'development';
   const corsOrigins = parseCorsOrigins(env.CORS_ORIGINS);
   if (nodeEnv === 'production' && corsOrigins.length === 0) {
@@ -128,10 +131,10 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const agentRuntime = parseAgentRuntime(env.AGENT_RUNTIME ?? env.PI_MODE);
   const piSandboxMode = parsePiSandboxMode(env.PI_SANDBOX_MODE);
   const trustedRuntime = parseBoolean(env.PI_TRUSTED_MODE, false, 'PI_TRUSTED_MODE');
-  if (process.platform === 'win32' && agentRuntime === 'pi' && piSandboxMode === 'bwrap') {
+  if (platform === 'win32' && agentRuntime === 'pi' && piSandboxMode === 'bwrap') {
     throw new Error('PI_SANDBOX_MODE=bwrap requires Linux/WSL2; run the backend inside WSL2 or a Linux container');
   }
-  if (process.platform === 'win32' && agentRuntime === 'pi' && piSandboxMode === 'none' && !trustedRuntime) {
+  if (platform === 'win32' && agentRuntime === 'pi' && piSandboxMode === 'none' && !trustedRuntime) {
     throw new Error('PI_TRUSTED_MODE=true is required for unsandboxed Pi execution on Windows');
   }
 

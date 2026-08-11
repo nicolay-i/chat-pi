@@ -22,10 +22,11 @@ evidence. A green local suite does not replace an explicitly external gate.
   desktop content stayed bounded, mobile navigation stayed horizontally
   scrollable, and all four viewports reported no document-level overflow. In
   Chat, typing enabled Send and the mode sheet opened without console errors.
-- A Web client reached the VPS API through a Tailnet-only HTTPS proxy, selected
-  the registered VPS project, opened a discussion Chat and received a streamed
-  `opencode-go/deepseek-v4-flash` reply. The VPS audit recorded a completed
-  `bwrap` runtime process for the same run.
+- A historical Web client pass reached the VPS API through a Tailnet-only HTTPS
+  proxy, selected the registered VPS project and received a streamed
+  `opencode-go/deepseek-v4-flash` reply. The latest repeatable transport smoke
+  reaches the VPS Pi `run.completed`, but the current provider returns upstream
+  `401 AuthError`; this criterion is therefore not currently release-green.
 - With no active Task, the Web project route opened the live `chat-pi` Ignis
   vault. A Markdown note created and edited in the browser survived a full
   reload, reopened with the same content and was confirmed in the VPS managed
@@ -71,10 +72,11 @@ evidence. A green local suite does not replace an explicitly external gate.
   clone HEAD. The apply button required confirmation; afterward the UI showed
   `fast_forward_applied`, local and remote SHA matched, `REMOTE.md` existed and
   Git status was clean.
-- A live Tailnet Web session separately verified two Chats in one project:
-  both received real assistant replies and retained isolated histories when
-  switching between them. A second project could be created and opened; the
-  current worktree additionally removes the stale-list reload requirement.
+- A historical live Tailnet Web session separately verified two Chats in one
+  project; both retained isolated histories when switching between them. The
+  current worktree additionally removes the stale-list reload requirement, but
+  a fresh two-node UI pass is blocked because the available browser cannot open
+  the Tailnet URL and the current VPS provider returns `401 AuthError`.
 - A local 390x844 Chromium session opened an implementation Chat without an
   active Task, used its `Create next Task` form and observed the new Task ID in
   the header. API/Git verification confirmed the same Chat and PiSession, the

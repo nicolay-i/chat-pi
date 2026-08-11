@@ -2,8 +2,9 @@
 
 > Статус на 2026-08-11: идентичность узла, реестр подключений, scoped resource
 > stores, `/servers`, server-qualified links, optional bearer auth и PWA shell
-> реализованы в рабочем дереве. Реальный двухузловой QA, standalone PWA и
-> production HTTPS остаются release gates.
+> реализованы в рабочем дереве. Локальный Web export подтвердил `/projects`,
+> manifest и активированный service worker; реальная регистрация двух HTTPS
+> узлов, standalone PWA и production provider run остаются release gates.
 
 ## 1. Цель
 
@@ -152,6 +153,8 @@ PWA включает:
 - service worker с версионированным кэшем только для app shell и статических
   ресурсов; API и SSE обходят кэш;
 - уведомление о новой версии с безопасным обновлением и сохранением draft;
+- install banner по `beforeinstallprompt`, который вызывает браузерный prompt
+  только после явного нажатия пользователя;
 - адаптивные desktop/tablet/mobile layouts, управление мышью и клавиатурой,
   видимые focus states и отсутствие критичных hover-only действий;
 - понятный offline-режим отдельно для каждого узла.
@@ -180,7 +183,8 @@ Service worker не должен кэшировать изменяющие API-�
    `401 AuthError`, UI-проверка одновременно зарегистрированных HTTPS-узлов и
    полноценный provider run остаются release gate.**
 6. Добавить manifest, иконки, service worker, update flow и install UI PWA.
-   **Выполнено; standalone/installability QA далее.**
+   **Выполнено; manifest и активированный service worker проверены во
+   встроенном Chromium, standalone/installability QA далее.**
 7. Провести desktop/tablet/mobile browser QA, установленную PWA QA и native QA
    с двумя узлами.
 8. До общего интернет-доступа добавить pairing/token rotation, отзыв устройств
@@ -198,8 +202,9 @@ Service worker не должен кэшировать изменяющие API-�
 - Недоступность одного узла не ломает второй.
 - Deep link однозначно восстанавливает узел, Project и Chat либо сообщает, что
   нужное подключение ещё не добавлено.
-- Web-клиент подготовлен к установке как PWA и standalone-запуску; факт установки
-  в Chromium/Edge ещё не зафиксирован.
+- Web-клиент подготовлен к установке как PWA и standalone-запуску; manifest
+  распознан Chromium как `standalone`, service worker активирован. Факт
+  установки и запуска отдельного окна в Chromium/Edge ещё не зафиксирован.
 - Основные экраны пригодны для работы при desktop, tablet и mobile viewport.
 - Обновление service worker не теряет черновик сообщения и не кэширует API/SSE;
   автоматический browser QA этого сценария ещё не выполнен.

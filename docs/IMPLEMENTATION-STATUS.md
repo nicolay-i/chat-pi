@@ -22,7 +22,7 @@
 | Песочница Pi | `PI_SANDBOX_MODE=bwrap` запускает Pi в пространствах имён Linux user/PID/IPC/UTS. Подключаются только активный worktree, каталог JSONL-сессии и выделенное состояние Pi; обсуждение и планирование подключают основной репозиторий только для чтения. `/data/pi-agent` и каталоги сессий создаются до первого запуска. |
 | Аудит процессов | Каждый реальный Pi-child записывается в `runtime_processes` с PID, командой, `cwd`, режимом песочницы, Chat/Task/PiSession и терминальным статусом. Размер исходных Pi-событий ограничивается до записи в SQLite/SSE. |
 | Базовое резервное копирование | Используются `VACUUM INTO` для SQLite, разрешённые артефакты `.agents`, Pi-сессии и runtime-состояние prompt/theme, Git refs, манифест SHA-256 и staging-восстановление с проверкой целостности. Защищённая команда активации проверяет точные refs Task в явно указанных чистых checkout, пересоздаёт worktree и перепривязывает staged-пути SQLite. Файлы worktree Task намеренно не включаются. |
-| Несколько узлов и PWA shell | Backend публикует стабильный `serverId`; клиент хранит несколько подключений, индексирует Project/Chat/Task и realtime по `serverId`, агрегирует проекты на `/projects`, сохраняет последний снимок offline-узла, предоставляет `/servers` и server-qualified deep links. Web export копирует manifest/icon/service worker, сохраняет Chat draft и показывает доступное обновление. Узел поддерживает optional bearer через `PI_AUTH_TOKEN`/`PI_AUTH_TOKEN_FILE`, native SecureStore и memory-only Web token; discovery остаётся публичным. Real two-node SSE/run, standalone install QA, pairing/rotation и production HTTPS ещё не подтверждены. |
+| Несколько узлов и PWA shell | Backend публикует стабильный `serverId`; клиент хранит несколько подключений, индексирует Project/Chat/Task и realtime по `serverId`, агрегирует проекты на `/projects`, сохраняет последний снимок offline-узла, предоставляет `/servers` и server-qualified deep links. Web export копирует manifest/icon/service worker, сохраняет Chat draft, показывает install banner по `beforeinstallprompt` и доступное обновление. Во встроенном Chromium после Setup фактически открывается `/projects`, manifest распознаётся как `display=standalone`, service worker активируется, а `/api/capabilities` проходит мимо shell-кэша; синтетический install event вызвал `prompt()` и убрал banner. Узел поддерживает optional bearer через `PI_AUTH_TOKEN`/`PI_AUTH_TOKEN_FILE`, native SecureStore и memory-only Web token; discovery остаётся публичным. Real two-node UI через одновременно доступные HTTPS URL, standalone install/update QA, pairing/rotation и production provider run ещё не подтверждены. |
 
 ## Проверенные интеграционные сценарии
 
@@ -114,14 +114,14 @@
 
 1. **Несколько серверных узлов.** Реестр подключений, serverId-квалификация,
    агрегированный Projects, per-node offline/auth statuses, `/servers`, scoped
-   SSE и server-qualified deep links реализованы. Не пройдены real two-node
-   SSE/run, независимое восстановление после потери одного узла и полный device
-   QA. Реальный transport/reconnect smoke пройден; полноценный параллельный
-   модельный run на VPS заблокирован provider `401 AuthError`. Node-level bearer
-   готов; пользовательская auth/pairing-модель остаётся за пределами
-   Tailnet-only фазы.
-2. **Desktop PWA.** Manifest, иконка, service worker, update banner и draft
-   persistence реализованы в Web export. Не зафиксированы установка и
+   SSE и server-qualified deep links реализованы. Transport/reconnect smoke
+   локального fake-узла и VPS пройден; одновременная регистрация этих двух
+   HTTPS URL в доступном браузере не проверена, а полноценный модельный run на
+   VPS заблокирован provider `401 AuthError`. Node-level bearer готов;
+   пользовательская auth/pairing-модель остаётся за пределами Tailnet-only
+   фазы.
+2. **Desktop PWA.** Manifest, иконка, service worker, install/update banner и
+   draft persistence реализованы в Web export. Не зафиксированы установка и
    standalone launch в Chromium/Edge, а также автоматический update QA.
 3. **Аутентификация приложения.** Node-level bearer включается через
    `PI_AUTH_TOKEN` или `PI_AUTH_TOKEN_FILE`; discovery публичен, API/SSE
@@ -138,14 +138,14 @@
    upstream Obsidian читает top-level parent, а Android/iOS используют нативный
    WebView. Сквозное редактирование Web проверено; физическая проверка Ignis на
    Android/iOS остаётся release gate.
-7. **Release-проверка.** На VPS исправен `/health`; Web-клиент выполнил через
-   Tailnet-only HTTPS обсуждение Web -> VPS -> Pi, а реальный OpenCode Go
-   (`opencode-go/deepseek-v4-flash`) завершил turn в режиме `sandbox_mode =
-   bwrap`. Standalone Android release APK прошёл Setup, открыл сохранённый Chat
-   и установил native SSE-соединение с VPS. На Infinix дополнительно проверены
-   запуск приложения, список проектов, открытие Chat и доступность composer при
-   открытой клавиатуре. Полная проверка экранов Android/iOS и production signing
-   APK остаются обязательными.
+7. **Release-проверка.** На VPS исправен `/health`; транспорт Web -> VPS -> Pi
+   доходит до `run.completed`, но текущий provider
+   `opencode-go/deepseek-v4-flash` отвечает upstream `401 AuthError`, поэтому
+   содержательный модельный ответ не засчитан. Standalone Android release APK
+   ранее прошёл Setup и native SSE с VPS; на Infinix проверены запуск, список
+   проектов, открытие Chat и доступность composer при открытой клавиатуре.
+   Полная проверка экранов Android/iOS, production signing APK и исправление
+   provider credentials остаются обязательными.
 8. **Решение по oRPC.** Эксперимент подтверждает транспорт Hono и вывод типов
    server/client, но oRPC ещё не встроен в Expo-приложение и не оценён для
    генерации OpenAPI. Основным product API остаются текущие `/api/*`-маршруты.

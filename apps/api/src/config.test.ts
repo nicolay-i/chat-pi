@@ -29,6 +29,15 @@ describe('createConfig', () => {
     expect(() => createConfig({ PI_SANDBOX_MODE: 'container' })).toThrow('PI_SANDBOX_MODE');
   });
 
+  it('guards Windows Pi execution from Linux-only or untrusted modes', () => {
+    expect(() => createConfig({ AGENT_RUNTIME: 'pi', PI_SANDBOX_MODE: 'bwrap' }, 'win32'))
+      .toThrow('requires Linux/WSL2');
+    expect(() => createConfig({ AGENT_RUNTIME: 'pi', PI_SANDBOX_MODE: 'none' }, 'win32'))
+      .toThrow('PI_TRUSTED_MODE=true');
+    expect(createConfig({ AGENT_RUNTIME: 'pi', PI_SANDBOX_MODE: 'none', PI_TRUSTED_MODE: 'true' }, 'win32').trustedRuntime)
+      .toBe(true);
+  });
+
   it('accepts a bounded request-body limit', () => {
     expect(createConfig({ MAX_BODY_BYTES: '2048' }).maxBodyBytes).toBe(2048);
     expect(() => createConfig({ MAX_BODY_BYTES: '0' })).toThrow('MAX_BODY_BYTES');
