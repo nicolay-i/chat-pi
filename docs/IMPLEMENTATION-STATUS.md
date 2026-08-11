@@ -22,7 +22,7 @@
 | Песочница Pi | `PI_SANDBOX_MODE=bwrap` запускает Pi в пространствах имён Linux user/PID/IPC/UTS. Подключаются только активный worktree, каталог JSONL-сессии и выделенное состояние Pi; обсуждение и планирование подключают основной репозиторий только для чтения. `/data/pi-agent` и каталоги сессий создаются до первого запуска. |
 | Аудит процессов | Каждый реальный Pi-child записывается в `runtime_processes` с PID, командой, `cwd`, режимом песочницы, Chat/Task/PiSession и терминальным статусом. Размер исходных Pi-событий ограничивается до записи в SQLite/SSE. |
 | Базовое резервное копирование | Используются `VACUUM INTO` для SQLite, разрешённые артефакты `.agents`, Pi-сессии и runtime-состояние prompt/theme, Git refs, манифест SHA-256 и staging-восстановление с проверкой целостности. Защищённая команда активации проверяет точные refs Task в явно указанных чистых checkout, пересоздаёт worktree и перепривязывает staged-пути SQLite. Файлы worktree Task намеренно не включаются. |
-| Несколько узлов и PWA shell | Backend публикует стабильный `serverId`; клиент хранит несколько подключений, индексирует Project/Chat/Task и realtime по `serverId`, агрегирует проекты на `/projects`, сохраняет последний снимок offline-узла, предоставляет `/servers` и server-qualified deep links. Web export копирует manifest/icon/service worker, сохраняет Chat draft, показывает install banner по `beforeinstallprompt` и доступное обновление. Во встроенном Chromium после Setup фактически открывается `/projects`, manifest распознаётся как `display=standalone`, service worker активируется, а `/api/capabilities` проходит мимо shell-кэша; синтетический install event вызвал `prompt()` и убрал banner. Узел поддерживает optional bearer через `PI_AUTH_TOKEN`/`PI_AUTH_TOKEN_FILE`, native SecureStore и memory-only Web token; discovery остаётся публичным. Real two-node UI через одновременно доступные HTTPS URL, standalone install/update QA, pairing/rotation и production provider run ещё не подтверждены. |
+| Несколько узлов и PWA shell | Backend публикует стабильный `serverId`; клиент хранит несколько подключений, индексирует Project/Chat/Task и realtime по `serverId`, агрегирует проекты на `/projects`, сохраняет последний снимок offline-узла в текущей сессии, предоставляет `/servers` и server-qualified deep links. Web export копирует manifest/icon/service worker, сохраняет Chat draft, показывает install banner по `beforeinstallprompt` и доступное обновление. Во встроенном Chromium после Setup фактически открывается `/projects`, manifest распознаётся как `display=standalone`, service worker активируется, а `/api/capabilities` проходит мимо shell-кэша; синтетический install event вызвал `prompt()` и убрал banner. Узел поддерживает optional bearer через `PI_AUTH_TOKEN`/`PI_AUTH_TOKEN_FILE`, native SecureStore и memory-only Web token; discovery остаётся публичным. Одновременная UI-регистрация VPS и Windows HTTPS-узла, owner-qualified проекты, deep link и offline-изоляция проверены вручную. Standalone install/update QA, pairing/rotation и успешный содержательный provider run ещё не подтверждены. |
 
 ## Проверенные интеграционные сценарии
 
@@ -102,21 +102,28 @@
   Chromium при `390x844` показал `fast_forward_available` без изменения HEAD;
   только явно подтверждённое применение выровняло local/remote SHA и оставило
   checkout чистым.
-- После deploy `7774492` проведён реальный двухузловой smoke: локальный
-  fake-узел (`11111111-1111-4111-8111-111111111111`) и VPS
-  (`836c4bfc-c22a-4614-bb3a-53f9b7cea142`) отдали независимые Chat SSE-потоки;
-  одинаковые последовательности не пересекались. Остановка локального API не
-  повлияла на health VPS, а перезапуск локального узла восстановил новый run.
-  VPS Pi-транспорт дошёл до `run.completed`, но provider вернул `401
-  AuthError`, поэтому успешный модельный ответ остаётся credential gate.
+- После deploy `e0a4591` проведён реальный двухузловой UI/Task smoke: VPS
+  (`836c4bfc-c22a-4614-bb3a-53f9b7cea142`) и Windows через
+  `https://homemi.tail6421db.ts.net:9443` были одновременно зарегистрированы
+  в Web-клиенте. `/projects` показал owner-qualified карточки обоих узлов,
+  локальный проект открылся через server-qualified deep link, а после остановки
+  локального API `/servers` показал `Компьютер недоступен: Failed to fetch` и
+  Projects сохранил доступные проекты VPS.
+- Параллельно отправлены разные Chat/Task-запуски. Локальный fake Task
+  (`9c0ba65b-7cc3-4a64-8634-e0e6551c078f`) отдал независимый поток со статусами,
+  tool-событиями, `run.completed` и checkpoint; VPS Task
+  (`f8f53413-04f9-4620-96b6-50f06aaedc86`) отдал свой поток с другим
+  `streamId`/sequence и завершился `run.error`/`failed` только из-за provider
+  `401 AuthError`. Это подтверждает транспортную изоляцию узлов, но не
+  успешный содержательный модельный ответ VPS.
 
 ## Текущие границы фазы и release gates
 
 1. **Несколько серверных узлов.** Реестр подключений, serverId-квалификация,
    агрегированный Projects, per-node offline/auth statuses, `/servers`, scoped
-   SSE и server-qualified deep links реализованы. Transport/reconnect smoke
-   локального fake-узла и VPS пройден; одновременная регистрация этих двух
-   HTTPS URL в доступном браузере не проверена, а полноценный модельный run на
+   SSE и server-qualified deep links реализованы. Одновременная регистрация
+   VPS и Windows HTTPS URL, owner-qualified проекты, deep links и независимый
+   offline-сценарий проверены в доступном браузере. Полноценный модельный run на
    VPS заблокирован provider `401 AuthError`. Node-level bearer готов;
    пользовательская auth/pairing-модель остаётся за пределами Tailnet-only
    фазы.

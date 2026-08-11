@@ -72,11 +72,13 @@ evidence. A green local suite does not replace an explicitly external gate.
   clone HEAD. The apply button required confirmation; afterward the UI showed
   `fast_forward_applied`, local and remote SHA matched, `REMOTE.md` existed and
   Git status was clean.
-- A historical live Tailnet Web session separately verified two Chats in one
-  project; both retained isolated histories when switching between them. The
-  current worktree additionally removes the stale-list reload requirement, but
-  a fresh two-node UI pass is blocked because the available browser cannot open
-  the Tailnet URL and the current VPS provider returns `401 AuthError`.
+- A live Tailnet Web session separately verified two Chats in one project; both
+  retained isolated histories when switching between them. On 2026-08-11 the
+  same browser registered the VPS and Windows HTTPS nodes simultaneously,
+  displayed owner-qualified Projects from both, opened a local project through
+  a `serverId` deep link, and kept VPS Projects usable after the local node was
+  stopped. Parallel Task/SSE streams had distinct node-qualified IDs and
+  sequence ranges; the VPS model turn still ends in provider `401 AuthError`.
 - A local 390x844 Chromium session opened an implementation Chat without an
   active Task, used its `Create next Task` form and observed the new Task ID in
   the header. API/Git verification confirmed the same Chat and PiSession, the

@@ -80,13 +80,14 @@ release gates.
   нескольких подключений, per-node offline/auth statuses и serverId в
   `/api/capabilities`. API-тесты также проверяют optional bearer и публичный
   discovery.
-- Реальный transport smoke локального ПК и VPS выполнен: узлы имели разные
-  `serverId`, независимые Chat SSE-потоки и разные sequence ranges; остановка
-  локального API не повлияла на health VPS, а перезапуск локального узла
-  восстановил новый run. Полный параллельный содержательный Pi-run на VPS пока
-  заблокирован provider `401 AuthError`; UI при одновременно зарегистрированных
-  локальном и VPS URL через доступный HTTPS/Tailscale маршрут также не засчитан:
-  встроенный браузер блокирует Tailnet URL.
+- Реальный transport/UI smoke локального ПК и VPS выполнен: узлы имели разные
+  `serverId`, были одновременно зарегистрированы через HTTPS/Tailscale,
+  `/projects` показал owner-qualified карточки, а deep link локального проекта
+  содержал `serverId` и `projectId`. Параллельные Task-запуски дали независимые
+  SSE `streamId` и sequence ranges; после остановки локального API `/servers`
+  показал `Компьютер недоступен`, а проекты VPS остались доступны. Полный
+  содержательный Pi-run на VPS по-прежнему заблокирован provider
+  `401 AuthError`.
 - Web export уже содержит manifest, service worker, icon, install banner и
   static index link;
   ручная проверка desktop/tablet/mobile Projects после auth/status правок
@@ -95,13 +96,16 @@ release gates.
   shell-кэша. Синтетическое `beforeinstallprompt` показало banner и вызов
   `prompt()`; не пройдены release-проверки фактической установки, standalone
   launch, update flow и сохранения draft во время обновления в Chromium/Edge.
-- Windows backend не имеет подтверждённого production sandbox, эквивалентного
-  Linux `bwrap`. Требуется отдельное решение на базе контейнера/WSL2 или явно
+- Windows guard проверен: `pi+bwrap` отклоняется с требованием WSL2/Linux-
+  контейнера, а native `pi+none` без `PI_TRUSTED_MODE=true` не запускается.
+  Production sandbox, эквивалентный Linux `bwrap`, на Windows всё ещё не
+  прошёл отдельную проверку; для релиза требуется WSL2/контейнер или формально
   ограниченный доверенный режим.
-- Для PWA и нескольких узлов нужно проверить HTTPS/Tailscale URLs, CORS,
-  браузерные ограничения mixed content/private network access и отдельные
-  credentials каждого подключения. Node-level bearer уже реализован, но
-  pairing, token rotation и пользовательский login ещё отсутствуют.
+- HTTPS/Tailscale URLs и CORS проверены: собственный VPS Web-origin и локальный
+  Tailscale origin разрешены, посторонний Origin не получает CORS allowlist.
+  Браузерный UI двух узлов и per-node offline status проверены. Отдельные
+  credentials каждого подключения, pairing, token rotation и пользовательский
+  login ещё отсутствуют.
 
 ## Внешние интеграции
 

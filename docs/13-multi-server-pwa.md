@@ -2,9 +2,11 @@
 
 > Статус на 2026-08-11: идентичность узла, реестр подключений, scoped resource
 > stores, `/servers`, server-qualified links, optional bearer auth и PWA shell
-> реализованы в рабочем дереве. Локальный Web export подтвердил `/projects`,
-> manifest и активированный service worker; реальная регистрация двух HTTPS
-> узлов, standalone PWA и production provider run остаются release gates.
+> реализованы в рабочем дереве. Через HTTPS/Tailscale фактически проверены
+> одновременная регистрация VPS и Windows-узла, owner-qualified проекты,
+> deep links, независимые Task/SSE и работа доступного узла при потере второго.
+> Фактические standalone/install/update PWA и успешный содержательный VPS
+> provider run остаются release gates.
 
 ## 1. Цель
 
@@ -140,9 +142,23 @@ reverse proxy. `http://localhost` допустим только для клие�
 самостоятельно настраивает CORS allowlist и в будущей публичной конфигурации —
 pairing/token authentication с отдельным credential для каждого устройства.
 
-Pi sandbox `bwrap` работает только на Linux. Для Windows-узла до production
-нужно выбрать и проверить отдельную изоляцию (например, контейнер/WSL2) либо
-явно обозначить ограниченный доверенный режим без `bwrap`.
+Pi sandbox `bwrap` работает только на Linux. Для Windows подготовлены три
+явных режима запуска, и конфигурация не позволяет случайно выбрать опасную
+комбинацию:
+
+- **Рекомендуемый production-вариант:** запускать backend/Pi внутри WSL2 или
+  Linux-контейнера с `AGENT_RUNTIME=pi`, `PI_SANDBOX_MODE=bwrap` и отдельным
+  `PI_AGENT_DIR`.
+- **Ограниченный native Windows-вариант:** только для доверенного локального
+  checkout использовать `AGENT_RUNTIME=pi`, `PI_SANDBOX_MODE=none` и явно
+  `PI_TRUSTED_MODE=true`. Без последнего флага запуск отклоняется; `bwrap` на
+  Windows также отклоняется с подсказкой использовать WSL2/контейнер.
+- **UI/transport smoke:** использовать `AGENT_RUNTIME=fake`, без доступа к
+  реальному Pi и provider credentials.
+
+Для любого варианта endpoint следует привязать к loopback и публиковать через
+HTTPS/Tailscale; node bearer включается отдельно. Production-проверка
+изоляции WSL2/контейнера на Windows пока остаётся release gate.
 
 ## 7. Desktop Web и PWA
 
@@ -173,15 +189,16 @@ Service worker не должен кэшировать изменяющие API-�
    **Выполнено.**
 3. Создать registry API-клиентов и realtime hubs; квалифицировать кэши Project,
    Chat и Task через `serverId`.
-   **Выполнено в клиенте; real two-node QA далее.**
+   **Выполнено; независимые Task/SSE на локальном узле и VPS проверены.**
 4. Добавить маршруты `/servers`, server selector и агрегированный список
    проектов; перенести deep links на server-qualified схему.
    **Выполнено.**
 5. Проверить одновременные SSE/run на двух настоящих узлах и независимое
    восстановление после потери связи.
-   **Transport smoke выполнен; содержательный VPS Pi-run заблокирован provider
-   `401 AuthError`, UI-проверка одновременно зарегистрированных HTTPS-узлов и
-   полноценный provider run остаются release gate.**
+   **Выполнено для transport/UI: два HTTPS-узла зарегистрированы одновременно,
+   проекты и deep links разделены по владельцу, локальный узел отключался без
+   остановки VPS. Содержательный VPS Pi-run остаётся заблокирован provider
+   `401 AuthError`.**
 6. Добавить manifest, иконки, service worker, update flow и install UI PWA.
    **Выполнено; manifest и активированный service worker проверены во
    встроенном Chromium, standalone/installability QA далее.**
@@ -195,16 +212,19 @@ Service worker не должен кэшировать изменяющие API-�
 
 - В интерфейсе можно добавить локальный компьютер и VPS; проекты доступных узлов
   видны одновременно и явно подписаны.
-- Два Chat на разных узлах имеют независимые scoped SSE-контуры в коде; факт
-  одновременного выполнения на двух настоящих узлах ещё требует QA.
+- Два Chat/Task на разных узлах имеют независимые scoped SSE-контуры; факт
+  одновременного выполнения локального fake Task и VPS Pi Task подтверждён
+  отдельными `streamId`, `serverId` и диапазонами sequence. VPS Task завершается
+  ошибкой провайдера `401`, но транспорт и изоляция узлов работают.
 - Команда из Chat никогда не уходит на активный в UI, но чужой для Chat узел.
 - Перезапуск приложения сохраняет оба подключения и корректную привязку Chat.
 - Недоступность одного узла не ломает второй.
 - Deep link однозначно восстанавливает узел, Project и Chat либо сообщает, что
   нужное подключение ещё не добавлено.
 - Web-клиент подготовлен к установке как PWA и standalone-запуску; manifest
-  распознан Chromium как `standalone`, service worker активирован. Факт
-  установки и запуска отдельного окна в Chromium/Edge ещё не зафиксирован.
+  распознан Chromium как `standalone`, service worker активирован, install
+  prompt проверен синтетическим событием. Факт установки и запуска отдельного
+  окна в Chromium/Edge ещё не зафиксирован.
 - Основные экраны пригодны для работы при desktop, tablet и mobile viewport.
 - Обновление service worker не теряет черновик сообщения и не кэширует API/SSE;
   автоматический browser QA этого сценария ещё не выполнен.

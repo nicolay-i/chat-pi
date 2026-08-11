@@ -6,7 +6,7 @@
 
 - Основной checkout: `D:\chat-pi`.
 - Репозиторий: `https://github.com/nicolay-i/chat-pi.git`, ветка `main`.
-- Базовый проверенный commit: `e0a4591`; актуальную ревизию смотреть через
+- Базовый проверенный commit: `e90a8d4`; актуальную ревизию смотреть через
   `git log -1 --oneline`.
 - Не работать из `D:\Documents\ProjectsPet\chat-pi`: это отдельный устаревший checkout.
 
@@ -73,6 +73,10 @@
 - На VPS: Git checkout, task worktrees, persistent Pi sessions, checkpoints,
   rollback/fork/sync и OpenCode Go через Pi/bubblewrap.
 - Tailnet Web-клиент: `https://chat-pi.tail6421db.ts.net`.
+- VPS CORS allowlist включает собственный Web-origin
+  `https://chat-pi.tail6421db.ts.net` и локальный Tailscale Web-origin
+  `https://homemi.tail6421db.ts.net`; посторонний Origin не получает
+  `access-control-allow-origin`.
 - Ignis `0.8.8` с vault только для `chat-pi`:
   `https://chat-pi.tail6421db.ts.net:8443`.
 - Web-route Obsidian показывает `Open Ignis` и открывает vault верхнеуровневой
@@ -105,9 +109,11 @@
 
 ## Осталось подтвердить или реализовать
 
-- Полный содержательный двухузловой Pi-сценарий (VPS provider сейчас отвечает
-  `401 AuthError`) и UI-проверка одновременно зарегистрированных HTTPS-узлов;
-  transport smoke, потеря локального узла и его восстановление уже пройдены.
+- Полный содержательный VPS Pi-сценарий (provider сейчас отвечает
+  `401 AuthError`) и фактическая установка/standalone/update PWA остаются
+  release gates. Одновременная регистрация HTTPS-узлов, UI-изоляция,
+  независимые Task/SSE, потеря локального узла и продолжение работы VPS уже
+  проверены вручную.
 - Установка/standalone/update PWA в Chromium/Edge; desktop/tablet/mobile
   ручной проход уже выполнен, но не является CI-проверкой.
 - Полноценные pairing/login/token rotation и безопасные credentials для общего
@@ -153,6 +159,9 @@ managed clone, поэтому они сохраняются для Ignis, но �
 - Полные monorepo `typecheck` и тесты прошли: Contracts 16, API 215 passed + 2
   skipped, Mobile 255. Mobile lint завершился без ошибок, но со 103
   предупреждениями (в основном существующие правила для тестов и эффектов).
+- API config guard фактически проверен тестами: на Windows `pi+bwrap`
+  отклоняется с требованием WSL2/Linux-контейнера, а native `pi+none` требует
+  явного `PI_TRUSTED_MODE=true`; `fake` остаётся отдельным режимом smoke.
 - В Chromium при viewport `390x844` проверены 25 маршрутов: `/`, проекты,
   создание проекта, dashboard, actions, файлы и просмотр файла, Obsidian,
   список/создание/экран Chat, chat actions/trace/tree, задачи, все проектные
@@ -211,16 +220,27 @@ managed clone, поэтому они сохраняются для Ignis, но �
   banner, а нажатие кнопки вызвало `prompt()` и убрало banner. Фактическую
   установку отдельного окна и реальный update с сохранением draft браузерная
   среда не предоставляет, поэтому они остаются release gate.
-- VPS runtime был обновлён сборкой `e0a4591`; реальная двухузловая проверка
-  показала разные идентичности (сама transport-проверка была выполнена на
-  предыдущей сборке `7774492`): `local=11111111-1111-4111-8111-111111111111`,
-  `VPS=836c4bfc-c22a-4614-bb3a-53f9b7cea142`. Локальный fake Chat отдал
-  независимый SSE/run с последовательностями `1..9`, VPS Chat — `290..300`.
-  После остановки локального API VPS продолжил отвечать, локальный узел после
-  перезапуска снова создал Chat и отдал SSE/run (`10..18`). VPS Pi дошёл до
-  `run.completed`, но provider `opencode-go/deepseek-v4-flash` вернул `401
-  AuthError`; credentials provider нужно исправить отдельно для успешного
-  содержательного ответа модели.
+- VPS runtime был обновлён сборкой `e0a4591`; текущая документационная ревизия
+  — `e90a8d4`. Через Web по HTTPS одновременно добавлены VPS
+  `chat-pi.tail6421db.ts.net` и локальный Windows-узел
+  `homemi.tail6421db.ts.net:9443`. `/projects` показал проекты обоих узлов с
+  владельцами, а переход в локальный проект сформировал URL
+  `/servers/<serverId>/projects/<projectId>?serverId=<serverId>`.
+- После остановки локального API `/servers` показал
+  `Компьютер недоступен: Failed to fetch`, а `/projects` сохранил рабочие
+  проекты VPS и сообщил `1 server connection unavailable`; VPS продолжал
+  отвечать независимо.
+- Одновременный реальный Task/SSE smoke выполнен на двух узлах: локальный
+  fake Task `9c0ba65b-7cc3-4a64-8634-e0e6551c078f` завершился
+  `needs_review` и отдал `task.status.changed`, `workspace_context_changed`,
+  `run.started`, `tool.*`, `run.completed` и checkpoint-события; VPS Task
+  `f8f53413-04f9-4620-96b6-50f06aaedc86` отдал независимый поток с другим
+  `streamId`/диапазоном sequence и дошёл до `run.error`/`failed` только из-за
+  upstream `401 AuthError` провайдера `opencode-go/deepseek-v4-flash`.
+- Для VPS-тестового checkout потребовалось разрешить запись контейнерному
+  пользователю `node` (`chmod a+rwX`): исходный mounted checkout был
+  root-owned и не позволял создавать ветку/worktree. Это эксплуатационный
+  prerequisite для реальных Task на VPS, а не ошибка маршрутизации клиента.
 - Во время VPS deploy обнаружился недостаток места: сборка остановилась при
   свободных `1.1 GB`. Удалены только остановленные контейнеры и неиспользуемые
   Docker-образы; после очистки осталось `5.5 GB`, deploy завершился успешно.
