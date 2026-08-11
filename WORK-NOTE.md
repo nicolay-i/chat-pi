@@ -6,7 +6,7 @@
 
 - Основной checkout: `D:\chat-pi`.
 - Репозиторий: `https://github.com/nicolay-i/chat-pi.git`, ветка `main`.
-- Базовый проверенный commit: `834b299`; актуальную ревизию смотреть через
+- Базовый проверенный commit: `325be26`; актуальную ревизию смотреть через
   `git log -1 --oneline`.
 - Не работать из `D:\Documents\ProjectsPet\chat-pi`: это отдельный устаревший checkout.
 
