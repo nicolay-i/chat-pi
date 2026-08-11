@@ -102,6 +102,13 @@
   Chromium при `390x844` показал `fast_forward_available` без изменения HEAD;
   только явно подтверждённое применение выровняло local/remote SHA и оставило
   checkout чистым.
+- После deploy `7774492` проведён реальный двухузловой smoke: локальный
+  fake-узел (`11111111-1111-4111-8111-111111111111`) и VPS
+  (`836c4bfc-c22a-4614-bb3a-53f9b7cea142`) отдали независимые Chat SSE-потоки;
+  одинаковые последовательности не пересекались. Остановка локального API не
+  повлияла на health VPS, а перезапуск локального узла восстановил новый run.
+  VPS Pi-транспорт дошёл до `run.completed`, но provider вернул `401
+  AuthError`, поэтому успешный модельный ответ остаётся credential gate.
 
 ## Текущие границы фазы и release gates
 
@@ -109,8 +116,10 @@
    агрегированный Projects, per-node offline/auth statuses, `/servers`, scoped
    SSE и server-qualified deep links реализованы. Не пройдены real two-node
    SSE/run, независимое восстановление после потери одного узла и полный device
-   QA. Node-level bearer готов; пользовательская auth/pairing-модель остаётся
-   за пределами Tailnet-only фазы.
+   QA. Реальный transport/reconnect smoke пройден; полноценный параллельный
+   модельный run на VPS заблокирован provider `401 AuthError`. Node-level bearer
+   готов; пользовательская auth/pairing-модель остаётся за пределами
+   Tailnet-only фазы.
 2. **Desktop PWA.** Manifest, иконка, service worker, update banner и draft
    persistence реализованы в Web export. Не зафиксированы установка и
    standalone launch в Chromium/Edge, а также автоматический update QA.

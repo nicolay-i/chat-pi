@@ -79,10 +79,13 @@ release gates.
   нескольких подключений, per-node offline/auth statuses и serverId в
   `/api/capabilities`. API-тесты также проверяют optional bearer и публичный
   discovery.
-- Не выполнен реальный сценарий, где локальный компьютер и VPS одновременно
-  показывают проекты, выполняют разные Chat и поддерживают независимые SSE/run.
-  Нужны также проверки потери одного узла, reconnect/replay второго и запрета
-  отправки команды Chat на чужой активный endpoint.
+- Реальный transport smoke локального ПК и VPS выполнен: узлы имели разные
+  `serverId`, независимые Chat SSE-потоки и разные sequence ranges; остановка
+  локального API не повлияла на health VPS, а перезапуск локального узла
+  восстановил новый run. Полный параллельный содержательный Pi-run на VPS пока
+  заблокирован provider `401 AuthError`; также остаётся отдельная проверка UI
+  при одновременно зарегистрированных локальном и VPS URL через доступный
+  HTTPS/Tailscale маршрут.
 - Web export уже содержит manifest, service worker, icon и static index link;
   ручная проверка desktop/tablet/mobile Projects после auth/status правок
   пройдена в `1440x900`, `1024x768` и `390x844`; не пройдены release-проверки

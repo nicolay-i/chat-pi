@@ -176,7 +176,9 @@ Service worker не должен кэшировать изменяющие API-�
    **Выполнено.**
 5. Проверить одновременные SSE/run на двух настоящих узлах и независимое
    восстановление после потери связи.
-   **Остаётся release gate.**
+   **Transport smoke выполнен; содержательный VPS Pi-run заблокирован provider
+   `401 AuthError`, UI-проверка одновременно зарегистрированных HTTPS-узлов и
+   полноценный provider run остаются release gate.**
 6. Добавить manifest, иконки, service worker, update flow и install UI PWA.
    **Выполнено; standalone/installability QA далее.**
 7. Провести desktop/tablet/mobile browser QA, установленную PWA QA и native QA
