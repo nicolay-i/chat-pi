@@ -82,6 +82,10 @@
 - Web-route Obsidian показывает `Open Ignis` и открывает vault верхнеуровневой
   страницей. Встраивание Ignis в cross-origin iframe не поддерживается upstream
   Obsidian: он читает top-level parent. Android/iOS используют нативный WebView.
+- Текущий Android release-вариант после подключения к сохранённому VPS URL
+  открывает `/projects`, а не Chat. На Pixel 3a API 34 при открытой клавиатуре
+  composer, поле сообщения и кнопки режима отправки остаются видимыми и
+  интерактивными; проверен ввод `keyboard-check`.
 - API и Ignis на VPS healthy. Доступ остаётся только внутри Tailnet, без auth.
 
 ## Реализовано в текущем рабочем дереве
@@ -106,6 +110,9 @@
   помечается `offline`; ошибка токена отображается отдельно как `нужен токен`.
 - Windows guard запрещает `AGENT_RUNTIME=pi` вместе с Linux `bwrap` и требует
   явный `PI_TRUSTED_MODE=true` для unsandboxed Pi.
+- Android keyboard layout для Expo зафиксирован как `resize` в `app.json`, а
+  Chat дополнительно учитывает фактическую высоту IME через native keyboard
+  events. Это сохраняет composer доступным и в edge-to-edge режиме Android.
 
 ## Осталось подтвердить или реализовать
 
@@ -259,13 +266,13 @@ managed clone, поэтому они сохраняются для Ignis, но �
 
 ## Открытые release gates
 
-- Физическая Android/iOS QA и production signing. Попытка 14.07.2026 через
-  `agent-device 0.16.7` сначала упиралась в запуск daemon из недоступного
-  user/C:\tmp state (`mrk0yl3c-8b11b7b1`, `mrk0zoax-1e6323ad`). Writable
-  state-dir внутри workspace позволил daemon стартовать, но Android discovery
-  завершился внутренним 90-секундным timeout (`mrk1p2jk-5aacca0a`); процессов
-  emulator/qemu/adb на машине в этот момент не было. Это не считается
-  пройденной device-проверкой.
+- Полный native Android QA, iOS QA и production signing остаются release gates.
+  Текущий standalone release APK собран на Windows с x86_64 workaround
+  `-PnewArchEnabled=false -PreactNativeArchitectures=x86_64`, установлен на
+  Pixel 3a API 34 и проверен без Metro: сохранённый VPS URL открыл `/projects`,
+  а при показанной клавиатуре composer остался видимым. Физический Infinix в
+  текущей сессии не подключён, поэтому прежнюю проверку на нём нельзя считать
+  свежей репродукцией.
 - Conflict UI не проверен на настоящем конфликте: публичный API корректно
   запрещает искусственный переход `needs_review -> merge_conflict`, а текущий
   экран явно сообщает, что встроенное разрешение конфликтов не поддерживается.

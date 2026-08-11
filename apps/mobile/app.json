@@ -19,7 +19,7 @@
     "plugins": [],
     "android": {
       "package": "com.nic34.piagents",
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "resize"
     }
   }
 }

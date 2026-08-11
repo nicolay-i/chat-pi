@@ -148,11 +148,12 @@
 7. **Release-проверка.** На VPS исправен `/health`; транспорт Web -> VPS -> Pi
    доходит до `run.completed`, но текущий provider
    `opencode-go/deepseek-v4-flash` отвечает upstream `401 AuthError`, поэтому
-   содержательный модельный ответ не засчитан. Standalone Android release APK
-   ранее прошёл Setup и native SSE с VPS; на Infinix проверены запуск, список
-   проектов, открытие Chat и доступность composer при открытой клавиатуре.
-   Полная проверка экранов Android/iOS, production signing APK и исправление
-   provider credentials остаются обязательными.
+   содержательный модельный ответ не засчитан. Текущий standalone Android
+   release-вариант прошёл на Pixel 3a API 34 Setup, native SSE с VPS и проверку
+   возврата в `/projects`; при открытой клавиатуре composer и ввод сообщения
+   остаются доступными. Физический Infinix в этой сессии не подключён. Полная
+   проверка экранов Android/iOS, production signing APK и исправление provider
+   credentials остаются обязательными.
 8. **Решение по oRPC.** Эксперимент подтверждает транспорт Hono и вывод типов
    server/client, но oRPC ещё не встроен в Expo-приложение и не оценён для
    генерации OpenAPI. Основным product API остаются текущие `/api/*`-маршруты.

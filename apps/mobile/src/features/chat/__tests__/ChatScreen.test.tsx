@@ -75,7 +75,7 @@ describe('ChatScreen', () => {
     jest.restoreAllMocks();
   });
 
-  it('lets Android pan the window to the focused composer', () => {
+  it('keeps the composer above the Android keyboard', () => {
     expect(keyboardAvoidingBehavior('android')).toBeUndefined();
     expect(keyboardAvoidingBehavior('ios')).toBe('padding');
     expect(keyboardAvoidingBehavior('web')).toBeUndefined();

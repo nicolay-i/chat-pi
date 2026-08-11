@@ -29,14 +29,15 @@ release gates.
 
 ## Проверка устройств и визуального отображения
 
-- Native Android debug build был собран на Windows и открыт в локальном эмуляторе
-  Pixel 3a API 34, где отображался Setup после подключения Metro. Debug APK не
-  является standalone release-артефактом и требует доступного Metro-сервера.
-- Standalone Android release APK был собран, установлен в эмулятор Pixel 3a API
-  34 и подключён к VPS через Tailnet HTTPS. Он прошёл Setup, открыл сохранённый
-  Chat и установил native SSE-транспорт без Metro.
-- На Infinix проверены запуск, список проектов, открытие чатов и работа composer
-  при открытой клавиатуре. Полный проход всех native-экранов, iOS QA и
+- Standalone Android release-вариант собран на Windows, установлен в эмулятор
+  Pixel 3a API 34 и подключён к VPS через Tailnet HTTPS без Metro. С сохранённым
+  URL после перезапуска открывается `/projects`, а не Chat.
+- В текущей сборке на Pixel 3a открытая Android-клавиатура не закрывает composer:
+  поле сообщения, выбор режима и кнопка отправки остаются в UI; выполнен ввод
+  `keyboard-check`. В `app.json` зафиксирован режим `resize`, а Chat использует
+  IME-inset events как дополнительную защиту для edge-to-edge.
+- Физический Infinix в текущей сессии не подключён. Поэтому его прежний ручной
+  smoke не заменяет свежую проверку; полный проход native-экранов, iOS QA и
   production signing APK ещё не завершены.
 - Экспериментальный provider oRPC-клиент интеграционно протестирован только в
   Node. В Expo bundle он пока не добавлен и на iOS/Android не проверялся.

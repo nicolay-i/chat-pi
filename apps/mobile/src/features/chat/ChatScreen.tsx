@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { ArrowRight, Plus, RotateCcw, Square } from 'lucide-react-native';
 import type { Chat, ManagedImplementation, SendMessageInput } from '@pi-agents/contracts';
 import { Composer } from '@/components/chat/Composer';
@@ -27,9 +27,31 @@ function connectionLabel(status: string): string {
   return 'Ожидание';
 }
 
-export function keyboardAvoidingBehavior(platform: string): 'padding' | undefined {
+export function keyboardAvoidingBehavior(platform: string): 'padding' | 'height' | undefined {
   if (platform === 'ios') return 'padding';
   return undefined;
+}
+
+function useAndroidKeyboardInset(): number {
+  const [inset, setInset] = useState(0);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const update = (event: { endCoordinates?: { height?: number } }): void => {
+      const height = event.endCoordinates?.height;
+      setInset(typeof height === 'number' && Number.isFinite(height) ? Math.max(0, height) : 0);
+    };
+    const showSubscription = Keyboard.addListener('keyboardDidShow', update);
+    const frameSubscription = Keyboard.addListener('keyboardDidChangeFrame', update);
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setInset(0));
+    return () => {
+      showSubscription.remove();
+      frameSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  return inset;
 }
 
 export const ChatScreen = observer(function ChatScreen({ chatId, serverId }: { chatId: string; serverId?: string }) {
@@ -45,6 +67,7 @@ export const ChatScreen = observer(function ChatScreen({ chatId, serverId }: { c
   const [nextTaskTitle, setNextTaskTitle] = useState('');
   const [creatingNextTask, setCreatingNextTask] = useState(false);
   const [nextTaskError, setNextTaskError] = useState<string | null>(null);
+  const androidKeyboardInset = useAndroidKeyboardInset();
   const { chats, backend } = useRootStore();
   const resolvedServerId = serverId ?? backend.serverId ?? undefined;
   const sessionServerId = serverId ?? undefined;
@@ -156,7 +179,7 @@ export const ChatScreen = observer(function ChatScreen({ chatId, serverId }: { c
   return (
     <KeyboardAvoidingView
       testID="chat.screen.keyboardAvoiding"
-      style={{ flex: 1, backgroundColor: tokens.color.background }}
+      style={{ flex: 1, backgroundColor: tokens.color.background, paddingBottom: Platform.OS === 'android' ? androidKeyboardInset : 0 }}
       behavior={keyboardAvoidingBehavior(Platform.OS)}
     >
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: tokens.color.border, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
