@@ -56,6 +56,7 @@ function operation(
 export const apiOperations = [
   operation('health.get', 'GET', '/health', HealthResponseSchema, true),
   operation('capabilities.get', 'GET', '/api/capabilities', CapabilitiesSchema, true),
+  operation('auth.check', 'GET', '/api/auth/check', OkSchema, true),
   operation('projects.list', 'GET', '/api/projects', ProjectSchema.array(), true),
   operation('projects.create', 'POST', '/api/projects', ProjectSchema, true),
   operation('projects.get', 'GET', '/api/projects/:projectId', ProjectSchema, true),
@@ -142,7 +143,7 @@ export const apiOperationById = new Map(apiOperations.map((item) => [item.id, it
 export const implementedApiOperationIds = apiOperations.filter((item) => item.implemented).map((item) => item.id);
 
 export const apiClientOperationIds = [
-  'health.get', 'capabilities.get',
+  'health.get', 'capabilities.get', 'auth.check',
   'projects.list', 'projects.get', 'projects.create', 'projects.update', 'projects.delete', 'projects.validate', 'projects.remoteSync', 'projects.ignis',
   'chats.list', 'chats.get', 'chats.create', 'chats.bootstrap', 'chats.update', 'chats.archive', 'chats.export', 'chats.tree', 'chats.trace', 'orchestration.listManaged', 'orchestration.createTask',
   'messages.send', 'chats.abort', 'tasks.createForChat', 'queue.list', 'queue.reorder', 'queue.remove', 'queue.clear',

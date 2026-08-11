@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Chat } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/stores/useBackend';
+import { useRootStore } from '@/providers/RootStoreProvider';
 
 export type ChatsStatus = 'loading' | 'loaded' | 'empty' | 'error';
 
@@ -12,8 +12,9 @@ export type UseChatsResult = {
   refetch: () => void;
 };
 
-export function useChats(projectId: string): UseChatsResult {
-  const { baseUrl } = useBackend();
+export function useChats(projectId: string, serverId?: string): UseChatsResult {
+  const { backend } = useRootStore();
+  const baseUrl = backend.getBaseUrl(serverId);
   const [data, setData] = useState<Chat[] | null>(null);
   const [status, setStatus] = useState<ChatsStatus>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export function useChats(projectId: string): UseChatsResult {
       return;
     }
     let active = true;
-    const client = new ApiClient(baseUrl);
+    const client = new ApiClient(baseUrl, serverId);
     setStatus('loading');
     setError(null);
     client
@@ -49,7 +50,7 @@ export function useChats(projectId: string): UseChatsResult {
     return () => {
       active = false;
     };
-  }, [baseUrl, projectId, nonce]);
+  }, [baseUrl, projectId, serverId, nonce]);
 
   return { data, status, error, refetch };
 }

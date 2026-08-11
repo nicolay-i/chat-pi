@@ -1,11 +1,12 @@
 import { act, waitFor } from '@testing-library/react-native';
 import { renderWithStore as render } from '@/test/renderWithStore';
-import { router } from '@/navigation';
 import { createRootStore, type RootStore } from '@/stores/rootStore';
 import HomeScreen from '../index';
 
-jest.mock('@/navigation', () => ({
-  router: { replace: jest.fn() },
+const mockReplace = jest.fn();
+
+jest.mock('@react-navigation/native', () => ({
+  useNavigation: () => ({ replace: mockReplace }),
 }));
 
 describe('HomeScreen', () => {
@@ -28,7 +29,7 @@ describe('HomeScreen', () => {
     const { getByTestId } = await render(<HomeScreen />, { store });
 
     expect(getByTestId('home.loading')).toBeTruthy();
-    expect(router.replace).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it('opens projects when a backend URL was restored', async () => {
@@ -42,7 +43,7 @@ describe('HomeScreen', () => {
 
     await render(<HomeScreen />, { store });
 
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/projects'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('Projects'));
   });
 
   it('opens setup when no backend URL was restored', async () => {
@@ -58,6 +59,6 @@ describe('HomeScreen', () => {
       await render(<HomeScreen />, { store });
     });
 
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/setup'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('Setup'));
   });
 });

@@ -76,4 +76,19 @@ describe('native event stream', () => {
     source.emit('message', '{not json');
     expect(states).toEqual(['connecting', 'error']);
   });
+
+  it('passes bearer headers to the native SSE transport', () => {
+    const source = createFakeEventSource();
+    const factory = jest.fn(() => source) as unknown as NativeEventSourceFactory;
+    connectNativeEventStream({
+      url: 'https://backend.example/events',
+      headers: { authorization: 'Bearer secret-token' },
+      onEvent: jest.fn(),
+    }, factory);
+
+    expect(factory).toHaveBeenCalledWith(
+      'https://backend.example/events',
+      { pollingInterval: 0, timeoutBeforeConnection: 0, headers: { authorization: 'Bearer secret-token' } },
+    );
+  });
 });

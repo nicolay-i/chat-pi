@@ -1,127 +1,133 @@
-# Testing Gaps
+# Пробелы в тестировании
 
-The suite covers contracts, API route/service integration, real temporary Git
-repositories, MobX stores and mobile screens. The following surfaces are not
-yet proven by automated tests and remain release gates.
+Набор тестов покрывает контракты, интеграцию API-маршрутов и сервисов,
+настоящие временные Git-репозитории, MobX-хранилища и мобильные экраны.
+Следующие поверхности пока не подтверждены автоматическими тестами и остаются
+release gates.
 
-## End-to-end runtime
+## Сквозной runtime
 
-- No CI test connects a running Hono process, actual browser bundle and real Pi
-  CLI in one flow. A manual Tailnet-only Web -> VPS -> bwrap -> OpenCode Go
-  discussion flow has been completed; it still needs reproducible CI coverage.
-- The real Pi test is opt-in because it depends on the local CLI, account and
-  model availability. Run it before a release after the first Pi launch has
-  completed:
+- В CI нет теста, который одновременно подключает работающий процесс Hono,
+  реальный browser bundle и настоящий Pi CLI. Ручной сценарий Tailnet-only
+  Web -> VPS -> bwrap -> OpenCode Go пройден, но ему ещё нужна воспроизводимая
+  CI-проверка.
+- Реальный Pi-тест запускается отдельно, поскольку зависит от локального CLI,
+  аккаунта и доступности модели. Перед релизом, после завершения первого запуска
+  Pi, следует выполнить:
 
   ```powershell
   $env:PI_REAL_E2E = '1'
   pnpm --filter @pi-agents/api test -- src/services/__tests__/piRuntime.test.ts
   ```
-- When `PI_AGENT_DIR` is used, it must contain the selected provider's
-  credentials (or the provider must be configured through environment
-  variables); the isolated directory intentionally does not copy `~/.pi`.
-- SSE server and client replay are tested, but a long-lived mobile client
-  connected to a real server process is not continuously exercised in CI.
 
-## Device and visual verification
+- Если используется `PI_AGENT_DIR`, в нём должны находиться credentials
+  выбранного provider либо provider должен быть настроен через переменные
+  окружения; изолированный каталог намеренно не копирует `~/.pi`.
+- SSE-сервер и replay клиента протестированы, но долгоживущая мобильная сессия,
+  подключённая к реальному server process, постоянно не проверяется в CI.
 
-- A native Android debug build was assembled on Windows and opened on a local
-  Pixel 3a API 34 emulator, showing the setup screen after Metro served the
-  bundle. The debug APK is not a standalone release artifact: it requires a
-  reachable Metro server. On the current Windows Codex host, `agent-device
-  metro prepare` cannot start its detached Metro child and the emulator cannot
-  reach a localhost-bound manual server through `10.0.2.2`.
-- A standalone Android release APK was assembled, installed in the same Pixel
-  3a API 34 emulator and connected to the VPS through Tailnet HTTPS. It
-  completed setup, opened the persisted Chat and established the native SSE
-  transport without Metro. Physical Android/iOS device QA and production APK
-  signing remain release gates.
-- On 14 July 2026, `agent-device 0.16.7` was retried for current Android/iOS
-  device enumeration. Restricted user/C:\tmp state caused the initial daemon
-  startup failures (`mrk0yl3c-8b11b7b1`, `mrk0zoax-1e6323ad`). A writable
-  workspace state directory let the daemon start, but Android discovery then
-  reached its 90-second request timeout (`mrk1p2jk-5aacca0a`); no
-  emulator/qemu/adb process was present. This is an automation-host/device
-  availability blocker, not evidence that either native client works on a
-  physical device.
-- The experimental provider oRPC client is integration-tested in Node only.
-  It has not yet been added to the Expo bundle or tested on iOS/Android.
-- Explicit remote sync has a component test and a real local Chromium/Git pass
-  for the fast-forward path. Diverged/local-ahead visual states and stale-Task
-  presentation still lack browser fixtures.
-- There is no automated screenshot-regression suite for React Native Web, dark
-  theme or screen-reader traversal. Manual Chromium passes cover the broad
-  route inventory at `390x844` and the core Projects -> Dashboard -> Chat flow
-  at `1440x900`, `1024x768`, `768x1024` and `390x844`. Those core responsive
-  viewports had no document-level horizontal overflow or runtime console
-  errors, but this remains manual evidence rather than CI coverage.
-- VSCode Web remains unsupported. Ignis now has a configured Tailnet URL and
-  a writable `chat-pi` vault. A fresh Web browser session has resolved the
-  project route and loaded the live vault through Ignis's API. The Web route
-  opens Ignis at top level: the upstream Obsidian bundle reads its top-level
-  parent and therefore cannot run in a cross-origin iframe. Android/iOS use a
-  native WebView. Ignis-only `.obsidian/` state is ignored locally in the
-  managed clone. A full Web edit after completed Task activity was verified
-  against the live vault: the note survived reload, reopened with identical
-  content, appeared in the VPS managed clone and produced no console errors.
-  The temporary verification note was removed and the clone remained clean.
-- The current Mobile test suite completes without React `act(...)` warnings.
-- The mobile browser pass exercised root restoration, project creation,
-  project navigation, Chat creation/message delivery, settings and local
-  approval actions. A second 390x844 pass exercised a populated persistent
-  Chat queue end to end: open, reorder, remove, confirmed clear and SSE count
-  refresh. A temporary real implementation Task also exercised the Task
-  overview lifecycle panel and confirmed archive-cancel through the API.
-  A subsequent temporary real Git Task supplied a checkpoint, a two-file diff
-  and fake-runtime events: Chromium at 390x844 rendered Diff and patch content,
-  Checkpoints and checkpoint diff, Fork/Rollback confirmations, disabled and
-  enabled Merge states, and Message/Tool call details for real event IDs with
-  no console errors. A later 390x844 pass submitted and confirmed a real
-  squash-only Merge, reached the success screen, verified Task/HEAD SHA parity,
-  a clean checkout and a one-parent commit containing exactly the QA file.
-  A real conflict fixture and mobile conflict recovery remain unproven; the
-  current conflict screen explicitly states that in-app resolution is
-  unsupported.
-- A separate 390x844 pass exercised the sequential-Task UI that was previously
-  API-only: an implementation Chat with no active Task created the next Task,
-  refreshed its active ID and retained the same Chat/PiSession while Git
-  verification showed a new clean worktree and the console remained clean.
-- Approvals currently resolves mock rows only. `Skills -> New` reaches an
-  unfinished detail path and `Extract from chat` has no backend-backed action;
-  these must not be treated as production-complete workflows.
+## Проверка устройств и визуального отображения
 
-## External integrations
+- Native Android debug build был собран на Windows и открыт в локальном эмуляторе
+  Pixel 3a API 34, где отображался Setup после подключения Metro. Debug APK не
+  является standalone release-артефактом и требует доступного Metro-сервера.
+- Standalone Android release APK был собран, установлен в эмулятор Pixel 3a API
+  34 и подключён к VPS через Tailnet HTTPS. Он прошёл Setup, открыл сохранённый
+  Chat и установил native SSE-транспорт без Metro.
+- На Infinix проверены запуск, список проектов, открытие чатов и работа composer
+  при открытой клавиатуре. Полный проход всех native-экранов, iOS QA и
+  production signing APK ещё не завершены.
+- Экспериментальный provider oRPC-клиент интеграционно протестирован только в
+  Node. В Expo bundle он пока не добавлен и на iOS/Android не проверялся.
+- Явная remote sync имеет component test и реальный локальный Chromium/Git
+  проход fast-forward-сценария. Для diverged/local-ahead состояний и отображения
+  stale Task пока нет browser fixtures.
+- Нет автоматического screenshot-regression набора для React Native Web,
+  тёмной темы и прохода screen reader. Ручные Chromium-проходы покрывают широкий
+  набор маршрутов при `390x844` и основной Projects -> Dashboard -> Chat flow при
+  `1440x900`, `1024x768`, `768x1024` и `390x844`. На этих viewport не было
+  горизонтального переполнения документа или runtime-ошибок, но это всё ещё
+  ручное подтверждение, а не CI-проверка.
+- VSCode Web не поддерживается. Ignis имеет настроенный Tailnet URL и доступный
+  для записи vault `chat-pi`. Web-маршрут открывает Ignis верхнеуровневой
+  страницей, потому что upstream Obsidian читает top-level parent и не работает
+  в cross-origin iframe. Android/iOS используют нативный WebView. Полное Web-
+  редактирование проверено, временная заметка удалена, managed clone остался
+  чистым.
+- Текущий набор mobile-тестов завершается без предупреждений React `act(...)`.
+- Мобильный browser-проход проверил восстановление корневого маршрута, создание
+  проекта, навигацию по проекту, создание Chat и отправку сообщения, настройки и
+  локальные действия approvals. Отдельный проход проверил очередь Chat: открыть,
+  переставить, удалить, подтвердить очистку и получить обновление счётчика через
+  SSE. Настоящие временные Git Task проверили lifecycle, Diff, checkpoints,
+  Fork/Rollback, Merge, Message и Tool call details.
+- Настоящий conflict fixture и мобильное восстановление после конфликта не
+  проверены; текущий экран прямо сообщает, что разрешение конфликтов в приложении
+  не поддерживается.
+- Последовательный Task-сценарий, ранее доступный только через API, проверен из
+  интерфейса: implementation Chat без активного Task создал следующий Task,
+  обновил active ID и сохранил ту же Chat/PiSession при создании нового чистого
+  worktree.
+- Approvals работает только с mock-строками. `Skills -> New` ведёт в
+  незавершённый detail-сценарий, а `Extract from chat` не имеет backend-действия;
+  эти сценарии нельзя считать production-ready.
 
-- The OpenCode Go environment-provider path was exercised on the VPS through a
-  real completed `bwrap` Pi turn using `opencode-go/deepseek-v4-flash`. Provider
-  records still expose only symbolic secret references and have no server-side
-  secret store.
-- The provider oRPC experiment does not yet generate an OpenAPI document:
-  `@orpc/openapi` is deliberately not a production dependency until the mobile
-  transport decision is made.
-- MCP configuration test intentionally does not spawn the configured process.
-- The Docker image builds locally, Compose starts the API with a healthy
-  `/health` response, and the VPS has run the pinned Pi CLI (`0.80.3`) through
-  the configured `bubblewrap` namespace. The active profile stays
-  unprivileged: it does not mount procfs and passes only the required device
-  nodes, worktree, session directory, Pi state and explicit provider allowlist.
-  Replace `unconfined` seccomp with a reviewed custom profile before a hardened
-  deployment.
+## Несколько серверов и PWA
 
-## Security and operations
+- Unit/integration-проверки уже подтверждают scoped resource keys, коллизию
+  одинаковых Chat ID на разных узлах, server-qualified deep links, реестр
+  нескольких подключений, per-node offline/auth statuses и serverId в
+  `/api/capabilities`. API-тесты также проверяют optional bearer и публичный
+  discovery.
+- Не выполнен реальный сценарий, где локальный компьютер и VPS одновременно
+  показывают проекты, выполняют разные Chat и поддерживают независимые SSE/run.
+  Нужны также проверки потери одного узла, reconnect/replay второго и запрета
+  отправки команды Chat на чужой активный endpoint.
+- Web export уже содержит manifest, service worker, icon и static index link;
+  ручная проверка desktop/tablet/mobile Projects после auth/status правок
+  пройдена в `1440x900`, `1024x768` и `390x844`; не пройдены release-проверки
+  installability, standalone launch, update flow и сохранения draft во время
+  обновления в Chromium/Edge.
+- Windows backend не имеет подтверждённого production sandbox, эквивалентного
+  Linux `bwrap`. Требуется отдельное решение на базе контейнера/WSL2 или явно
+  ограниченный доверенный режим.
+- Для PWA и нескольких узлов нужно проверить HTTPS/Tailscale URLs, CORS,
+  браузерные ограничения mixed content/private network access и отдельные
+  credentials каждого подключения. Node-level bearer уже реализован, но
+  pairing, token rotation и пользовательский login ещё отсутствуют.
 
-- User authentication is intentionally excluded from the current Tailnet-only
-  phase. The production CORS allowlist and body cap are in place; public
-  exposure remains unsupported.
-- The selected OpenVZ VPS has no `/dev/net/tun`. Tailscale therefore runs in
-  userspace networking mode; the private `tailscale serve` endpoint is used for
-  deployment verification.
-- Backup and integrity-checked staging restore cover SQLite, allowed `.agents`
-  resources, runtime session files and Git refs. Guarded activation can rebind
-  an explicit clean checkout only when every restored task branch has the exact
-  backed-up SHA; it intentionally does not clone/fetch repositories. A full
-  real-Pi continuation after activation still needs an end-to-end release run.
-- Multi-instance process supervision/metrics and external disk alert delivery
-  are still required for VPS deployment. The single-container baseline now has
-  Docker restart policy, structured lifecycle logs, disk-capacity checks and
-  graceful `SIGINT`/`SIGTERM` shutdown.
+## Внешние интеграции
+
+- Environment-provider OpenCode Go проверен на VPS в настоящем завершённом
+  `bwrap` Pi turn через `opencode-go/deepseek-v4-flash`. Записи providers по-
+  прежнему предоставляют только символические ссылки на секреты и не имеют
+  серверного хранилища секретов.
+- Эксперимент provider oRPC пока не генерирует OpenAPI-документ:
+  `@orpc/openapi` намеренно не добавлен в production-зависимости до решения о
+  мобильном транспорте.
+- Проверка MCP намеренно не запускает настроенный процесс.
+- Docker-образ собирается локально, Compose запускает API со здоровым
+  `/health`, а VPS уже выполнял закреплённый Pi CLI (`0.80.3`) внутри настроенной
+  namespace `bubblewrap`. Профиль остаётся непривилегированным: он не монтирует
+  procfs и передаёт только необходимые device nodes, worktree, каталог сессии,
+  состояние Pi и явный allowlist providers. Перед hardened deployment нужно
+  заменить `unconfined` seccomp на проверенный отдельный профиль.
+
+## Безопасность и эксплуатация
+
+- Аутентификация пользователей намеренно исключена из текущей Tailnet-only
+  фазы. Production CORS allowlist и ограничение тела запроса настроены; публичное
+  открытие пока не поддерживается.
+- На выбранном OpenVZ VPS отсутствует `/dev/net/tun`. Поэтому Tailscale работает
+  в userspace networking mode, а для проверки деплоя используется приватный
+  endpoint `tailscale serve`.
+- Резервное копирование и staging-восстановление с проверкой целостности покрывают
+  SQLite, разрешённые ресурсы `.agents`, runtime-файлы сессий и Git refs.
+  Защищённая активация может перепривязать только явно указанный чистый checkout,
+  если каждая восстановленная ветка Task имеет точный сохранённый SHA; clone/fetch
+  намеренно не выполняются. Полный real-Pi continuation после активации всё ещё
+  требует сквозного release-прогона.
+- Для VPS остаются необходимыми supervision/метрики нескольких инстансов и
+  внешняя доставка disk alerts. В базовом single-container варианте уже есть
+  Docker restart policy, структурированные lifecycle-логи, проверка свободного
+  места и корректное завершение по `SIGINT`/`SIGTERM`.

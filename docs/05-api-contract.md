@@ -1,7 +1,7 @@
-# 05. API contract draft
+# 05. API contract
 
-> Status: draft. Package endpoints described below are deferred by `plans/2.md`
-> and are not part of the current API registry.
+> Status: актуальный контракт реализованных `/api/*` маршрутов. Package endpoints,
+> описанные ниже, по-прежнему отложены и не входят в текущий API registry.
 
 Use this as a starting point for shared contracts. Exact implementation may use Hono RPC or oRPC. Streaming endpoints remain separate.
 
@@ -16,6 +16,10 @@ Response:
 
 ```ts
 type Capabilities = {
+  /** Stable identity of the backend node. Older nodes may omit it. */
+  serverId?: string;
+  /** Discovery is public; the rest of the API may require Bearer auth. */
+  authRequired?: boolean;
   apiVersion: string;
   piAvailable: boolean;
   gitAvailable: boolean;
@@ -27,6 +31,26 @@ type Capabilities = {
   supportsIgnis: boolean;
 };
 ```
+
+`GET /api/capabilities` и `GET /health` доступны без credentials, чтобы клиент
+мог обнаружить узел и его режим доступа. Если `authRequired=true`, остальные
+`/api/*`, `/rpc/*` и SSE-маршруты требуют заголовок:
+
+```http
+Authorization: Bearer <node-token>
+```
+
+Проверка сохранённого токена выполняется через `GET /api/auth/check`. Ошибка
+авторизации имеет обычную форму `ApiError` и HTTP 401:
+
+```http
+GET /api/auth/check
+```
+
+Токен задаётся на узле через `PI_AUTH_TOKEN` или файл `PI_AUTH_TOKEN_FILE`.
+Native-клиент хранит его в SecureStore; Web-клиент держит введённый токен только
+в памяти вкладки и не записывает его в `localStorage`. Browser SSE использует
+Fetch streaming, поэтому bearer не попадает в query string.
 
 ## 2. Projects
 

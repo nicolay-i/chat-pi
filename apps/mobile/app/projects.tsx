@@ -5,6 +5,7 @@ import type { Project } from '@pi-agents/contracts';
 import { tokens } from '@/theme/tokens';
 import { useProjects } from '@/features/projects/useProjects';
 import { observer } from '@/lib/observer';
+import { useRootStore } from '@/providers/RootStoreProvider';
 
 type Filter = 'all' | 'active' | 'needs_review' | 'stale';
 
@@ -32,6 +33,7 @@ function filterProjects(projects: Project[], filter: Filter, query: string): Pro
 
 const ProjectsScreen = observer(function ProjectsScreen() {
   const { width } = useWindowDimensions();
+  const { backend } = useRootStore();
   const { status, data, error, refetch } = useProjects();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -39,13 +41,37 @@ const ProjectsScreen = observer(function ProjectsScreen() {
   const visible = useMemo(() => (data ? filterProjects(data, filter, query) : []), [data, filter, query]);
   const columnCount = width >= 1024 ? 2 : 1;
   const contentWidth = Math.min(Math.max(width - 32, 0), 1200);
+  const compactHeader = width < 600;
 
   return (
     <View style={{ flex: 1, backgroundColor: tokens.color.background }}>
       <View style={{ width: contentWidth, maxWidth: '100%', alignSelf: 'center', paddingTop: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View
+          style={{
+            flexDirection: compactHeader ? 'column' : 'row',
+            alignItems: compactHeader ? 'stretch' : 'center',
+            justifyContent: 'space-between',
+            gap: compactHeader ? 8 : 0,
+          }}
+        >
           <Text style={{ fontSize: 28, fontWeight: '700', color: tokens.color.text }}>Projects</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: compactHeader ? 'flex-start' : 'flex-end',
+              flexWrap: 'wrap',
+              gap: 6,
+            }}
+          >
+            <Pressable
+              testID="projects.servers"
+              accessibilityLabel="Open servers"
+              onPress={() => router.push('/servers')}
+              style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+            >
+              <Text style={{ color: tokens.color.primary, fontWeight: '700' }}>Servers</Text>
+            </Pressable>
             <Pressable
               testID="projects.approvals"
               accessibilityLabel="Open approvals"
@@ -121,6 +147,11 @@ const ProjectsScreen = observer(function ProjectsScreen() {
             );
           })}
         </ScrollView>
+        {status === 'loaded' && error ? (
+          <Text style={{ marginTop: 8, color: tokens.color.danger, fontSize: tokens.fontSize.sm }}>
+            {error}. Показаны проекты доступных компьютеров.
+          </Text>
+        ) : null}
       </View>
 
       <View style={{ flex: 1, marginTop: 12 }}>
@@ -183,7 +214,7 @@ const ProjectsScreen = observer(function ProjectsScreen() {
             testID="projects.list"
             data={visible}
             numColumns={columnCount}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => `${item.serverId ?? backend.serverId ?? 'legacy'}:${item.id}`}
             style={{ width: contentWidth, maxWidth: '100%', alignSelf: 'center' }}
             contentContainerStyle={{ paddingBottom: 24 }}
             columnWrapperStyle={columnCount > 1 ? { gap: 12 } : undefined}
@@ -196,7 +227,12 @@ const ProjectsScreen = observer(function ProjectsScreen() {
               <Pressable
                 testID={`projects.item.${item.id}`}
                 accessibilityLabel={`Open project ${item.name}`}
-                onPress={() => router.push(`/projects/${item.id}`)}
+                onPress={() => {
+                  const owner = item.serverId ?? backend.serverId;
+                  router.push(owner
+                    ? `/servers/${encodeURIComponent(owner)}/projects/${encodeURIComponent(item.id)}`
+                    : `/projects/${encodeURIComponent(item.id)}`);
+                }}
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -210,6 +246,18 @@ const ProjectsScreen = observer(function ProjectsScreen() {
                   {item.name}
                 </Text>
                 <Text numberOfLines={2} style={{ marginTop: 4, color: tokens.color.textMuted }}>{item.repoPath}</Text>
+                <Text style={{ marginTop: 6, color: tokens.color.primary, fontSize: tokens.fontSize.sm, fontWeight: '700' }}>
+                  {(() => {
+                    const owner = backend.connections.find((server) => server.serverId === item.serverId);
+                    const ownerName = owner?.name ?? item.serverId ?? 'Current server';
+                    const ownerState = owner?.status === 'offline'
+                      ? ' · offline'
+                      : owner?.status === 'auth_required'
+                        ? ' · нужен токен'
+                        : '';
+                    return `${ownerName}${ownerState}`;
+                  })()}
+                </Text>
                 <View style={{ flexDirection: width >= 520 ? 'row' : 'column', justifyContent: 'space-between', gap: 4, marginTop: 8 }}>
                   <Text style={{ color: tokens.color.primary, fontWeight: '700' }}>
                     {item.activeTaskCount} active task{item.activeTaskCount === 1 ? '' : 's'}

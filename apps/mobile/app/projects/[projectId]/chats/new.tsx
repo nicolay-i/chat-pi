@@ -39,8 +39,9 @@ const labelStyle = {
 };
 
 export default function NewChatScreen() {
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { baseUrl } = useBackend();
+  const { projectId, serverId } = useLocalSearchParams<{ projectId: string; serverId?: string }>();
+  const { baseUrl, activeServerId } = useBackend();
+  const resolvedServerId = serverId ?? activeServerId ?? undefined;
 
   const [mode, setMode] = useState<RunMode | null>(null);
   const [modelId, setModelId] = useState('');
@@ -71,9 +72,12 @@ export default function NewChatScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const client = new ApiClient(baseUrl);
+      const client = new ApiClient(baseUrl, resolvedServerId);
       const created = await client.createChat(projectId, payload);
-      router.replace(`/projects/${projectId}/chats/${created.id}`);
+      const owner = created.serverId ?? resolvedServerId;
+      router.replace(owner && !owner.startsWith('legacy-')
+        ? `/projects/${projectId}/chats/${created.id}?serverId=${encodeURIComponent(owner)}`
+        : `/projects/${projectId}/chats/${created.id}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);

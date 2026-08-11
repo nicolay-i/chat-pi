@@ -49,6 +49,13 @@ describe('createConfig', () => {
     expect(() => createConfig({ TRUST_PROXY: 'yes' })).toThrow('TRUST_PROXY');
   });
 
+  it('parses optional node auth settings', () => {
+    const config = createConfig({ PI_AUTH_TOKEN: ' secret ', PI_AUTH_TOKEN_FILE: '/run/secrets/token', PI_TRUSTED_MODE: 'true' });
+    expect(config.authToken).toBe('secret');
+    expect(config.authTokenFile).toBe('/run/secrets/token');
+    expect(config.trustedRuntime).toBe(true);
+  });
+
   it('parses bounded disk-monitoring settings', () => {
     const config = createConfig({ DISK_WARNING_FREE_BYTES: '4096', DISK_CHECK_INTERVAL_SECONDS: '15' });
 

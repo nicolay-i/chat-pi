@@ -1,15 +1,19 @@
-import { NavigationContainer, useRoute } from '@react-navigation/native';
+import { getStateFromPath as defaultGetStateFromPath, NavigationContainer, useRoute } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Linking from 'expo-linking';
-import { type ComponentType, type ReactNode } from 'react';
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { observer } from 'mobx-react-lite';
 import { ProjectWebShell } from '@/components/shell/ProjectWebShell';
 import { navigationRef, type RootStackParamList, type ScreenParams } from './index';
 import { routeDefinitions } from './routes';
+import { useRootStore } from '@/providers/RootStoreProvider';
 
 import SetupScreen from '../../app/setup';
 import HomeScreen from '../../app/index';
 import ApprovalsScreen from '../../app/approvals';
 import SettingsScreen from '../../app/settings';
+import ServersScreen from '../../app/servers';
 import ProjectsScreen from '../../app/projects';
 import NewProjectScreen from '../../app/projects/new';
 import RootChatScreen from '../../app/chat/[chatId]';
@@ -50,6 +54,14 @@ const linking = {
       routeDefinitions.map((definition) => [definition.name, definition.path.slice(1)]),
     ),
   },
+  getStateFromPath(path: string, options: Parameters<typeof defaultGetStateFromPath>[1]) {
+    const match = path.match(/^\/servers\/([^/?]+)(\/[^?]*)?(?:\?(.*))?$/);
+    if (!match) return defaultGetStateFromPath(path, options);
+    const query = new URLSearchParams(match[3] ?? '');
+    if (!query.has('serverId')) query.set('serverId', decodeURIComponent(match[1]));
+    const rest = match[2] ?? '/';
+    return defaultGetStateFromPath(`${rest}?${query.toString()}`, options);
+  },
 };
 
 type ScreenComponent = ComponentType;
@@ -58,6 +70,7 @@ const screens: Record<string, ScreenComponent> = {
   Setup: SetupScreen,
   Approvals: ApprovalsScreen,
   Settings: SettingsScreen,
+  Servers: ServersScreen,
   Projects: ProjectsScreen,
   NewProject: NewProjectScreen,
   RootChat: RootChatScreen,
@@ -91,11 +104,34 @@ const screens: Record<string, ScreenComponent> = {
   ProjectTheme: ProjectThemeScreen,
 };
 
-function ProjectShell({ children }: { children: ReactNode }) {
+const ProjectShell = observer(function ProjectShell({ children }: { children: ReactNode }) {
   const route = useRoute();
-  const projectId = (route.params as ScreenParams | undefined)?.projectId;
+  const params = (route.params as ScreenParams | undefined);
+  const projectId = params?.projectId;
+  const serverId = params?.serverId;
+  const { backend, connection } = useRootStore();
+  const [activation, setActivation] = useState<'ready' | 'switching' | 'missing'>(serverId ? 'switching' : 'ready');
+  useEffect(() => {
+    if (!serverId) {
+      connection.setScope(backend.activeServerId);
+      setActivation('ready');
+      return;
+    }
+    if (backend.activeServerId === serverId) {
+      connection.setScope(serverId);
+      setActivation('ready');
+      return;
+    }
+    setActivation(backend.activate(serverId) ? 'ready' : 'missing');
+  }, [backend, backend.activeServerId, connection, serverId]);
+  if (projectId && serverId && activation === 'switching') {
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}><ActivityIndicator /><Text>Переключаем компьютер…</Text></View>;
+  }
+  if (projectId && serverId && activation === 'missing') {
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}><Text>Компьютер для этой ссылки не найден. Откройте раздел «Компьютеры» и добавьте его.</Text></View>;
+  }
   return projectId ? <ProjectWebShell projectId={projectId}>{children}</ProjectWebShell> : <>{children}</>;
-}
+});
 
 function projectScreen(Component: ScreenComponent) {
   return function ProjectScreen() {

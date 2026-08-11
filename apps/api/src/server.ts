@@ -20,11 +20,14 @@ import { createMcpRoutes, mcpRouteOperationIds } from './routes/mcpRoutes';
 import { createThemeRoutes, themeRouteOperationIds } from './routes/themeRoutes';
 import { providerRpcRouter } from './orpc/providerRouter';
 import { createWebClientMiddleware } from './webClient';
+import { resolveServerId } from './serverIdentity';
+import { createBearerAuthMiddleware, resolveAuthToken } from './auth';
 
 export type CreateAppOptions = CreateServiceContainerOptions & {
   corsPolicy?: Pick<Config, 'nodeEnv' | 'corsOrigins'> & Partial<Pick<Config, 'trustProxy'>>;
   maxBodyBytes?: number;
   webRoot?: string;
+  authToken?: string;
 };
 
 export const registeredApiOperationIds = [
@@ -58,10 +61,16 @@ export type AppWithLifecycle = Hono & { dispose(): Promise<void> };
 
 export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): AppWithLifecycle {
   const app = new Hono() as AppWithLifecycle;
+  const serverId = resolveServerId({ explicit: config.serverId, filePath: config.serverIdFile });
+  const authToken = resolveAuthToken({
+    explicit: options.authToken ?? config.authToken,
+    filePath: options.authToken === undefined ? config.authTokenFile : undefined,
+  });
   const services = createServiceContainer(db, options);
   const providerRpcHandler = new RPCHandler(providerRpcRouter);
   const corsPolicy = options.corsPolicy ?? config;
   app.use('*', createCorsMiddleware(corsPolicy));
+  app.use('*', createBearerAuthMiddleware(authToken));
   app.use('/api/*', bodyLimit({
     maxSize: options.maxBodyBytes ?? config.maxBodyBytes,
     onError: (context) => context.json(ApiErrorSchema.parse({
@@ -78,7 +87,7 @@ export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): App
     if (matched) return context.newResponse(response.body, response);
     await next();
   });
-  app.route('/', createHealthRoutes());
+  app.route('/', createHealthRoutes(serverId, { authRequired: Boolean(authToken) }));
   app.route('/', createProjectRoutes(services));
   app.route('/', createChatRoutes(services));
   app.route('/', createTaskRoutes(services));
@@ -96,6 +105,7 @@ export function createApp(db: DatabaseSync, options: CreateAppOptions = {}): App
     code: 'internal_error', message: error.message, retryable: false,
   }), 500));
   app.dispose = services.dispose;
+  (app as AppWithLifecycle & { serverId: string }).serverId = serverId;
   return app;
 }
 

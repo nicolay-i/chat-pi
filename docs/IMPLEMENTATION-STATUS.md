@@ -1,158 +1,155 @@
-# Implementation Status
+# Статус реализации
 
-This file describes the current worktree, not the earlier generated scaffold.
+Этот файл описывает текущее состояние рабочего дерева, а не ранее созданный
+каркас проекта.
 
-## Completed core
+## Завершённое ядро
 
-| Area | Evidence |
+| Раздел | Подтверждение |
 | --- | --- |
-| Cross-platform navigation | Explicit React Navigation adapter and route registry in `apps/mobile/src/navigation/`; URL and native stack share the same route definitions. |
-| Entry and responsive navigation | The root route waits for persisted backend restoration and opens Projects when configured or Setup when not configured. Setup completion opens Projects and never bootstraps a Chat. The Web project shell uses a 48 px horizontal navigation strip below 720 px, a compact 196 px tablet rail, and a 232 px desktop rail with content bounded to 1180 px. The empty context rail was removed. Projects use a two-column desktop grid from 1024 px. |
-| State | MobX `RootStore`, chat/task/theme stores, real `mobx-react-lite` observers and store integration tests. `RootStoreProvider` creates/disposes its own store per mount; production code has no global backend-store adapter. Screen tests inject an isolated store through the same Provider. |
-| Typed API | Shared Zod contracts plus `apiOperations.ts`, backend route operation IDs and `apiParity.test.ts`; an isolated provider domain also has an oRPC transport mounted in Hono. |
-| Chat/task runtime | One persistent PiSession is created for each Chat. Discussion/planning run it in the primary repo with Pi read-only tools; writable Tasks reuse it in their own worktrees. PiSession locks are writer-scoped, checkpoints are created for completed Task steps, and follow-up queue entries persist across restart. The Chat UI lists that queue and supports reorder, single-item removal and confirmed clearing; every mutation publishes the resulting pending count through `queue.updated`. Fork/rollback create a new Pi JSONL branch through the selected checkpoint ancestry and update its header cwd before Pi opens the next worktree. |
-| Git workflow | Worktree isolation, checkpoints without empty commits, explicit archive/discard cancellation, diff, rollback within a Chat, fork into a separate Chat, manual fetch/rebase/push and squash-only merge flows are tested against temporary Git repositories. New projects keep runtime state beside, rather than inside, the canonical Git checkout; checkpoint patches live under `runtimeStatePath/checkpoints/<taskId>` and merge/rebase are serialized per project. |
-| Task lifecycle UI | Task overview exposes confirmed Abort, rollback, fork, rebase, archive-cancel and discard-cancel actions through the typed API client. Active runs allow only Abort; terminal Tasks disable rebase/repeated cancellation while retaining fork/rollback history actions. Task detail/list summaries derive `changedFiles` from the same live Git diff as the Diff screen, with a fallback for discarded historical worktrees. |
-| Project configuration | Files, actions, skills, prompts, providers, MCP and theme routes have client, Hono route and persistence paths. MCP configuration persists in `.agents/mcp.json`. Package installation remains deferred and is not exposed by the current API or client. |
-| Project deletion | Removal runs as one SQLite transaction and clears queue history, checkpoints, runtime/process/session records, Chats, Tasks, packages and providers before deleting the Project. A queued-message history no longer blocks deletion through foreign keys. |
-| Explicit remote sync UI | Project Settings offers a read-only inspect action with local/remote SHA and stale-Task count. Apply is shown only for `fast_forward_available` and requires a separate confirmation; no background fetch/apply path was added. |
-| CI baseline | Pinned pnpm, frozen-lockfile install, typecheck/test/lint and Web export in GitHub Actions. |
-| Deployment baseline | Expo Web is built into the VPS image and served from the same private origin as the API; production CORS allowlist, explicit loopback bind for standalone API, request body cap, structured lifecycle logs, disk monitoring, graceful Pi-child cleanup, pinned Pi CLI in Dockerfile, compose, SQLite volume and private-by-default port binding. |
-| Pi sandbox | `PI_SANDBOX_MODE=bwrap` launches Pi in Linux user/PID/IPC/UTS namespaces. It mounts only the active worktree, JSONL session directory and dedicated Pi state; discussion/planning mounts the primary repo read-only. `/data/pi-agent` and session directories are created before the first launch. |
-| Process audit | Every real Pi child is recorded in `runtime_processes` with PID, command, cwd, sandbox mode, Chat/Task/PiSession and terminal status. Raw Pi events are capped before they enter SQLite/SSE. |
-| Backup baseline | SQLite `VACUUM INTO`, allowed `.agents` artifacts, Pi sessions plus prompt/theme runtime state, Git refs, SHA-256 manifest and integrity-checked staging restore. A guarded activation command validates exact task refs in explicit clean checkouts, recreates worktrees and rebinds staged SQLite paths. Task worktree files are deliberately excluded. |
+| Кроссплатформенная навигация | Явный адаптер React Navigation и реестр маршрутов находятся в `apps/mobile/src/navigation/`; URL-навигация и нативный стек используют одни и те же определения маршрутов. |
+| Запуск и адаптивная навигация | Корневой маршрут ждёт восстановления сохранённого backend и открывает Projects, если подключение настроено, либо Setup, если нет. После завершения Setup открывается Projects, новый Chat не создаётся. Web-оболочка проекта использует горизонтальную панель навигации высотой 48 px при ширине менее 720 px, компактную планшетную боковую панель шириной 196 px и десктопную шириной 232 px; содержимое ограничено 1180 px. Пустая контекстная панель удалена. При ширине от 1024 px проекты выводятся в две колонки. |
+| Состояние | Используются `RootStore` MobX, хранилища Chat/Task/темы, реальные наблюдатели `mobx-react-lite` и интеграционные тесты хранилищ. `RootStoreProvider` создаёт и освобождает собственное хранилище для каждого монтирования; в production-коде нет глобального адаптера backend-хранилища. Тесты экранов подставляют изолированное хранилище через тот же Provider. |
+| Типизированный API | Общие Zod-контракты, `apiOperations.ts`, идентификаторы backend-маршрутов и `apiParity.test.ts`; отдельный домен providers также имеет транспорт oRPC, подключённый в Hono. |
+| Среда выполнения Chat/Task | Для каждого Chat создаётся одна постоянная PiSession. Обсуждение и планирование работают в основном репозитории с доступными Pi только для чтения; записывающие Tasks используют ту же сессию в собственных worktree. Блокировки PiSession привязаны к владельцу записи, для завершённых шагов Task создаются checkpoints, очередь follow-up сохраняется после перезапуска. Интерфейс Chat показывает очередь и поддерживает перестановку, удаление одного элемента и очистку с подтверждением; каждое изменение публикует итоговое число ожидающих элементов через `queue.updated`. Fork/rollback создают новую ветку Pi JSONL от выбранного checkpoint и обновляют её `cwd` до запуска Pi в следующем worktree. |
+| Git-процесс | Изоляция worktree, checkpoints без пустых коммитов, явная отмена с архивированием или удалением, diff, rollback внутри Chat, fork в отдельный Chat, ручные fetch/rebase/push и merge только через squash проверяются на временных Git-репозиториях. Новые проекты хранят runtime-состояние рядом с каноническим Git checkout, а не внутри него; патчи checkpoints находятся в `runtimeStatePath/checkpoints/<taskId>`, операции merge/rebase сериализуются по проекту. |
+| Интерфейс жизненного цикла Task | Обзор Task предоставляет через типизированный API-клиент подтверждённые действия Abort, rollback, fork, rebase, archive-cancel и discard-cancel. Во время активного запуска доступен только Abort; для завершённых Task отключены rebase и повторная отмена, но сохранены операции fork/rollback над историей. Сводки Task получают `changedFiles` из того же актуального Git diff, что и экран Diff, с резервным вариантом для удалённых исторических worktree. |
+| Конфигурация проекта | Для файлов, actions, skills, prompts, providers, MCP и темы существуют клиентские маршруты, Hono-маршруты и пути сохранения. Конфигурация MCP сохраняется в `.agents/mcp.json`. Установка пакетов отложена и не предоставляется текущими API и клиентом. |
+| Удаление проекта | Удаление выполняется одной транзакцией SQLite и очищает историю очереди, checkpoints, записи runtime/process/session, Chats, Tasks, packages и providers перед удалением Project. История очереди больше не блокирует удаление через внешние ключи. |
+| Явная синхронизация с remote | В настройках проекта есть read-only-проверка с локальным/удалённым SHA и числом устаревших Task. Кнопка применения показывается только для `fast_forward_available` и требует отдельного подтверждения; фонового fetch/apply нет. |
+| Базовый CI | В GitHub Actions настроены закреплённый pnpm, установка с frozen lockfile, typecheck/test/lint и экспорт Web. |
+| Базовый деплой | Expo Web собирается в образ VPS и обслуживается с тем же приватным origin, что и API; настроены production CORS allowlist, явная привязка standalone API к loopback, ограничение размера тела запроса, структурированные lifecycle-логи, мониторинг диска, корректное завершение Pi-child, закреплённый Pi CLI в Dockerfile, compose, том SQLite и привязка порта по умолчанию к приватному интерфейсу. |
+| Песочница Pi | `PI_SANDBOX_MODE=bwrap` запускает Pi в пространствах имён Linux user/PID/IPC/UTS. Подключаются только активный worktree, каталог JSONL-сессии и выделенное состояние Pi; обсуждение и планирование подключают основной репозиторий только для чтения. `/data/pi-agent` и каталоги сессий создаются до первого запуска. |
+| Аудит процессов | Каждый реальный Pi-child записывается в `runtime_processes` с PID, командой, `cwd`, режимом песочницы, Chat/Task/PiSession и терминальным статусом. Размер исходных Pi-событий ограничивается до записи в SQLite/SSE. |
+| Базовое резервное копирование | Используются `VACUUM INTO` для SQLite, разрешённые артефакты `.agents`, Pi-сессии и runtime-состояние prompt/theme, Git refs, манифест SHA-256 и staging-восстановление с проверкой целостности. Защищённая команда активации проверяет точные refs Task в явно указанных чистых checkout, пересоздаёт worktree и перепривязывает staged-пути SQLite. Файлы worktree Task намеренно не включаются. |
+| Несколько узлов и PWA shell | Backend публикует стабильный `serverId`; клиент хранит несколько подключений, индексирует Project/Chat/Task и realtime по `serverId`, агрегирует проекты на `/projects`, сохраняет последний снимок offline-узла, предоставляет `/servers` и server-qualified deep links. Web export копирует manifest/icon/service worker, сохраняет Chat draft и показывает доступное обновление. Узел поддерживает optional bearer через `PI_AUTH_TOKEN`/`PI_AUTH_TOKEN_FILE`, native SecureStore и memory-only Web token; discovery остаётся публичным. Real two-node SSE/run, standalone install QA, pairing/rotation и production HTTPS ещё не подтверждены. |
 
-## Verified integration gates
+## Проверенные интеграционные сценарии
 
-- Chromium rendered the responsive project dashboard and Chat at `1440x900`,
-  `1024x768`, `768x1024` and `390x844`. Every viewport matched its intended
-  desktop/tablet/mobile shell, had `scrollWidth === innerWidth`, and produced no
-  console warning or error. The mobile composer enabled after typing and its
-  mode menu opened with all options visible.
-- A public Hono integration test creates two Chats, checkpoints their Tasks,
-  merges one and marks its sibling stale; it then creates another Task in the
-  first Chat, proving a new worktree with the same PiSession and session path.
-- A completed implementation run creates a checkpoint and moves task state to
+- Chromium отрисовал адаптивные Dashboard и Chat при размерах `1440x900`,
+  `1024x768`, `768x1024` и `390x844`. Каждый viewport соответствовал своему
+  desktop/tablet/mobile shell, имел `scrollWidth === innerWidth` и не давал
+  предупреждений или ошибок в консоли. Мобильный composer активировался после
+  ввода текста, меню режима отправки открывалось со всеми вариантами.
+- Публичный интеграционный тест Hono создаёт два Chat, создаёт checkpoints для
+  их Task, объединяет один и помечает соседний устаревшим; затем создаёт ещё
+  один Task в первом Chat, подтверждая новый worktree с той же PiSession и
+  путём сессии.
+- Завершённый implementation run создаёт checkpoint и переводит Task в статус
   review.
-- Recovery after a backend restart releases stale locks, moves interrupted
-  Tasks to `paused_after_restart`, retains pending follow-ups and requires a
-  recovery context before a new run.
-- API registry parity verifies all current ApiClient operation IDs have Hono
-  route registration.
-- The experimental provider oRPC client creates, lists and tests a provider
-  through the mounted Hono transport without duplicating the provider output
-  schemas.
-- Graceful shutdown awaits runtime cleanup before closing the server; cleanup
-  failures are logged without preventing HTTP server closure.
-- New Pi sessions receive explicit resources from the task worktree's
-  `.agents` directory; Pi's user-level discovery is disabled for those types.
-  Task sessions start against their persisted JSONL file, rather than switching
-  to a synthetic directory after startup.
-- Pi RPC events are normalized for the client while preserving the original
-  event under `payload.rawPiEvent`; Trace redacts and exposes this payload in
-  its raw JSON view.
-- Pi state can be isolated with `PI_AGENT_DIR`; the Docker image defaults that
-  state directory to the persistent `/data/pi-agent` volume.
-- Persistent Pi-session locks use a unique API-instance owner, atomic
-  acquire-with-expiry, owner-scoped heartbeats and stale-lock cleanup during
-  interrupted-run recovery.
-- Pi sessions load only project-owned `.agents` resources. Package-provided
-  resources are deferred and are not loaded in the current phase.
-- A 390x844 Chromium pass checked 25 entry, project, Chat, file, trace,
-  settings and approval URLs. The 23 supported routes had no document-level
-  horizontal overflow or runtime console errors; the two direct `new` detail
-  IDs exposed unfinished skill/prompt creation states documented below. The
-  same pass created a project and Chat, sent a message, exercised
-  settings/approval actions and verified that reopening `/` with a persisted
-  backend URL resolves to `/projects`.
-- Multiple Chats are usable in the interface: separate Chats can be created,
-  opened and messaged without mixing their histories. Multiple projects can be
-  created and opened; a newly created project is now inserted into the project
-  store immediately, so returning to the list does not require a page reload.
-- An implementation Chat with no active writable Task now exposes a compact
-  `Create next Task` form instead of requiring an API-only operation. A real
-  390x844 Chromium pass created the Task, immediately refreshed the Chat's
-  active Task, retained the same Chat/PiSession and verified a new clean,
-  isolated worktree without console errors.
-- A separate Chromium pass at 390x844 loaded two persisted follow-ups in the
-  Chat queue, reordered them, removed one and cleared the remainder after the
-  confirmation step. The visible and SSE-backed count changed from 2 to 1 to
-  0. The same pass caught and fixed a Web `ScrollView` flex issue so the mobile
-  project navigation remains 48 px high instead of consuming unused screen
-  height.
-- A temporary real Git project and implementation Task were opened in Chromium
-  at 390x844. The lifecycle panel rendered usable controls, archive-cancel
-  required confirmation, the backend changed the Task to
-  `cancelled_archived`, and reload preserved the state while disabling repeated
-  cancel/rebase actions.
-- A second temporary Git Task supplied a real checkpoint, two-file worktree
-  diff and fake-runtime message/tool events. Chromium at 390x844 rendered the
-  Diff patch, checkpoint list and checkpoint diff, Fork/Rollback confirmation
-  dialogs, Merge form in both disabled (`created`) and enabled (`needs_review`)
-  states, and Message/Tool call detail pages for real event IDs without console
-  errors.
-- A follow-up Chromium pass at 390x844 executed Merge from the rendered UI.
-  The screen exposed Squash as the only strategy, required confirmation and
-  reached `Слияние выполнено` without console warnings or errors. The public
-  API returned the merged Task, its SHA matched the clean primary checkout
-  HEAD, and the resulting one-parent commit contained exactly the QA file.
-  This pass caught and fixed the previous response mismatch where the endpoint
-  returned `{ mergedSha }` while the typed client expected a Task. Runtime
-  guards also reject non-squash input without leaving `needs_review`, and
-  primary-checkout precondition failures stay retryable instead of becoming
-  false `merge_conflict` states.
-- A follow-up real Git fixture verified the Task summary correction in the
-  rendered UI: Overview at 390x844 showed `Changed files: 1`, while Diff showed
-  the same single `ui-change.txt`; the browser console remained clean.
-- A local bare remote was advanced ahead of a temporary project clone. In
-  Chromium 390x844, inspect reported `fast_forward_available` while the clone
-  HEAD stayed unchanged; only the separately confirmed apply moved HEAD to the
-  remote SHA, reported `fast_forward_applied` and left the checkout clean.
+- После перезапуска backend освобождаются устаревшие блокировки, прерванные
+  Task переводятся в `paused_after_restart`, ожидающие follow-up сохраняются,
+  а перед новым запуском требуется контекст восстановления.
+- Проверка соответствия реестра подтверждает регистрацию Hono-маршрута для всех
+  текущих operation ID клиента ApiClient.
+- Экспериментальный клиент provider oRPC создаёт, получает и проверяет provider
+  через подключённый транспорт Hono без дублирования схем результатов.
+- Корректное завершение дожидается очистки runtime перед закрытием сервера;
+  ошибки очистки записываются в лог и не препятствуют закрытию HTTP-сервера.
+- Новые Pi-сессии получают явные ресурсы из `.agents` worktree Task; поиск
+  пользовательских ресурсов Pi для этих типов отключён. Task-сессии стартуют
+  с сохранённого JSONL-файла, а не с синтетического каталога.
+- События Pi RPC нормализуются для клиента, исходное событие сохраняется в
+  `payload.rawPiEvent`; Trace скрывает секреты и показывает этот payload в
+  представлении raw JSON.
+- Состояние Pi можно изолировать через `PI_AGENT_DIR`; Docker-образ по умолчанию
+  использует для него постоянный том `/data/pi-agent`.
+- Постоянные блокировки Pi-сессий используют уникального владельца API-инстанса,
+  атомарное получение с истечением срока, heartbeat владельца и очистку
+  устаревших блокировок при восстановлении после прерванного запуска.
+- Pi-сессии загружают только ресурсы из `.agents` проекта. Ресурсы из пакетов
+  отложены и в текущей фазе не загружаются.
+- Проход Chromium при `390x844` проверил 25 URL для входа, проекта, Chat,
+  файлов, trace, настроек и approvals. На 23 поддерживаемых маршрутах не было
+  горизонтального переполнения документа или ошибок runtime; два прямых detail
+  ID для `new` показали незавершённые состояния создания skill/prompt,
+  описанные ниже. В том же проходе были созданы проект и Chat, отправлено
+  сообщение, выполнены действия настроек/approvals и подтверждено, что повторное
+  открытие `/` с сохранённым backend URL ведёт в `/projects`.
+- В интерфейсе можно создавать и открывать несколько Chat и проектов; истории
+  не смешиваются. Новый проект сразу добавляется в project store, поэтому после
+  возврата к списку не требуется перезагрузка страницы.
+- Для implementation Chat без активного записывающего Task появилась компактная
+  форма `Create next Task`, ранее доступная только через API. Реальный проход
+  Chromium при `390x844` создал Task, сразу обновил активный Task Chat, сохранил
+  ту же Chat/PiSession и подтвердил новый чистый изолированный worktree без
+  ошибок консоли.
+- Отдельный проход Chromium при `390x844` загрузил два сохранённых follow-up в
+  очередь Chat, переставил их, удалил один и очистил оставшийся после
+  подтверждения. Видимый и SSE-счётчик изменился с 2 на 1 и затем на 0.
+  В этом же проходе была исправлена лишняя высота Web `ScrollView`, из-за
+  которой мобильная навигация занимала свободное место.
+- Временный реальный Git-проект и implementation Task были открыты в Chromium
+  при `390x844`. Панель жизненного цикла показала рабочие элементы управления,
+  archive-cancel запросил подтверждение, backend перевёл Task в
+  `cancelled_archived`, а после reload статус сохранился и повторные
+  cancel/rebase были отключены.
+- Второй временный Git Task предоставил настоящий checkpoint, diff worktree из
+  двух файлов и события сообщений/инструментов fake runtime. Chromium при
+  `390x844` отрисовал Diff, список checkpoints и их diff, подтверждения
+  Fork/Rollback, формы Merge в состояниях `created` и `needs_review`, а также
+  страницы деталей Message/Tool call для реальных event ID без ошибок консоли.
+- Следующий проход Chromium при `390x844` выполнил Merge из интерфейса. Экран
+  предложил только стратегию Squash, потребовал подтверждение и показал
+  `Слияние выполнено`. Публичный API вернул объединённый Task, его SHA совпал с
+  HEAD чистого основного checkout, а коммит с одним родителем содержал ровно QA
+  файл. Также были исправлены рассинхрон ответа endpoint и клиента и проверки
+  некорректных стратегий/грязного основного checkout.
+- Реальный Git fixture подтвердил исправление сводки Task: Overview при
+  `390x844` показал `Changed files: 1`, а Diff — тот же единственный
+  `ui-change.txt`; ошибок консоли не было.
+- Локальный bare remote был продвинут относительно временной копии проекта.
+  Chromium при `390x844` показал `fast_forward_available` без изменения HEAD;
+  только явно подтверждённое применение выровняло local/remote SHA и оставило
+  checkout чистым.
 
-## Current phase boundaries / release gates
+## Текущие границы фазы и release gates
 
-1. **Application authentication.** Login, pairing and token rotation are
-   intentionally outside the current Tailnet-only phase. Do not expose the API
-   to the public internet.
-2. **Provider secrets.** API exposes only `hasSecret`; provider metadata accepts
-   only symbolic `env:`/`secret:` references and rejects raw keys. Secure secret
-   resolution and a real provider transport must be added before provider
-   configuration is a production feature.
-3. **Packages and MCP.** Package installation and trust UI are deferred. MCP
-   test checks configuration but never executes configured commands.
-4. **External product surfaces.** VSCode Web remains unsupported. Ignis is a
-   configured Tailnet URL; the Web route opens it at top level because the
-   upstream Obsidian bundle reads its top-level parent, while Android/iOS use a
-   native WebView. End-to-end Web editing against the live Ignis host has been
-   verified; physical Android/iOS Ignis verification remains a release gate.
-5. **Release validation.** The VPS deployment has a healthy `/health`; a Web
-   client completed a browser-to-Pi discussion through Tailnet-only HTTPS, and
-   the real OpenCode Go (`opencode-go/deepseek-v4-flash`) turn completed with
-   `sandbox_mode = bwrap`. A standalone Android release APK completed the
-   Tailnet setup and native SSE connection in a Pixel 3a API 34 emulator.
-   A browser also created and edited a Markdown note in the live Ignis vault
-   after Task activity had completed, reloaded the app, reopened the persisted
-   content and confirmed the same file in the VPS managed clone without console
-   errors. Physical Android/iOS device QA and production APK signing remain
-   required. A 14 July 2026 retry with `agent-device 0.16.7` first failed to
-   start its daemon from the restricted user/C:\tmp state. Moving state into the
-   writable workspace let the daemon start, but Android discovery then timed
-   out after 90 seconds (`mrk1p2jk-5aacca0a`) while no emulator/qemu/adb process
-   was running. No physical-device result is claimed.
-6. **oRPC decision.** The provider experiment proves Hono transport and
-   server/client type inference, but it has not yet been bundled into the Expo
-   application or evaluated for OpenAPI generation. Existing `/api/*` routes
-   remain the product API until those gates pass.
-7. **Conflict resolution.** The conflict route renders an explicit unsupported
-   state and offers abort only. A real `merge_conflict` fixture and an actual
-   mobile recovery workflow remain release gates; the product does not yet
-   provide an in-app conflict editor.
+1. **Несколько серверных узлов.** Реестр подключений, serverId-квалификация,
+   агрегированный Projects, per-node offline/auth statuses, `/servers`, scoped
+   SSE и server-qualified deep links реализованы. Не пройдены real two-node
+   SSE/run, независимое восстановление после потери одного узла и полный device
+   QA. Node-level bearer готов; пользовательская auth/pairing-модель остаётся
+   за пределами Tailnet-only фазы.
+2. **Desktop PWA.** Manifest, иконка, service worker, update banner и draft
+   persistence реализованы в Web export. Не зафиксированы установка и
+   standalone launch в Chromium/Edge, а также автоматический update QA.
+3. **Аутентификация приложения.** Node-level bearer включается через
+   `PI_AUTH_TOKEN` или `PI_AUTH_TOKEN_FILE`; discovery публичен, API/SSE
+   защищены. Login, pairing, отзыв и rotation токенов намеренно вынесены за
+   пределы текущей Tailnet-only фазы. Нельзя открывать API в общий интернет.
+4. **Секреты providers.** API предоставляет только `hasSecret`; метаданные
+   provider принимают только символические ссылки `env:`/`secret:` и отклоняют
+   реальные ключи. До появления безопасного разрешения секретов и настоящего
+   транспорта provider-настройки нельзя считать production-функцией.
+5. **Packages и MCP.** Установка пакетов и trust-интерфейс отложены. Проверка
+   MCP проверяет только конфигурацию и никогда не запускает настроенные команды.
+6. **Внешние поверхности.** VSCode Web не поддерживается. Ignis настроен как
+   Tailnet URL; Web-маршрут открывает его верхнеуровневой страницей, потому что
+   upstream Obsidian читает top-level parent, а Android/iOS используют нативный
+   WebView. Сквозное редактирование Web проверено; физическая проверка Ignis на
+   Android/iOS остаётся release gate.
+7. **Release-проверка.** На VPS исправен `/health`; Web-клиент выполнил через
+   Tailnet-only HTTPS обсуждение Web -> VPS -> Pi, а реальный OpenCode Go
+   (`opencode-go/deepseek-v4-flash`) завершил turn в режиме `sandbox_mode =
+   bwrap`. Standalone Android release APK прошёл Setup, открыл сохранённый Chat
+   и установил native SSE-соединение с VPS. На Infinix дополнительно проверены
+   запуск приложения, список проектов, открытие Chat и доступность composer при
+   открытой клавиатуре. Полная проверка экранов Android/iOS и production signing
+   APK остаются обязательными.
+8. **Решение по oRPC.** Эксперимент подтверждает транспорт Hono и вывод типов
+   server/client, но oRPC ещё не встроен в Expo-приложение и не оценён для
+   генерации OpenAPI. Основным product API остаются текущие `/api/*`-маршруты.
+9. **Разрешение конфликтов.** Conflict-маршрут показывает явное состояние
+   unsupported и предлагает только abort. Настоящий fixture `merge_conflict` и
+   мобильный recovery workflow остаются release gate; встроенного редактора
+   конфликтов в продукте пока нет.
 
-## Quality notes
+## Замечания по качеству
 
-- API and mobile tests are green. `node:sqlite` emits Node's experimental API
-  warning during API tests.
-- ESLint is blocking but currently reports warnings in pre-existing async data
-  loading screens and legacy test mocks. No lint errors are present.
-- Approvals is still a local mock-data surface. Skill creation/extraction is
-  visibly scaffolded but is not yet a complete backend-backed workflow.
+- API- и mobile-тесты проходят. `node:sqlite` выдаёт предупреждение о
+  экспериментальном API Node во время тестов API.
+- ESLint блокирует завершение из-за предупреждений в существующих async-экранах
+  загрузки данных и старых test mocks; ошибок lint нет.
+- Approvals по-прежнему использует локальные mock-данные. Создание/extraction
+  skill отображается как каркас, но не является полноценным backend-сценарием.

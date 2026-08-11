@@ -5,7 +5,7 @@ import { RootStoreProvider } from '@/providers/RootStoreProvider';
 import { createRootStore } from '@/stores/rootStore';
 import { eventReducer, initialEventReducerState } from '@/state/eventReducer';
 import { ApiClient } from '@/api/client';
-import { ChatScreen } from '../ChatScreen';
+import { ChatScreen, keyboardAvoidingBehavior } from '../ChatScreen';
 
 function envelope(
   id: string,
@@ -73,6 +73,12 @@ describe('ChatScreen', () => {
   afterEach(() => {
     cleanup();
     jest.restoreAllMocks();
+  });
+
+  it('lets Android pan the window to the focused composer', () => {
+    expect(keyboardAvoidingBehavior('android')).toBeUndefined();
+    expect(keyboardAvoidingBehavior('ios')).toBe('padding');
+    expect(keyboardAvoidingBehavior('web')).toBeUndefined();
   });
 
   it('renders streaming, tool calls, queue and active task through the single MobX session', async () => {

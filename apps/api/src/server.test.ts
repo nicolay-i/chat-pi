@@ -59,6 +59,15 @@ describe('GET /health', () => {
     expect(body).toMatchObject({ ok: true });
     expect(typeof body.time).toBe('string');
   });
+
+  it('exposes a stable node identity through capabilities', async () => {
+    const first = await app.request('/api/capabilities');
+    const second = await app.request('/api/capabilities');
+    const firstBody = await first.json();
+    const secondBody = await second.json();
+    expect(firstBody.serverId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(secondBody.serverId).toBe(firstBody.serverId);
+  });
 });
 
 describe('exported Web client', () => {
@@ -68,6 +77,7 @@ describe('exported Web client', () => {
       mkdirSync(join(root, '_expo', 'static'), { recursive: true });
       writeFileSync(join(root, 'index.html'), '<!doctype html><title>Pi Agents</title>');
       writeFileSync(join(root, '_expo', 'static', 'app.js'), 'console.log("web");');
+      writeFileSync(join(root, 'manifest.webmanifest'), '{"name":"Pi Agents"}');
       const webApp = createApp(createDb(':memory:'), { webRoot: root });
 
       const rootResponse = await webApp.request('/');
@@ -77,6 +87,9 @@ describe('exported Web client', () => {
       const assetResponse = await webApp.request('/_expo/static/app.js');
       expect(assetResponse.headers.get('cache-control')).toContain('immutable');
       expect(await assetResponse.text()).toContain('console.log');
+
+      const manifestResponse = await webApp.request('/manifest.webmanifest');
+      expect(manifestResponse.headers.get('content-type')).toContain('application/manifest+json');
 
       const faviconResponse = await webApp.request('/favicon.ico');
       expect(faviconResponse.status).toBe(204);
@@ -175,6 +188,30 @@ describe('GET /api/capabilities', () => {
   it('does not expose the deferred package manager routes', async () => {
     const response = await app.request('/api/projects/project-1/packages');
     expect(response.status).toBe(404);
+  });
+});
+
+describe('optional bearer authentication', () => {
+  it('keeps discovery public and protects API/SSE routes when configured', async () => {
+    const protectedApp = createApp(createDb(':memory:'), { authToken: 'test-secret' });
+
+    const capabilities = await protectedApp.request('/api/capabilities');
+    expect(capabilities.status).toBe(200);
+    expect((await capabilities.json()).authRequired).toBe(true);
+
+    const health = await protectedApp.request('/health');
+    expect(health.status).toBe(200);
+
+    const denied = await protectedApp.request('/api/projects');
+    expect(denied.status).toBe(401);
+    expect(await denied.json()).toMatchObject({ code: 'unauthorized' });
+
+    const allowed = await protectedApp.request('/api/auth/check', {
+      headers: { authorization: 'Bearer test-secret' },
+    });
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toEqual({ ok: true });
+    await protectedApp.dispose();
   });
 });
 

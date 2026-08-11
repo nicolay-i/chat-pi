@@ -51,4 +51,28 @@ describe('RealtimeHub', () => {
     release();
     expect(connection.stop).toHaveBeenCalledTimes(1);
   });
+
+  it('does not share equal stream ids across backend servers', () => {
+    const connections: Array<{ options: RealtimeManagerOptions; start: jest.Mock; stop: jest.Mock }> = [];
+    const hub = new RealtimeHub((options) => {
+      const connection = { options, start: jest.fn(), stop: jest.fn() };
+      connections.push(connection);
+      return connection;
+    });
+
+    const first: RealtimeEnvelope[] = [];
+    const second: RealtimeEnvelope[] = [];
+    const options = { url: 'https://backend.example/api/chats/chat-1/events' };
+    const one = hub.subscribeChat('chat-1', options, { onEvent: (value) => first.push(value) }, 'server-a');
+    const two = hub.subscribeChat('chat-1', options, { onEvent: (value) => second.push(value) }, 'server-b');
+
+    expect(connections).toHaveLength(2);
+    connections[0].options.onEvent(event('event-a', 1));
+    connections[1].options.onEvent(event('event-b', 1));
+    expect(first.map((value) => value.id)).toEqual(['event-a']);
+    expect(second.map((value) => value.id)).toEqual(['event-b']);
+
+    one.unsubscribe();
+    two.unsubscribe();
+  });
 });

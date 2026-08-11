@@ -65,7 +65,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TaskRuntimePanel({ taskId }: { taskId: string }) {
+function TaskRuntimePanel({ taskId, serverId }: { taskId: string; serverId?: string }) {
   const { baseUrl } = useBackend();
   const [events, setEvents] = useState<RealtimeEnvelope[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -73,11 +73,11 @@ function TaskRuntimePanel({ taskId }: { taskId: string }) {
   useEffect(() => {
     if (!baseUrl) return;
     let active = true;
-    void new ApiClient(baseUrl).getTaskTrace(taskId)
+    void new ApiClient(baseUrl, serverId).getTaskTrace(taskId)
       .then((next) => { if (active) setEvents(next); })
       .catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : String(err)); });
     return () => { active = false; };
-  }, [baseUrl, taskId]);
+  }, [baseUrl, serverId, taskId]);
 
   return (
     <View testID="taskDetail.runtimePanel" style={{ marginTop: 16 }}>
@@ -88,8 +88,8 @@ function TaskRuntimePanel({ taskId }: { taskId: string }) {
 }
 
 export default function TaskDetailScreen() {
-  const { projectId, taskId } = useLocalSearchParams<{ projectId: string; taskId: string }>();
-  const { data: task, status, error, refetch } = useTask(taskId);
+  const { projectId, taskId, serverId } = useLocalSearchParams<{ projectId: string; taskId: string; serverId?: string }>();
+  const { data: task, status, error, refetch } = useTask(taskId, serverId);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [dangerOpen, setDangerOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<TaskAction | null>(null);
@@ -233,7 +233,7 @@ export default function TaskDetailScreen() {
             <Row label="Source chat" value={task.sourceChatId ?? '—'} />
             <Row label="Task ID" value={task.id} />
 
-            <TaskRuntimePanel taskId={task.id} />
+            <TaskRuntimePanel taskId={task.id} serverId={serverId} />
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
               {task.sourceChatId ? (

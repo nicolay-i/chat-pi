@@ -13,6 +13,7 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
   '.svg': 'image/svg+xml',
   '.txt': 'text/plain; charset=utf-8',
   '.webp': 'image/webp',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
 };

@@ -5,6 +5,7 @@ export type RealtimeState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'e
 
 export type RealtimeManagerOptions = {
   url: string;
+  headers?: Record<string, string>;
   initialAfterSequence?: number | null;
   maxReconnectAttempts?: number;
   onEvent: (event: RealtimeEnvelope) => void;
@@ -35,6 +36,7 @@ export class RealtimeManager {
   private started = false;
 
   private readonly url: string;
+  private readonly headers?: Record<string, string>;
   private readonly maxReconnectAttempts: number;
   private readonly onEvent: (event: RealtimeEnvelope) => void;
   private readonly onState?: (state: RealtimeState) => void;
@@ -43,6 +45,7 @@ export class RealtimeManager {
 
   constructor(options: RealtimeManagerOptions) {
     this.url = options.url;
+    this.headers = options.headers;
     this.lastSequence = options.initialAfterSequence ?? null;
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
     this.onEvent = options.onEvent;
@@ -93,6 +96,7 @@ export class RealtimeManager {
     this.setState('connecting');
     const close = this.connect({
       url: this.url,
+      headers: this.headers,
       afterSequence: this.lastSequence ?? undefined,
       onEvent: (event) => {
         if (this.lastSequence === null || event.sequence > this.lastSequence) {

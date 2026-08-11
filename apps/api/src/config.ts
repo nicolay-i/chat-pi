@@ -1,4 +1,5 @@
 import type { PiSandboxMode } from './services/piSandbox';
+import { join } from 'node:path';
 
 function parsePort(value: string | undefined, fallback: number): number {
   if (value === undefined || value === '') return fallback;
@@ -88,6 +89,11 @@ export type Config = {
   piProvider: string | undefined;
   piModel: string | undefined;
   piAgentDir: string | undefined;
+  serverId: string | undefined;
+  serverIdFile: string | undefined;
+  authToken: string | undefined;
+  authTokenFile: string | undefined;
+  trustedRuntime: boolean;
   piSandboxMode: PiSandboxMode;
   piSandboxBin: string | undefined;
   piSandboxEnvAllowlist: string[];
@@ -119,20 +125,35 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (nodeEnv === 'production' && corsOrigins.length === 0) {
     throw new Error('CORS_ORIGINS must be set when NODE_ENV=production');
   }
+  const agentRuntime = parseAgentRuntime(env.AGENT_RUNTIME ?? env.PI_MODE);
+  const piSandboxMode = parsePiSandboxMode(env.PI_SANDBOX_MODE);
+  const trustedRuntime = parseBoolean(env.PI_TRUSTED_MODE, false, 'PI_TRUSTED_MODE');
+  if (process.platform === 'win32' && agentRuntime === 'pi' && piSandboxMode === 'bwrap') {
+    throw new Error('PI_SANDBOX_MODE=bwrap requires Linux/WSL2; run the backend inside WSL2 or a Linux container');
+  }
+  if (process.platform === 'win32' && agentRuntime === 'pi' && piSandboxMode === 'none' && !trustedRuntime) {
+    throw new Error('PI_TRUSTED_MODE=true is required for unsandboxed Pi execution on Windows');
+  }
 
   return {
     port: parsePort(env.PORT, 8787),
     host: parseHost(env.API_HOST),
     nodeEnv,
     logLevel: env.LOG_LEVEL ?? 'info',
-    agentRuntime: parseAgentRuntime(env.AGENT_RUNTIME ?? env.PI_MODE),
+    agentRuntime,
     agentCwd: optionalString(env.PI_CWD),
     piBin: optionalString(env.PI_BIN),
     piNode: optionalString(env.PI_NODE),
     piProvider: optionalString(env.PI_PROVIDER),
     piModel: optionalString(env.PI_MODEL),
     piAgentDir: optionalString(env.PI_AGENT_DIR),
-    piSandboxMode: parsePiSandboxMode(env.PI_SANDBOX_MODE),
+    serverId: optionalString(env.PI_SERVER_ID),
+    serverIdFile: optionalString(env.PI_SERVER_ID_FILE)
+      ?? (optionalString(env.PI_AGENT_DIR) ? join(optionalString(env.PI_AGENT_DIR)!, 'server-id') : undefined),
+    authToken: optionalString(env.PI_AUTH_TOKEN),
+    authTokenFile: optionalString(env.PI_AUTH_TOKEN_FILE),
+    trustedRuntime,
+    piSandboxMode,
     piSandboxBin: optionalString(env.PI_SANDBOX_BIN),
     piSandboxEnvAllowlist: parseCsv(env.PI_SANDBOX_ENV_ALLOWLIST),
     piRunTimeoutMs: parsePositiveInteger(env.PI_RUN_TIMEOUT_SECONDS, 1_200, 'PI_RUN_TIMEOUT_SECONDS', 86_400) * 1_000,

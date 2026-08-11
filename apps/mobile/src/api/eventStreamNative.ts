@@ -7,6 +7,7 @@ import { RealtimeEnvelopeSchema, type RealtimeEnvelope } from '@pi-agents/contra
 type EventStreamOptions = {
   url: string;
   afterSequence?: number;
+  headers?: Record<string, string>;
   onEvent: (event: RealtimeEnvelope) => void;
   onStateChange?: (state: 'connecting' | 'open' | 'closed' | 'error') => void;
 };
@@ -36,7 +37,11 @@ export function connectNativeEventStream(
 
   // RealtimeManager owns reconnects and sequence replay, so disable the
   // library's independent polling loop.
-  const source = createEventSource(url, { pollingInterval: 0, timeoutBeforeConnection: 0 });
+  const source = createEventSource(url, {
+    pollingInterval: 0,
+    timeoutBeforeConnection: 0,
+    ...(options.headers ? { headers: options.headers } : {}),
+  });
   const onOpen: EventSourceListener = () => options.onStateChange?.('open');
   const onError: EventSourceListener = () => options.onStateChange?.('error');
   const onMessage: EventSourceListener = (message) => {

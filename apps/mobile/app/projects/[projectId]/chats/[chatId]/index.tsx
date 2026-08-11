@@ -3,10 +3,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatScreen as ChatFeatureScreen } from '@/features/chat/ChatScreen';
 
 export default function ChatScreen() {
-  const { chatId } = useLocalSearchParams<{ chatId: string }>();
+  const { chatId, serverId } = useLocalSearchParams<{ chatId: string; serverId?: string }>();
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
-      <ChatFeatureScreen chatId={chatId} />
+      <ChatFeatureScreen chatId={chatId} serverId={serverId} />
     </SafeAreaView>
   );
 }

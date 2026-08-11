@@ -9,11 +9,17 @@
     "newArchEnabled": true,
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "name": "Pi Agents",
+      "shortName": "Pi Agents",
+      "description": "Работа с проектами и агентами на нескольких компьютерах",
+      "themeColor": "#2563eb",
+      "backgroundColor": "#f8fafc"
     },
     "plugins": [],
     "android": {
-      "package": "com.nic34.piagents"
+      "package": "com.nic34.piagents",
+      "softwareKeyboardLayoutMode": "pan"
     }
   }
 }

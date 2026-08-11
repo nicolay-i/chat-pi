@@ -15,6 +15,7 @@ export const routeDefinitions: readonly RouteDefinition[] = [
   { name: 'Setup', path: '/setup', relativeBase: () => '/' },
   { name: 'Approvals', path: '/approvals', relativeBase: () => '/', title: 'Approvals' },
   { name: 'Settings', path: '/settings', relativeBase: () => '/', title: 'Settings' },
+  { name: 'Servers', path: '/servers', relativeBase: () => '/', title: 'Servers' },
   { name: 'Projects', path: '/projects', relativeBase: () => '/', title: 'Projects' },
   { name: 'NewProject', path: '/projects/new', relativeBase: () => '/projects', title: 'New project' },
   { name: 'RootChat', path: '/chat/:chatId', relativeBase: () => '/chat', title: 'Chat' },
@@ -63,14 +64,17 @@ export type MatchedRoute = {
 };
 
 export function matchPath(pathname: string): MatchedRoute | null {
+  const qualified = pathname.match(/^\/servers\/([^/]+)(\/.*)?$/);
+  const serverId = qualified ? decodeURIComponent(qualified[1]) : undefined;
+  const routePath = qualified?.[2] || pathname;
   for (const definition of routeDefinitions) {
-    const match = pathname.match(toMatcher(definition.path));
+    const match = routePath.match(toMatcher(definition.path));
     if (!match) continue;
 
     const params = Object.fromEntries(
       parameterNames(definition.path).map((name, index) => [name, decodeURIComponent(match[index + 1])]),
     );
-    return { definition, params };
+    return { definition, params: serverId ? { ...params, serverId } : params };
   }
   return null;
 }

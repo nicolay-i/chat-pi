@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Task } from '@pi-agents/contracts';
 import { ApiClient } from '@/api/client';
-import { useBackend } from '@/stores/useBackend';
+import { useRootStore } from '@/providers/RootStoreProvider';
 
 export type TasksStatus = 'loading' | 'loaded' | 'empty' | 'error';
 
@@ -12,8 +12,9 @@ export type UseTasksResult = {
   refetch: () => void;
 };
 
-export function useTasks(projectId: string): UseTasksResult {
-  const { baseUrl } = useBackend();
+export function useTasks(projectId: string, serverId?: string): UseTasksResult {
+  const { backend } = useRootStore();
+  const baseUrl = backend.getBaseUrl(serverId);
   const [data, setData] = useState<Task[] | null>(null);
   const [status, setStatus] = useState<TasksStatus>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export function useTasks(projectId: string): UseTasksResult {
       return;
     }
     let active = true;
-    const client = new ApiClient(baseUrl);
+    const client = new ApiClient(baseUrl, serverId);
     setStatus('loading');
     setError(null);
     client
@@ -49,7 +50,7 @@ export function useTasks(projectId: string): UseTasksResult {
     return () => {
       active = false;
     };
-  }, [baseUrl, projectId, nonce]);
+  }, [baseUrl, projectId, serverId, nonce]);
 
   return { data, status, error, refetch };
 }
@@ -63,8 +64,9 @@ export type UseTaskResult = {
   refetch: () => void;
 };
 
-export function useTask(taskId: string): UseTaskResult {
-  const { baseUrl } = useBackend();
+export function useTask(taskId: string, serverId?: string): UseTaskResult {
+  const { backend } = useRootStore();
+  const baseUrl = backend.getBaseUrl(serverId);
   const [data, setData] = useState<Task | null>(null);
   const [status, setStatus] = useState<TaskDetailStatus>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export function useTask(taskId: string): UseTaskResult {
       return;
     }
     let active = true;
-    const client = new ApiClient(baseUrl);
+    const client = new ApiClient(baseUrl, serverId);
     setStatus('loading');
     setError(null);
     client
@@ -100,7 +102,7 @@ export function useTask(taskId: string): UseTaskResult {
     return () => {
       active = false;
     };
-  }, [baseUrl, taskId, nonce]);
+  }, [baseUrl, taskId, serverId, nonce]);
 
   return { data, status, error, refetch };
 }

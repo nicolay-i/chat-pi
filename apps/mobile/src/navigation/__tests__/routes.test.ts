@@ -7,6 +7,12 @@ describe('explicit route registry', () => {
     expect(matchPath('/')?.definition.name).toBe('Home');
   });
 
+  it('accepts canonical server-qualified project links', () => {
+    const matched = matchPath('/servers/server-a/projects/project-123/chats/chat-9');
+    expect(matched?.definition.name).toBe('ProjectChat');
+    expect(matched?.params).toEqual({ projectId: 'project-123', chatId: 'chat-9', serverId: 'server-a' });
+  });
+
   it.each([
     ['ProjectSkills', './skills/new', '/projects/project-123/settings/skills/new'],
     ['ProjectPrompts', './prompts/template-1', '/projects/project-123/settings/prompts/template-1'],

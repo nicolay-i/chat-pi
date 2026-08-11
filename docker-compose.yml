@@ -30,6 +30,8 @@ services:
       PI_SANDBOX_ENV_ALLOWLIST: ${PI_SANDBOX_ENV_ALLOWLIST:-}
       PI_RUN_TIMEOUT_SECONDS: ${PI_RUN_TIMEOUT_SECONDS:-1200}
       PI_AGENT_DIR: /data/pi-agent
+      PI_AUTH_TOKEN: ${PI_AUTH_TOKEN:-}
+      PI_AUTH_TOKEN_FILE: ${PI_AUTH_TOKEN_FILE:-}
       # Container-visible root. Repo paths submitted to the API must stay here.
       PI_PROJECTS_ROOT: /projects
     ports:

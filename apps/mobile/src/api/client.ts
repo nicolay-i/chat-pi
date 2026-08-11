@@ -62,6 +62,39 @@ import {
 import type { ApiError } from '@pi-agents/contracts';
 import { z } from 'zod';
 
+const credentialsByBaseUrl = new Map<string, string>();
+const credentialsByServerId = new Map<string, string>();
+
+function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/$/, '');
+}
+
+export function registerApiCredential(baseUrl: string, serverId: string | undefined, token: string | undefined): void {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  if (token?.trim()) {
+    credentialsByBaseUrl.set(normalizedBaseUrl, token.trim());
+    if (serverId) credentialsByServerId.set(serverId, token.trim());
+    return;
+  }
+  credentialsByBaseUrl.delete(normalizedBaseUrl);
+  if (serverId) credentialsByServerId.delete(serverId);
+}
+
+export function clearRegisteredApiCredential(baseUrl: string, serverId?: string): void {
+  credentialsByBaseUrl.delete(normalizeBaseUrl(baseUrl));
+  if (serverId) credentialsByServerId.delete(serverId);
+}
+
+function registeredApiCredential(baseUrl: string, serverId?: string): string | undefined {
+  return (serverId ? credentialsByServerId.get(serverId) : undefined)
+    ?? credentialsByBaseUrl.get(normalizeBaseUrl(baseUrl));
+}
+
+export function getApiAuthHeaders(baseUrl: string, serverId?: string): Record<string, string> | undefined {
+  const token = registeredApiCredential(baseUrl, serverId);
+  return token ? { authorization: `Bearer ${token}` } : undefined;
+}
+
 export class ApiClientError extends Error {
   readonly code: string;
   readonly retryable: boolean;
@@ -81,64 +114,101 @@ export class ApiClientError extends Error {
 export class ApiClient {
   static readonly operationIds = apiClientOperationIds;
 
-  constructor(private readonly baseUrl: string) {}
+  private readonly token: string | undefined;
+
+  constructor(private readonly baseUrl: string, readonly serverId?: string, token?: string) {
+    this.token = token?.trim() || registeredApiCredential(baseUrl, serverId);
+  }
+
+  private request(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    if (!this.token) return init === undefined ? globalThis.fetch(input) : globalThis.fetch(input, init);
+    const headers = new Headers(init?.headers);
+    headers.set('authorization', `Bearer ${this.token}`);
+    return globalThis.fetch(input, { ...init, headers });
+  }
+
+  private annotateProject(project: Project): Project {
+    return this.serverId ? { ...project, serverId: this.serverId } : project;
+  }
+
+  private annotateChat(chat: Chat): Chat {
+    return this.serverId ? { ...chat, serverId: this.serverId } : chat;
+  }
+
+  private annotateTask(task: Task): Task {
+    return this.serverId ? { ...task, serverId: this.serverId } : task;
+  }
+
+  private annotateManaged(value: ManagedImplementation): ManagedImplementation {
+    return {
+      ...value,
+      chat: this.annotateChat(value.chat),
+      task: this.annotateTask(value.task),
+    };
+  }
 
   // --- Health / capabilities ---
   async getHealth(): Promise<HealthResponse> {
-    const res = await fetch(`${this.baseUrl}/health`);
+    const res = await this.request(`${this.baseUrl}/health`);
     if (!res.ok) throw await this.toError(res);
     return HealthResponseSchema.parse(await res.json());
   }
 
   async getCapabilities(): Promise<Capabilities> {
-    const res = await fetch(`${this.baseUrl}/api/capabilities`);
+    const res = await this.request(`${this.baseUrl}/api/capabilities`);
     if (!res.ok) throw await this.toError(res);
     return CapabilitiesSchema.parse(await res.json());
   }
 
+  async checkAuth(): Promise<{ ok: true }> {
+    const res = await this.request(`${this.baseUrl}/api/auth/check`);
+    if (!res.ok) throw await this.toError(res);
+    return z.object({ ok: z.literal(true) }).parse(await res.json());
+  }
+
   // --- Projects ---
   async getProjects(): Promise<Project[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects`);
+    const res = await this.request(`${this.baseUrl}/api/projects`);
     if (!res.ok) throw await this.toError(res);
     const json = await res.json();
-    return ProjectSchema.array().parse(json);
+    return ProjectSchema.array().parse(json).map((project) => this.annotateProject(project));
   }
 
   async getProject(projectId: string): Promise<Project> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}`);
     if (!res.ok) throw await this.toError(res);
-    return ProjectSchema.parse(await res.json());
+    return this.annotateProject(ProjectSchema.parse(await res.json()));
   }
 
   async createProject(input: CreateProjectInput): Promise<Project> {
-    const res = await fetch(`${this.baseUrl}/api/projects`, {
+    const res = await this.request(`${this.baseUrl}/api/projects`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(CreateProjectInputSchema.parse(input)),
     });
     if (!res.ok) throw await this.toError(res);
-    return ProjectSchema.parse(await res.json());
+    return this.annotateProject(ProjectSchema.parse(await res.json()));
   }
 
   async updateProject(projectId: string, input: UpdateProjectInput): Promise<Project> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(UpdateProjectInputSchema.parse(input)),
     });
     if (!res.ok) throw await this.toError(res);
-    return ProjectSchema.parse(await res.json());
+    return this.annotateProject(ProjectSchema.parse(await res.json()));
   }
 
   async deleteProject(projectId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw await this.toError(res);
   }
 
   async validateRepo(projectId: string, input: ValidateRepoInput): Promise<ValidateRepoResult> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/validate-repo`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/validate-repo`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(ValidateRepoInputSchema.parse(input)),
@@ -148,7 +218,7 @@ export class ApiClient {
   }
 
   async syncProjectRemote(projectId: string, mode: 'inspect' | 'apply' = 'inspect') {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/remote-sync`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/remote-sync`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ mode }),
@@ -158,60 +228,60 @@ export class ApiClient {
   }
 
   async getIgnisAccess(projectId: string): Promise<IgnisAccess> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/ignis`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/ignis`);
     if (!res.ok) throw await this.toError(res);
     return IgnisAccessSchema.parse(await res.json());
   }
 
   // --- Chats ---
   async getChats(projectId: string): Promise<Chat[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/chats`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/chats`);
     if (!res.ok) throw await this.toError(res);
-    return ChatSchema.array().parse(await res.json());
+    return ChatSchema.array().parse(await res.json()).map((chat) => this.annotateChat(chat));
   }
 
   async getChat(chatId: string): Promise<Chat> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}`);
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}`);
     if (!res.ok) throw await this.toError(res);
-    return ChatSchema.parse(await res.json());
+    return this.annotateChat(ChatSchema.parse(await res.json()));
   }
 
   async createChat(projectId: string, input: CreateChatInput): Promise<Chat> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/chats`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/chats`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(CreateChatInputSchema.parse(input)),
     });
     if (!res.ok) throw await this.toError(res);
-    return ChatSchema.parse(await res.json());
+    return this.annotateChat(ChatSchema.parse(await res.json()));
   }
 
   async bootstrapChat(): Promise<Chat> {
-    const res = await fetch(`${this.baseUrl}/api/chats/bootstrap`, { method: 'POST' });
+    const res = await this.request(`${this.baseUrl}/api/chats/bootstrap`, { method: 'POST' });
     if (!res.ok) throw await this.toError(res);
-    return ChatSchema.parse(await res.json());
+    return this.annotateChat(ChatSchema.parse(await res.json()));
   }
 
   async updateChat(chatId: string, patch: Partial<Chat>): Promise<Chat> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(patch),
     });
     if (!res.ok) throw await this.toError(res);
-    return ChatSchema.parse(await res.json());
+    return this.annotateChat(ChatSchema.parse(await res.json()));
   }
 
   async archiveChat(chatId: string): Promise<Chat> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/archive`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/archive`, {
       method: 'POST',
     });
     if (!res.ok) throw await this.toError(res);
-    return ChatSchema.parse(await res.json());
+    return this.annotateChat(ChatSchema.parse(await res.json()));
   }
 
   async exportChat(chatId: string): Promise<{ url: string }> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/export`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/export`, {
       method: 'POST',
     });
     if (!res.ok) throw await this.toError(res);
@@ -219,41 +289,41 @@ export class ApiClient {
   }
 
   async getChatTree(chatId: string): Promise<Task[]> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/tree`);
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/tree`);
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.array().parse(await res.json());
+    return TaskSchema.array().parse(await res.json()).map((task) => this.annotateTask(task));
   }
 
   async getChatTrace(chatId: string): Promise<unknown[]> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/trace`);
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/trace`);
     if (!res.ok) throw await this.toError(res);
     return TraceResultSchema.parse(await res.json());
   }
 
   async getManagedImplementations(chatId: string): Promise<ManagedImplementation[]> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/managed-implementations`);
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/managed-implementations`);
     if (!res.ok) throw await this.toError(res);
-    return ManagedImplementationSchema.array().parse(await res.json());
+    return ManagedImplementationSchema.array().parse(await res.json()).map((value) => this.annotateManaged(value));
   }
 
   async createImplementationTask(chatId: string, title: string): Promise<ManagedImplementation> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/implementation-tasks`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/implementation-tasks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title }),
     });
     if (!res.ok) throw await this.toError(res);
-    return ManagedImplementationSchema.parse(await res.json());
+    return this.annotateManaged(ManagedImplementationSchema.parse(await res.json()));
   }
 
   async getQueue(chatId: string): Promise<QueuedMessage[]> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue`);
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue`);
     if (!res.ok) throw await this.toError(res);
     return QueuedMessageSchema.array().parse(await res.json());
   }
 
   async reorderQueue(chatId: string, ids: string[]): Promise<QueuedMessage[]> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ids }),
@@ -263,7 +333,7 @@ export class ApiClient {
   }
 
   async removeQueueItem(chatId: string, itemId: string): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue/${encodeURIComponent(itemId)}`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue/${encodeURIComponent(itemId)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw await this.toError(res);
@@ -271,24 +341,24 @@ export class ApiClient {
   }
 
   async clearQueue(chatId: string): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue/clear`, { method: 'POST' });
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/queue/clear`, { method: 'POST' });
     if (!res.ok) throw await this.toError(res);
     return { ok: true };
   }
 
   async createTaskForChat(chatId: string, input: { title: string; mode?: 'implementation' }): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/tasks`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/tasks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   // --- Messages / queue ---
   async sendMessage(chatId: string, input: SendMessageInput): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/messages`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/messages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(SendMessageInputSchema.parse(input)),
@@ -298,7 +368,7 @@ export class ApiClient {
   }
 
   async abortChat(chatId: string): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/abort`, {
+    const res = await this.request(`${this.baseUrl}/api/chats/${encodeURIComponent(chatId)}/abort`, {
       method: 'POST',
     });
     if (!res.ok) throw await this.toError(res);
@@ -306,7 +376,7 @@ export class ApiClient {
   }
 
   async steer(taskId: string, input: SendMessageInput): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/steer`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/steer`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(SendMessageInputSchema.parse(input)),
@@ -316,7 +386,7 @@ export class ApiClient {
   }
 
   async followUp(taskId: string, input: SendMessageInput): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/follow-up`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/follow-up`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(SendMessageInputSchema.parse(input)),
@@ -326,7 +396,7 @@ export class ApiClient {
   }
 
   async abort(taskId: string): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/abort`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/abort`, {
       method: 'POST',
     });
     if (!res.ok) throw await this.toError(res);
@@ -334,7 +404,7 @@ export class ApiClient {
   }
 
   async abortAndReplace(taskId: string, input: SendMessageInput): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/abort-and-replace`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/abort-and-replace`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(SendMessageInputSchema.parse(input)),
@@ -345,101 +415,101 @@ export class ApiClient {
 
   // --- Tasks ---
   async getTasks(projectId: string): Promise<Task[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/tasks`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/tasks`);
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.array().parse(await res.json());
+    return TaskSchema.array().parse(await res.json()).map((task) => this.annotateTask(task));
   }
 
   async getTask(taskId: string): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}`);
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}`);
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async getTaskTrace(taskId: string): Promise<RealtimeEnvelope[]> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/trace`);
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/trace`);
     if (!res.ok) throw await this.toError(res);
     return RealtimeEnvelopeSchema.array().parse(await res.json());
   }
 
   async forkTask(taskId: string): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/fork`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/fork`, {
       method: 'POST',
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async rollbackTask(taskId: string, options: { checkpointId?: string } = {}): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/rollback`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/rollback`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(options),
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async rebaseTask(taskId: string): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/rebase`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/rebase`, {
       method: 'POST',
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async mergeTask(
     taskId: string,
     options: { strategy: 'squash'; commitMessage?: string },
   ): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/merge`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/merge`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(options),
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async archiveTask(taskId: string): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/archive`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/archive`, {
       method: 'POST',
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async cancelTask(taskId: string, mode: 'archive' | 'discard'): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/cancel`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/cancel`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ mode }),
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async fetchTask(taskId: string): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/fetch`, { method: 'POST' });
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/fetch`, { method: 'POST' });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async pushTask(taskId: string): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/push`, { method: 'POST' });
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/push`, { method: 'POST' });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   // --- Diff / files ---
   async getTaskDiff(taskId: string): Promise<DiffEntry[]> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/diff`);
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/diff`);
     if (!res.ok) throw await this.toError(res);
     return DiffEntrySchema.array().parse(await res.json());
   }
 
   async getTaskDiffFile(taskId: string, encodedPath: string): Promise<DiffFileContent> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/diff/files/${encodeURIComponent(encodedPath)}`,
     );
     if (!res.ok) throw await this.toError(res);
@@ -447,23 +517,23 @@ export class ApiClient {
   }
 
   async revertFile(taskId: string, options: { path: string; confirm: true }): Promise<Task> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/revert-file`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/revert-file`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(options),
     });
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async getProjectFiles(projectId: string): Promise<FileNode[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/files`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/files`);
     if (!res.ok) throw await this.toError(res);
     return FileNodeSchema.array().parse(await res.json());
   }
 
   async getFileContent(projectId: string, path: string): Promise<FileContent> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/files/content?path=${encodeURIComponent(path)}`,
     );
     if (!res.ok) throw await this.toError(res);
@@ -471,7 +541,7 @@ export class ApiClient {
   }
 
   async putFileContent(projectId: string, input: FileContent): Promise<FileContent> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/files/content`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/files/content`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(FileContentSchema.parse(input)),
@@ -481,7 +551,7 @@ export class ApiClient {
   }
 
   async searchFiles(projectId: string, options: { query: string }): Promise<SearchResult[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/files/search`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/files/search`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(options),
@@ -492,13 +562,13 @@ export class ApiClient {
 
   // --- Checkpoints ---
   async getCheckpoints(taskId: string): Promise<Checkpoint[]> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/checkpoints`);
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/checkpoints`);
     if (!res.ok) throw await this.toError(res);
     return CheckpointSchema.array().parse(await res.json());
   }
 
   async createCheckpoint(taskId: string, options: { message: string }): Promise<Checkpoint> {
-    const res = await fetch(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/checkpoints`, {
+    const res = await this.request(`${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/checkpoints`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(options),
@@ -508,7 +578,7 @@ export class ApiClient {
   }
 
   async getCheckpointDiff(taskId: string, checkpointId: string): Promise<DiffEntry[]> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/checkpoints/${encodeURIComponent(checkpointId)}/diff`,
     );
     if (!res.ok) throw await this.toError(res);
@@ -516,34 +586,34 @@ export class ApiClient {
   }
 
   async forkCheckpoint(taskId: string, checkpointId: string): Promise<Task> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/checkpoints/${encodeURIComponent(checkpointId)}/fork`,
       { method: 'POST' },
     );
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   async rollbackCheckpoint(taskId: string, checkpointId: string): Promise<Task> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/tasks/${encodeURIComponent(taskId)}/checkpoints/${encodeURIComponent(checkpointId)}/rollback`,
       { method: 'POST' },
     );
     if (!res.ok) throw await this.toError(res);
-    return TaskSchema.parse(await res.json());
+    return this.annotateTask(TaskSchema.parse(await res.json()));
   }
 
   // --- Actions ---
   async getActions(projectId: string, options: { context?: string } = {}): Promise<Action[]> {
     const url = new URL(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/actions`);
     if (options.context) url.searchParams.set('context', options.context);
-    const res = await fetch(url.toString());
+    const res = await this.request(url.toString());
     if (!res.ok) throw await this.toError(res);
     return ActionSchema.array().parse(await res.json());
   }
 
   async runAction(actionId: string, options: { input?: Record<string, unknown> } = {}): Promise<ActionRun> {
-    const res = await fetch(`${this.baseUrl}/api/actions/${encodeURIComponent(actionId)}/run`, {
+    const res = await this.request(`${this.baseUrl}/api/actions/${encodeURIComponent(actionId)}/run`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(options),
@@ -553,20 +623,20 @@ export class ApiClient {
   }
 
   async getActionRun(actionRunId: string): Promise<ActionRun> {
-    const res = await fetch(`${this.baseUrl}/api/action-runs/${encodeURIComponent(actionRunId)}`);
+    const res = await this.request(`${this.baseUrl}/api/action-runs/${encodeURIComponent(actionRunId)}`);
     if (!res.ok) throw await this.toError(res);
     return ActionRunSchema.parse(await res.json());
   }
 
   // --- Settings: skills ---
   async getSkills(projectId: string): Promise<Skill[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/skills`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/skills`);
     if (!res.ok) throw await this.toError(res);
     return SkillSchema.array().parse(await res.json());
   }
 
   async getSkill(projectId: string, skillId: string): Promise<Skill> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/skills/${encodeURIComponent(skillId)}`,
     );
     if (!res.ok) throw await this.toError(res);
@@ -574,7 +644,7 @@ export class ApiClient {
   }
 
   async saveSkill(projectId: string, skillId: string, input: Partial<Skill>): Promise<Skill> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/skills/${encodeURIComponent(skillId)}`,
       {
         method: 'PUT',
@@ -587,7 +657,7 @@ export class ApiClient {
   }
 
   async testSkill(projectId: string, skillId: string): Promise<{ ok: boolean }> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/skills/${encodeURIComponent(skillId)}/test`,
       { method: 'POST' },
     );
@@ -597,13 +667,13 @@ export class ApiClient {
 
   // --- Settings: prompts ---
   async getPrompts(projectId: string): Promise<PromptTemplate[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/prompts`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/prompts`);
     if (!res.ok) throw await this.toError(res);
     return PromptTemplateSchema.array().parse(await res.json());
   }
 
   async savePrompt(projectId: string, templateId: string, input: PromptTemplate): Promise<PromptTemplate> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/prompts/${encodeURIComponent(templateId)}`,
       {
         method: 'PUT',
@@ -617,7 +687,7 @@ export class ApiClient {
 
   // --- Settings: providers ---
   async getProviders(projectId: string): Promise<Provider[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/providers`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/providers`);
     if (!res.ok) throw await this.toError(res);
     return ProviderSchema.array().parse(await res.json());
   }
@@ -626,7 +696,7 @@ export class ApiClient {
     projectId: string,
     input: Omit<Provider, 'id'>,
   ): Promise<Provider> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/providers`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/providers`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
@@ -636,7 +706,7 @@ export class ApiClient {
   }
 
   async testProvider(projectId: string, providerId: string): Promise<ProviderTestResult> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/providers/${encodeURIComponent(providerId)}/test`,
       { method: 'POST' },
     );
@@ -646,13 +716,13 @@ export class ApiClient {
 
   // --- Settings: mcp ---
   async getMcp(projectId: string): Promise<McpServer[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/mcp`);
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/mcp`);
     if (!res.ok) throw await this.toError(res);
     return McpServerSchema.array().parse(await res.json());
   }
 
   async saveMcp(projectId: string, input: McpServer): Promise<McpServer[]> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/mcp`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/mcp`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(McpServerSchema.parse(input)),
@@ -662,7 +732,7 @@ export class ApiClient {
   }
 
   async testMcp(projectId: string, serverId: string): Promise<{ ok: boolean }> {
-    const res = await fetch(
+    const res = await this.request(
       `${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/mcp/${encodeURIComponent(serverId)}/test`,
       { method: 'POST' },
     );
@@ -672,7 +742,7 @@ export class ApiClient {
 
   // --- Settings: theme ---
   async saveTheme(projectId: string, overrides: unknown): Promise<{ ok: true }> {
-    const res = await fetch(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/theme`, {
+    const res = await this.request(`${this.baseUrl}/api/projects/${encodeURIComponent(projectId)}/theme`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(overrides),

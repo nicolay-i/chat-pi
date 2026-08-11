@@ -5,26 +5,35 @@
 
 Каждый экран ниже должен иметь: route, states, actions, API dependencies, empty/error/loading states, verification.
 
-## 1. Connection / Server Setup
+## 1. Подключения к серверам
 
 ### Route
 
 ```text
 /setup
+/servers
+/servers/new
+/servers/:serverId/edit
 ```
 
 ### Назначение
 
-Первый запуск. Пользователь указывает backend URL или выбирает ранее сохранённое подключение.
+На первом запуске пользователь добавляет backend URL. После настройки экран
+показывает сохранённые компьютеры и позволяет работать с несколькими backend
+одновременно.
 
 ### UI
 
-- Logo/title.
+- Название компьютера и стабильный `serverId`, полученный от backend.
 - Поле `Backend URL`.
+- Необязательное поле `Bearer token` для узла, который сообщает
+  `authRequired=true`; Web не сохраняет значение в `localStorage`.
 - Переключатель `HTTPS / Tailscale / SSH tunnel note`.
 - Кнопка `Проверить подключение`.
 - Кнопка `Сохранить и продолжить`.
 - Diagnostics panel: latency, version, server capabilities.
+- Список подключений со статусом online/offline и активными Task.
+- Действия добавить, переподключить, переименовать и забыть подключение.
 
 ### States
 
@@ -34,25 +43,32 @@
 - Invalid URL.
 - Server unavailable.
 - Unsupported backend version.
+- Частичная доступность: один сервер offline, остальные продолжают работать.
+- Требуется токен: discovery успешен, но проекты доступны после проверки
+  `GET /api/auth/check`.
+- Повторяющийся `serverId` у двух URL.
 
 ### Actions
 
 - Test connection.
 - Save connection.
-- Reset stored connection.
+- Forget connection without deleting server data.
 
 ### API
 
 ```http
 GET /health
 GET /api/capabilities
+GET /api/auth/check (с Bearer, если authRequired=true)
 ```
 
 ### Verification
 
-- При валидном mock server переход на `/projects`.
+- При валидном сервере он добавляется в реестр и выполняется переход на
+  `/projects`.
 - При ошибке показывается понятное сообщение.
-- URL сохраняется в secure storage/native и local storage/web abstraction.
+- Реестр URL сохраняется в storage abstraction, credentials — только в
+  подходящем secure storage.
 - Есть testID: `setup.backendUrl`, `setup.testConnection`, `setup.continue`.
 
 ---
@@ -67,15 +83,16 @@ GET /api/capabilities
 
 ### Назначение
 
-Список проектов пользователя.
+Агрегированный список проектов пользователя со всех добавленных компьютеров.
 
 ### UI
 
 - Header: `Projects`.
 - Search input.
-- Cards проектов: name, repo path, active tasks, stale tasks, last activity.
+- Cards проектов: name, server name, repo path, active tasks, stale tasks, last activity.
 - FAB/кнопка `New project`.
 - Quick filter: `All`, `Active`, `Needs review`, `Stale`.
+- Фильтр/группировка по серверу и отдельное состояние недоступного сервера.
 
 ### States
 
@@ -91,6 +108,7 @@ GET /api/capabilities
 - Create project.
 - Edit project.
 - Archive project.
+- Open server list.
 
 ### API
 
@@ -104,7 +122,9 @@ PATCH /api/projects/:projectId
 
 - Empty state содержит CTA создать проект.
 - Active task counter совпадает с mock data.
-- По tap открывается `/projects/:projectId`.
+- По tap открывается
+  `/servers/:serverId/projects/:projectId`; сервер-владелец однозначно
+  определяется из ссылки.
 
 ---
 
@@ -120,7 +140,8 @@ PATCH /api/projects/:projectId
 ### UI
 
 - Project name.
-- Repo path on VPS.
+- Явно выбранный серверный узел.
+- Repo path на выбранном узле.
 - Default branch.
 - Runtime state path.
 - `.agents` directory preview.
@@ -815,16 +836,21 @@ POST /api/tasks/:taskId/abort
 
 ### UI
 
-- Backend connection.
+- Список backend-подключений и переход к `/servers`.
 - Device identity.
 - Notification settings.
 - Cache/reset.
 - About/version.
+- Статус PWA, действие установки (если браузер его предоставляет) и статус
+  доступного обновления app shell.
 
 ### Verification
 
-- Reset connection returns to setup.
+- Удаление последнего подключения возвращает в setup; удаление одного из
+  нескольких подключений не мешает работе остальных.
 - App version and backend version visible.
+- Установленная PWA запускается в standalone-режиме, а обновление не теряет
+  черновик сообщения.
 
 ---
 

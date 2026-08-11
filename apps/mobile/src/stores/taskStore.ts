@@ -18,7 +18,7 @@ export type ToolCallView = {
 };
 
 export type TaskStoreDependencies = {
-  apiClientFactory: (baseUrl: string) => ApiClient;
+  apiClientFactory: (baseUrl: string, serverId?: string) => ApiClient;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -44,6 +44,7 @@ const ATTENTION_STATUSES: ReadonlySet<TaskStatus> = new Set([
 const MERGEABLE_STATUSES: ReadonlySet<TaskStatus> = new Set(['idle', 'needs_review']);
 
 export class TaskStore {
+  serverId: string | undefined;
   projectId: string;
   title: string;
   mode: Task['mode'];
@@ -59,6 +60,7 @@ export class TaskStore {
   lastEventSequence = 0;
 
   constructor(readonly id: string, task: Task) {
+    this.serverId = task.serverId;
     this.projectId = task.projectId;
     this.title = task.title;
     this.mode = task.mode;
@@ -91,6 +93,7 @@ export class TaskStore {
   }
 
   applyTask(task: Task): void {
+    this.serverId = task.serverId ?? this.serverId;
     this.projectId = task.projectId;
     this.title = task.title;
     this.mode = task.mode;
@@ -191,80 +194,123 @@ export class TasksStore {
   }
 
   getOrCreate(task: Task): TaskStore {
-    const existing = this.items.get(task.id);
+    const key = this.taskKey(task.id, task.serverId);
+    const existing = this.items.get(key);
     if (existing) {
       existing.applyTask(task);
       return existing;
     }
     const store = new TaskStore(task.id, task);
-    this.items.set(task.id, store);
+    this.items.set(key, store);
     return store;
   }
 
-  get(taskId: string): TaskStore | undefined {
-    return this.items.get(taskId);
+  get(taskId: string, serverId?: string): TaskStore | undefined {
+    if (serverId) return this.items.get(this.taskKey(taskId, serverId));
+    return this.items.get(taskId) ?? [...this.items.values()].find((task) => task.id === taskId);
   }
 
-  byProject(projectId: string): TaskStore[] {
+  byProject(projectId: string, serverId?: string): TaskStore[] {
     return [...this.items.values()]
-      .filter((task) => task.projectId === projectId)
+      .filter((task) => task.projectId === projectId && (!serverId || task.serverId === serverId))
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
-  activeCount(projectId: string): number {
-    return this.byProject(projectId).filter((task) => task.isRunning).length;
+  activeCount(projectId: string, serverId?: string): number {
+    return this.byProject(projectId, serverId).filter((task) => task.isRunning).length;
+  }
+
+  activeCountForServer(serverId: string): number {
+    return [...this.items.values()].filter((task) => task.serverId === serverId && task.isRunning).length;
   }
 
   async hydrateProject(projectId: string): Promise<TaskStore[]> {
-    if (!this.backend.baseUrl) throw new Error('Backend URL is not configured');
-    const tasks = await this.dependencies.apiClientFactory(this.backend.baseUrl).getTasks(projectId);
+    return this.hydrateProjectOnServer(projectId, this.backend.serverId ?? undefined);
+  }
+
+  async hydrateProjectOnServer(projectId: string, serverId?: string): Promise<TaskStore[]> {
+    const baseUrl = this.backend.getBaseUrl(serverId);
+    if (!baseUrl) throw new Error('Backend URL is not configured');
+    const tasks = await this.dependencies.apiClientFactory(baseUrl, serverId).getTasks(projectId);
     return runInAction(() => {
       const stores = tasks.map((task) => this.getOrCreate(task));
       for (const task of stores) {
-        if (task.isRunning) this.watch(task.id);
+        if (task.isRunning) this.watch(task.id, task.serverId ?? serverId);
       }
       return stores;
     });
   }
 
-  async hydrate(taskId: string): Promise<TaskStore> {
-    if (!this.backend.baseUrl) throw new Error('Backend URL is not configured');
-    const task = await this.dependencies.apiClientFactory(this.backend.baseUrl).getTask(taskId);
+  async hydrate(taskId: string, serverId?: string): Promise<TaskStore> {
+    const baseUrl = this.backend.getBaseUrl(serverId);
+    if (!baseUrl) throw new Error('Backend URL is not configured');
+    const task = await this.dependencies.apiClientFactory(baseUrl, serverId).getTask(taskId);
     return runInAction(() => {
       const store = this.getOrCreate(task);
-      if (store.isRunning) this.watch(taskId);
-      else this.unwatch(taskId);
+      if (store.isRunning) this.watch(taskId, store.serverId ?? serverId);
+      else this.unwatch(taskId, store.serverId ?? serverId);
       return store;
     });
   }
 
-  watch(taskId: string): void {
-    if (!this.backend.baseUrl || this.subscriptions.has(taskId)) return;
-    const task = this.items.get(taskId);
+  watch(taskId: string, serverId?: string): void {
+    const task = this.get(taskId, serverId);
     if (!task || !task.isRunning) return;
-    const baseUrl = this.backend.baseUrl.replace(/\/$/, '');
+    const scopeId = task.serverId ?? serverId ?? this.backend.serverId ?? undefined;
+    const baseUrl = this.backend.getBaseUrl(scopeId);
+    if (!baseUrl || this.subscriptions.has(this.subscriptionKey(taskId, scopeId))) return;
+    const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
     const subscription = this.realtimeHub.subscribeTask(taskId, {
-      url: `${baseUrl}/api/tasks/${encodeURIComponent(taskId)}/events`,
+      url: `${normalizedBaseUrl}/api/tasks/${encodeURIComponent(taskId)}/events`,
       initialAfterSequence: task.lastEventSequence || null,
+      headers: this.backend.getAuthHeaders(scopeId),
     }, {
       onEvent: (event) => {
         runInAction(() => {
-          const current = this.items.get(taskId);
+          const current = this.get(taskId, scopeId);
           if (!current?.applyEvent(event)) return;
-          if (!current.isRunning) this.unwatch(taskId);
+          if (!current.isRunning) this.unwatch(taskId, scopeId);
         });
       },
-    });
-    this.subscriptions.set(taskId, subscription);
+    }, scopeId);
+    this.subscriptions.set(this.subscriptionKey(taskId, scopeId), subscription);
   }
 
-  unwatch(taskId: string): void {
-    this.subscriptions.get(taskId)?.unsubscribe();
-    this.subscriptions.delete(taskId);
+  unwatch(taskId: string, serverId?: string): void {
+    const exact = serverId ? this.subscriptionKey(taskId, serverId) : null;
+    const keys = exact
+      ? [exact]
+      : [...this.subscriptions.keys()].filter((key) => key.endsWith(`:${taskId}`) || key === taskId);
+    for (const key of keys) {
+      this.subscriptions.get(key)?.unsubscribe();
+      this.subscriptions.delete(key);
+    }
   }
 
   dispose(): void {
-    for (const taskId of this.subscriptions.keys()) this.unwatch(taskId);
+    for (const [key, subscription] of this.subscriptions) {
+      subscription.unsubscribe();
+      this.subscriptions.delete(key);
+    }
     this.items.clear();
+  }
+
+  disposeServer(serverId: string): void {
+    for (const [key, subscription] of this.subscriptions.entries()) {
+      if (!key.startsWith(`${serverId}:`)) continue;
+      subscription.unsubscribe();
+      this.subscriptions.delete(key);
+    }
+    for (const [key, task] of this.items.entries()) {
+      if (task.serverId === serverId) this.items.delete(key);
+    }
+  }
+
+  private subscriptionKey(taskId: string, serverId?: string): string {
+    return serverId ? `${serverId}:${taskId}` : taskId;
+  }
+
+  private taskKey(taskId: string, serverId?: string): string {
+    return serverId ? `${serverId}:${taskId}` : taskId;
   }
 }

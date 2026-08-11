@@ -34,6 +34,10 @@ function resolvePath(target: string): { pathname: string; query: Record<string, 
 
 function navigate(target: string, replace: boolean): void {
   const { pathname, query } = resolvePath(target);
+  const currentParams = (navigationRef.getCurrentRoute()?.params ?? {}) as ScreenParams;
+  if (pathname.startsWith('/projects/') && !query.serverId && currentParams.serverId) {
+    query.serverId = currentParams.serverId;
+  }
   const matched = matchPath(pathname);
   if (!matched) {
     throw new Error(`Unknown application route: ${pathname}`);

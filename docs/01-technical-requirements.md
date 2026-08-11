@@ -13,7 +13,8 @@
 - Android native app;
 - web browser;
 - narrow mobile web viewport;
-- desktop browser viewport.
+- desktop browser viewport;
+- устанавливаемая desktop PWA.
 
 ### 1.2. Frontend stack
 
@@ -23,6 +24,8 @@
 - Общие компоненты для mobile/web.
 - Web-only компоненты допускаются для Monaco diff, VSCode Web, Obsidian/Ignis.
 - Native-only компоненты допускаются для push notifications, secure storage, share sheet.
+- PWA использует Web App Manifest и service worker; кэширование изменяющих API,
+  SSE и секретов запрещено.
 
 ### 1.3. Backend stack
 
@@ -30,7 +33,10 @@
 - Shared TypeScript/Zod contracts.
 - Hono RPC или oRPC для типизированных команд/queries.
 - SSE или WebSocket для realtime event stream.
-- Backend расположен на VPS.
+- Backend может быть запущен на одном или нескольких независимых компьютерах,
+  включая локальный Windows-компьютер и VPS.
+- Каждый backend имеет стабильный `serverId`; клиент хранит реестр подключений и
+  отдельные API/SSE-транспорты для каждого узла.
 - Один пользователь, но все операции всё равно должны иметь explicit session/device identity.
 
 ### 1.4. Agent runtime
@@ -58,6 +64,10 @@ Backend хранит:
 - encrypted secret refs;
 - UI themes.
 
+Клиент отдельно хранит реестр серверных подключений. Глобальная ссылка на
+Project, Chat или Task имеет вид `{ serverId, resourceId }`; локальный ID без
+контекста узла нельзя использовать в маршруте или общем frontend-кэше.
+
 MVP может использовать SQLite. Production-ready вариант должен быть переносим на Postgres.
 
 ## 2. Основные доменные сущности
@@ -69,6 +79,7 @@ Project — рабочее пространство пользователя.
 Поля:
 
 - `id`;
+- `serverId` (неизменяемая привязка к узлу-владельцу);
 - `name`;
 - `repoPath`;
 - `defaultBranch`;
@@ -92,6 +103,7 @@ Chat — пользовательская conversational thread.
 Поля:
 
 - `id`;
+- `serverId` (наследуется от Project и не меняется неявно);
 - `projectId`;
 - `title`;
 - `mode`;
@@ -105,6 +117,8 @@ Chat — пользовательская conversational thread.
 - Chat может иметь active implementation task.
 - Chat может быть orchestration chat, наблюдающим несколько tasks.
 - Chat projection должен восстанавливаться из app event log + Pi JSONL.
+- Все команды и realtime-подписки Chat должны разрешать API-клиент через его
+  `serverId`, а не через глобально выбранный backend.
 
 ### 2.3. Task
 

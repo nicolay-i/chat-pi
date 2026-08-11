@@ -47,6 +47,17 @@ describe('ApiClient', () => {
     expect(fetchMock).toHaveBeenCalledWith('https://api.example.com/api/projects');
   });
 
+  it('adds the bearer credential without changing anonymous request shapes', async () => {
+    fetchMock.mockResolvedValue(mockResponse([]));
+
+    const client = new ApiClient('https://api.example.com', 'server-1', 'secret-token');
+    await client.getProjects();
+
+    const request = fetchMock.mock.calls[0][1];
+    expect(request.headers).toBeInstanceOf(Headers);
+    expect(request.headers.get('authorization')).toBe('Bearer secret-token');
+  });
+
   it('getProjects throws ApiClientError on 500', async () => {
     fetchMock.mockResolvedValue(
       mockResponse({ code: 'internal_error', message: 'boom', retryable: false }, { ok: false, status: 500 }),

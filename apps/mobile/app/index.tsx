@@ -1,17 +1,20 @@
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useEffect } from 'react';
-import { router } from '@/navigation';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '@/navigation';
 import { observer } from '@/lib/observer';
 import { useRootStore } from '@/providers/RootStoreProvider';
 import { tokens } from '@/theme/tokens';
 
 export default observer(function HomeScreen() {
   const { backend } = useRootStore();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   useEffect(() => {
     if (!backend.restored) return;
-    router.replace(backend.baseUrl ? '/projects' : '/setup');
-  }, [backend.baseUrl, backend.restored]);
+    navigation.replace(backend.baseUrl ? 'Projects' : 'Setup');
+  }, [backend.baseUrl, backend.restored, navigation]);
 
   return (
     <View

@@ -29,6 +29,9 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
 export const ProjectSchema = z.object({
   id: z.string(),
+  // Added for multi-server clients. Older backends may omit it; the client
+  // fills it from the connection that returned the resource.
+  serverId: z.string().optional(),
   name: z.string(),
   repoPath: z.string(),
   defaultBranch: z.string(),
@@ -62,6 +65,7 @@ export type IgnisAccess = z.infer<typeof IgnisAccessSchema>;
 
 export const ChatSchema = z.object({
   id: z.string(),
+  serverId: z.string().optional(),
   projectId: z.string(),
   title: z.string(),
   mode: RunModeSchema,
@@ -76,6 +80,7 @@ export type Chat = z.infer<typeof ChatSchema>;
 
 export const TaskSchema = z.object({
   id: z.string(),
+  serverId: z.string().optional(),
   projectId: z.string(),
   sourceChatId: z.string().optional(),
   title: z.string(),
@@ -182,6 +187,13 @@ export const ApiErrorSchema = z.object({
 export type ApiError = z.infer<typeof ApiErrorSchema>;
 
 export const CapabilitiesSchema = z.object({
+  // Optional in the contract so an older node can still be opened and
+  // migrated. Current nodes always return a stable UUID.
+  serverId: z.string().uuid().optional(),
+  // Public capabilities may advertise that the remaining API requires a
+  // bearer credential. The capability endpoint itself stays public so a
+  // client can discover the auth mode before asking for a token.
+  authRequired: z.boolean().optional(),
   apiVersion: z.string(),
   piAvailable: z.boolean(),
   gitAvailable: z.boolean(),

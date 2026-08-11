@@ -32,31 +32,35 @@ export class RealtimeHub {
     chatId: string,
     options: Omit<RealtimeManagerOptions, 'onEvent' | 'onState'>,
     subscriber: Subscriber,
+    scopeId?: string | null,
   ): RealtimeHubSubscription {
-    return this.subscribe('chat', chatId, options, subscriber);
+    return this.subscribe('chat', chatId, options, subscriber, scopeId);
   }
 
   subscribeTask(
     taskId: string,
     options: Omit<RealtimeManagerOptions, 'onEvent' | 'onState'>,
     subscriber: Subscriber,
+    scopeId?: string | null,
   ): RealtimeHubSubscription {
-    return this.subscribe('task', taskId, options, subscriber);
+    return this.subscribe('task', taskId, options, subscriber, scopeId);
   }
 
   subscribeProject(
     projectId: string,
     options: Omit<RealtimeManagerOptions, 'onEvent' | 'onState'>,
     subscriber: Subscriber,
+    scopeId?: string | null,
   ): RealtimeHubSubscription {
-    return this.subscribe('project', projectId, options, subscriber);
+    return this.subscribe('project', projectId, options, subscriber, scopeId);
   }
 
   retainTask(
     taskId: string,
     options: Omit<RealtimeManagerOptions, 'onEvent' | 'onState'>,
+    scopeId?: string | null,
   ): () => void {
-    const key = this.key('task', taskId);
+    const key = this.key('task', taskId, scopeId);
     const entry = this.getOrCreate(key, options);
     entry.backgroundRefs += 1;
     return () => {
@@ -77,8 +81,9 @@ export class RealtimeHub {
     streamId: string,
     options: Omit<RealtimeManagerOptions, 'onEvent' | 'onState'>,
     subscriber: Subscriber,
+    scopeId?: string | null,
   ): RealtimeHubSubscription {
-    const key = this.key(stream, streamId);
+    const key = this.key(stream, streamId, scopeId);
     const entry = this.getOrCreate(key, options);
     const id = ++this.nextSubscriberId;
     entry.subscribers.set(id, subscriber);
@@ -136,7 +141,7 @@ export class RealtimeHub {
     this.entries.delete(key);
   }
 
-  private key(stream: HubStream, streamId: string): string {
-    return `${stream}:${streamId}`;
+  private key(stream: HubStream, streamId: string, scopeId?: string | null): string {
+    return scopeId ? `${scopeId}:${stream}:${streamId}` : `${stream}:${streamId}`;
   }
 }

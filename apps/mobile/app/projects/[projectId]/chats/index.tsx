@@ -38,8 +38,8 @@ function filterChats(chats: Chat[], filter: ModeFilter, query: string): Chat[] {
 }
 
 export default function ChatsScreen() {
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { status, data, error, refetch } = useChats(projectId);
+  const { projectId, serverId } = useLocalSearchParams<{ projectId: string; serverId?: string }>();
+  const { status, data, error, refetch } = useChats(projectId, serverId);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<ModeFilter>('all');
 

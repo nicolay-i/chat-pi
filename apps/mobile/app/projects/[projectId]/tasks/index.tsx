@@ -24,8 +24,8 @@ function buildSections(groups: TaskGroups): SectionEntry[] {
 }
 
 export default function TasksScreen() {
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { status, data, error, refetch } = useTasks(projectId);
+  const { projectId, serverId } = useLocalSearchParams<{ projectId: string; serverId?: string }>();
+  const { status, data, error, refetch } = useTasks(projectId, serverId);
 
   const sections = data ? buildSections(groupTasksByStatus(data)) : [];
   const anyTasks = data !== null && data.length > 0;

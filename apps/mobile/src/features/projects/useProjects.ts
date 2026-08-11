@@ -15,7 +15,7 @@ export function useProjects(): UseProjectsResult {
 
   useEffect(() => {
     void projects.load();
-  }, [backend.baseUrl, projects]);
+  }, [backend.baseUrl, backend.activeServerId, backend.servers.size, projects]);
 
   return {
     data: projects.data,

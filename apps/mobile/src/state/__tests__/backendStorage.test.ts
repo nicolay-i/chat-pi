@@ -1,4 +1,11 @@
-import { clearBackendUrl, loadBackendUrl, saveBackendUrl } from '../backendStorage';
+import {
+  clearBackendUrl,
+  clearBackendCredential,
+  loadBackendCredential,
+  loadBackendUrl,
+  saveBackendCredential,
+  saveBackendUrl,
+} from '../backendStorage';
 
 describe('backendStorage on web', () => {
   const values = new Map<string, string>();
@@ -28,5 +35,13 @@ describe('backendStorage on web', () => {
 
     await clearBackendUrl();
     expect(await loadBackendUrl()).toBeNull();
+  });
+
+  it('does not put bearer credentials in Web localStorage', async () => {
+    await saveBackendCredential('server-1', 'secret-token');
+    expect(await loadBackendCredential('server-1')).toBe('secret-token');
+    expect(values.size).toBe(0);
+    await clearBackendCredential('server-1');
+    expect(await loadBackendCredential('server-1')).toBeNull();
   });
 });

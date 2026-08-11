@@ -7,7 +7,7 @@
     "start": "expo start",
     "dev": "expo start --web",
     "web": "expo start --web",
-    "export:web": "expo export --platform web",
+    "export:web": "expo export --platform web && node scripts/copy-web-public.mjs",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",

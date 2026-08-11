@@ -8,15 +8,17 @@ import { useRootStore } from '@/providers/RootStoreProvider';
 import { ProjectForm } from '@/features/projects/ProjectForm';
 
 export default function NewProjectScreen() {
-  const { baseUrl } = useBackend();
+  const { baseUrl, activeServerId } = useBackend();
   const { projects } = useRootStore();
 
   const handleSubmit = async (values: CreateProjectInput) => {
     if (!baseUrl) throw new Error('Backend URL is not configured');
-    const client = new ApiClient(baseUrl);
+    const client = new ApiClient(baseUrl, activeServerId ?? undefined);
     const created = await client.createProject(values);
     projects.remember(created);
-    router.replace(`/projects/${created.id}`);
+    router.replace(activeServerId && !activeServerId.startsWith('legacy-')
+      ? `/servers/${encodeURIComponent(activeServerId)}/projects/${encodeURIComponent(created.id)}`
+      : `/projects/${encodeURIComponent(created.id)}`);
   };
 
   return (

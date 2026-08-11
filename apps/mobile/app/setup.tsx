@@ -12,6 +12,7 @@ type Phase =
   | 'connected'
   | 'invalidUrl'
   | 'serverUnreachable'
+  | 'authRequired'
   | 'unsupportedVersion';
 
 type Diagnostics = {
@@ -21,6 +22,7 @@ type Diagnostics = {
 };
 
 const CAPABILITY_ROWS: ReadonlyArray<{ key: keyof Capabilities; label: string }> = [
+  { key: 'authRequired', label: 'Bearer auth' },
   { key: 'piAvailable', label: 'Pi runtime' },
   { key: 'gitAvailable', label: 'Git' },
   { key: 'supportsWorktrees', label: 'Worktrees' },
@@ -42,6 +44,7 @@ export default observer(function SetupScreen() {
   const store = useRootStore();
   const { backend } = store;
   const [url, setUrl] = useState('');
+  const [token, setToken] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,17 +58,17 @@ export default observer(function SetupScreen() {
       return;
     }
     setPhase('checking');
-    await backend.connect(trimmed);
-    if (backend.status === 'connected' && backend.capabilities) {
+    const connection = await backend.connect(trimmed, token);
+    if (connection?.status === 'connected' && connection.capabilities) {
       setDiagnostics({
-        latencyMs: backend.latencyMs ?? 0,
-        apiVersion: backend.capabilities.apiVersion,
-        capabilities: backend.capabilities,
-      });
+        latencyMs: connection.latencyMs ?? 0,
+        apiVersion: connection.capabilities.apiVersion,
+        capabilities: connection.capabilities,
+        });
       setPhase('connected');
     } else {
-      setPhase('serverUnreachable');
-      setError(backend.error ?? 'Не удалось подключиться к backend');
+      setPhase(connection?.status === 'auth_required' ? 'authRequired' : 'serverUnreachable');
+      setError(connection?.error ?? 'Не удалось подключиться к backend');
     }
   };
 
@@ -81,12 +84,13 @@ export default observer(function SetupScreen() {
   const handleReset = async (): Promise<void> => {
     await store.reset();
     setUrl('');
+    setToken('');
     setDiagnostics(null);
     setError(null);
     setPhase('idle');
   };
 
-  const hasError = phase === 'invalidUrl' || phase === 'serverUnreachable';
+  const hasError = phase === 'invalidUrl' || phase === 'serverUnreachable' || phase === 'authRequired';
   const inputBorder = hasError ? tokens.color.danger : tokens.color.border;
 
   return (
@@ -117,6 +121,28 @@ export default observer(function SetupScreen() {
           marginTop: tokens.spacing.xl,
           borderWidth: 1,
           borderColor: inputBorder,
+          backgroundColor: tokens.color.surface,
+          borderRadius: tokens.radius.md,
+          padding: 14,
+          color: tokens.color.text,
+        }}
+      />
+
+      <TextInput
+        testID="setup.serverToken"
+        accessibilityLabel="Токен backend"
+        value={token}
+        onChangeText={setToken}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+        placeholder="Bearer-токен (если сервер защищён)"
+        placeholderTextColor={tokens.color.textMuted}
+        editable={phase !== 'checking'}
+        style={{
+          marginTop: tokens.spacing.md,
+          borderWidth: 1,
+          borderColor: tokens.color.border,
           backgroundColor: tokens.color.surface,
           borderRadius: tokens.radius.md,
           padding: 14,
@@ -158,6 +184,12 @@ export default observer(function SetupScreen() {
           style={{ marginTop: tokens.spacing.md, color: tokens.color.danger }}
         >
           {`Не удалось подключиться к backend${error ? `: ${error}` : ''}`}
+        </Text>
+      ) : null}
+
+      {phase === 'authRequired' ? (
+        <Text testID="setup.authRequired" style={{ marginTop: tokens.spacing.md, color: tokens.color.danger }}>
+          Сервер доступен, но требует bearer-токен. Проверьте токен и повторите попытку.
         </Text>
       ) : null}
 

@@ -11,7 +11,7 @@ import { useRootStore } from '@/providers/RootStoreProvider';
 import { tokens } from '@/theme/tokens';
 import { ApiClient } from '@/api/client';
 import { router } from '@/navigation';
-import { useBackend } from '@/stores/useBackend';
+import { clearChatDraft, loadChatDraft, saveChatDraft } from '@/state/draftStorage';
 
 function formatTime(iso: string): string {
   const date = new Date(iso);
@@ -27,8 +27,14 @@ function connectionLabel(status: string): string {
   return 'Ожидание';
 }
 
-export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: string }) {
+export function keyboardAvoidingBehavior(platform: string): 'padding' | undefined {
+  if (platform === 'ios') return 'padding';
+  return undefined;
+}
+
+export const ChatScreen = observer(function ChatScreen({ chatId, serverId }: { chatId: string; serverId?: string }) {
   const [draft, setDraft] = useState('');
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const [behavior, setBehavior] = useState<SendMessageInput['behavior']>('send');
   const [needsRunChoice, setNeedsRunChoice] = useState(false);
   const [metadata, setMetadata] = useState<Chat | null>(null);
@@ -39,29 +45,52 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
   const [nextTaskTitle, setNextTaskTitle] = useState('');
   const [creatingNextTask, setCreatingNextTask] = useState(false);
   const [nextTaskError, setNextTaskError] = useState<string | null>(null);
-  const { chats } = useRootStore();
-  const { baseUrl } = useBackend();
-  const chat = useMemo(() => chats.getOrCreate(chatId), [chatId, chats]);
+  const { chats, backend } = useRootStore();
+  const resolvedServerId = serverId ?? backend.serverId ?? undefined;
+  const sessionServerId = serverId ?? undefined;
+  const baseUrl = backend.getBaseUrl(resolvedServerId);
+  const serverName = backend.connections.find((connection) => connection.serverId === resolvedServerId)?.name ?? 'Текущий компьютер';
+  const chat = useMemo(() => chats.getOrCreate(chatId, resolvedServerId), [chatId, chats, resolvedServerId]);
 
   const loadOrchestration = useCallback(async () => {
     if (!baseUrl) return;
-    const client = new ApiClient(baseUrl);
+    const client = new ApiClient(baseUrl, serverId);
     const next = await client.getChat(chatId);
     setMetadata(next);
     chat.applyChat(next);
     if (next.mode === 'orchestration') setManaged(await client.getManagedImplementations(chatId));
-  }, [baseUrl, chat, chatId]);
+  }, [baseUrl, chat, chatId, serverId]);
+
+  useEffect(() => {
+    let active = true;
+    setDraftHydrated(false);
+    setDraft('');
+    void loadChatDraft(chatId, resolvedServerId).then((saved) => {
+      if (!active) return;
+      setDraft(saved ?? '');
+      setDraftHydrated(true);
+    });
+    return () => { active = false; };
+  }, [chatId, resolvedServerId]);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    const timer = setTimeout(() => {
+      void saveChatDraft(chatId, resolvedServerId, draft);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [chatId, draft, draftHydrated, resolvedServerId]);
 
   useEffect(() => {
     if (!baseUrl) return;
-    const session = chats.open(chatId);
-    void chats.hydrate(chatId).catch((error: unknown) => {
+    const session = chats.open(chatId, sessionServerId);
+    void chats.hydrate(chatId, sessionServerId).catch((error: unknown) => {
       session.setError(error instanceof Error ? error.message : String(error));
     });
     return () => {
       session.close();
     };
-  }, [baseUrl, chatId, chats]);
+  }, [baseUrl, chatId, chats, sessionServerId]);
 
   useEffect(() => {
     void loadOrchestration().catch((error: unknown) => {
@@ -74,7 +103,7 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
     if (!baseUrl || !title || creatingImplementation) return;
     setCreatingImplementation(true);
     setOrchestrationError(null);
-    void new ApiClient(baseUrl).createImplementationTask(chatId, title)
+    void new ApiClient(baseUrl, resolvedServerId).createImplementationTask(chatId, title)
       .then((created) => {
         setManaged((items) => [...items, created]);
         setImplementationTitle('');
@@ -88,7 +117,7 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
     if (!baseUrl || !title || creatingNextTask) return;
     setCreatingNextTask(true);
     setNextTaskError(null);
-    const client = new ApiClient(baseUrl);
+    const client = new ApiClient(baseUrl, resolvedServerId);
     void client.createTaskForChat(chatId, { title, mode: 'implementation' })
       .then(async () => {
         setNextTaskTitle('');
@@ -108,6 +137,7 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
     }
     const text = draft;
     setDraft('');
+    void clearChatDraft(chatId, resolvedServerId);
     setNeedsRunChoice(false);
     void chat.send(text, behavior);
   };
@@ -125,8 +155,9 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
 
   return (
     <KeyboardAvoidingView
+      testID="chat.screen.keyboardAvoiding"
       style={{ flex: 1, backgroundColor: tokens.color.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={keyboardAvoidingBehavior(Platform.OS)}
     >
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: tokens.color.border, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
         <View style={{ flex: 1, gap: 3 }}>
@@ -138,6 +169,9 @@ export const ChatScreen = observer(function ChatScreen({ chatId }: { chatId: str
           </Text>
           <Text testID="chat.screen.activeTask" style={{ color: tokens.color.textMuted, fontSize: tokens.fontSize.xs }}>
             Задача: {chat.activeTaskId ?? 'нет активной'}
+          </Text>
+          <Text testID="chat.screen.server" style={{ color: tokens.color.textMuted, fontSize: tokens.fontSize.xs }}>
+            Компьютер: {serverName}
           </Text>
         </View>
         {chat.isRunning ? (

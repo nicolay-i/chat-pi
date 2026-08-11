@@ -12,9 +12,9 @@ type Status = 'loading' | 'loaded' | 'error';
 
 const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
   const { width } = useWindowDimensions();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { baseUrl } = useBackend();
-  const { tasks: tasksStore } = useRootStore();
+  const { projectId, serverId } = useLocalSearchParams<{ projectId: string; serverId?: string }>();
+  const { baseUrl, activeServerId } = useBackend();
+  const { tasks: tasksStore, backend } = useRootStore();
   const [project, setProject] = useState<Project | null>(null);
   const [chats, setChats] = useState<Chat[] | null>(null);
   const [status, setStatus] = useState<Status>('loading');
@@ -30,10 +30,11 @@ const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
       return;
     }
     let active = true;
-    const client = new ApiClient(baseUrl);
+    const resolvedServerId = serverId ?? activeServerId ?? undefined;
+    const client = new ApiClient(baseUrl, resolvedServerId);
     setStatus('loading');
     setError(null);
-    Promise.all([client.getProject(projectId), client.getChats(projectId), tasksStore.hydrateProject(projectId)])
+    Promise.all([client.getProject(projectId), client.getChats(projectId), tasksStore.hydrateProjectOnServer(projectId, resolvedServerId)])
       .then(([p, c]) => {
         if (!active) return;
         setProject(p);
@@ -49,7 +50,7 @@ const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
     return () => {
       active = false;
     };
-  }, [baseUrl, projectId, nonce, tasksStore]);
+  }, [baseUrl, projectId, serverId, activeServerId, nonce, tasksStore]);
 
   if (status === 'loading') {
     return (
@@ -77,7 +78,8 @@ const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
     );
   }
 
-  const activeTasks = tasksStore.byProject(projectId).filter((task) => task.isRunning);
+  const activeTasks = tasksStore.byProject(projectId, serverId ?? activeServerId ?? undefined).filter((task) => task.isRunning);
+  const serverName = backend.connections.find((connection) => connection.serverId === (serverId ?? activeServerId))?.name ?? 'Текущий компьютер';
   const lastChat = chats && chats.length > 0 ? chats[0] : null;
 
   const cardStyle = {
@@ -102,6 +104,7 @@ const ProjectDashboardScreen = observer(function ProjectDashboardScreen() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ fontSize: 24, fontWeight: '700', color: tokens.color.text }}>{project.name}</Text>
           <Text style={{ color: tokens.color.textMuted, marginTop: 2 }}>{project.repoPath}</Text>
+          <Text style={{ color: tokens.color.primary, marginTop: 4, fontSize: tokens.fontSize.sm, fontWeight: '700' }}>Компьютер: {serverName}</Text>
         </View>
         <Link href={`/projects/${projectId}/settings/project`} style={{ color: tokens.color.primary, fontWeight: '700', alignSelf: width < 520 ? 'flex-start' : 'auto' }}>
           Settings

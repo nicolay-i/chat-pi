@@ -75,6 +75,27 @@ describe('createRootStore', () => {
     expect(store.backend.baseUrl).toBeNull();
   });
 
+  it('continues to setup when reading the saved URL does not respond', async () => {
+    jest.useFakeTimers();
+    const store = createRootStore({
+      storage: {
+        load: () => new Promise<string | null>(() => undefined),
+        save: async () => undefined,
+        clear: async () => undefined,
+      },
+    });
+
+    const restoring = store.backend.restore();
+    await jest.advanceTimersByTimeAsync(3_000);
+    await restoring;
+
+    expect(store.backend.baseUrl).toBeNull();
+    expect(store.backend.restored).toBe(true);
+    expect(store.backend.error).toBe('Saved backend connection did not respond in time');
+    store.dispose();
+    jest.useRealTimers();
+  });
+
   it('keeps independent session projections while another chat is active and evicts explicitly', () => {
     const subscriptions = new Map<string, { onEvent: (event: { id: string; sequence: number; stream: 'chat'; streamId: string; type: 'message.created'; payload: unknown; createdAt: string }) => void; stop: jest.Mock }>();
     const store = createRootStore({
@@ -113,6 +134,92 @@ describe('createRootStore', () => {
     store.chats.evict('A');
     expect(aSubscription!.stop).toHaveBeenCalledTimes(1);
     expect(store.chats.items.has('A')).toBe(false);
+  });
+
+  it('keeps equal chat ids isolated when they belong to different servers', () => {
+    const callbacks = new Map<string, (event: unknown) => void>();
+    const store = createRootStore({
+      realtimeFactory: (options) => {
+        callbacks.set(options.url, options.onEvent as never);
+        return { start: jest.fn(() => options.onState?.('open')), stop: jest.fn() };
+      },
+    });
+    store.backend.servers.set('server-a', {
+      serverId: 'server-a', name: 'A', baseUrl: 'https://a.example', capabilities: null,
+      status: 'connected', latencyMs: 1, error: null, lastSuccessfulAt: null,
+    });
+    store.backend.servers.set('server-b', {
+      serverId: 'server-b', name: 'B', baseUrl: 'https://b.example', capabilities: null,
+      status: 'connected', latencyMs: 1, error: null, lastSuccessfulAt: null,
+    });
+    store.backend.activate('server-a');
+
+    const first = store.chats.open('same-chat', 'server-a');
+    const second = store.chats.open('same-chat', 'server-b');
+    callbacks.get('https://a.example/api/chats/same-chat/events')!({
+      id: 'a-event', sequence: 1, stream: 'chat', streamId: 'same-chat', type: 'message.created',
+      payload: { chatId: 'same-chat', id: 'a-message', role: 'assistant', text: 'A', createdAt: '2026-01-01T00:00:00.000Z' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    callbacks.get('https://b.example/api/chats/same-chat/events')!({
+      id: 'b-event', sequence: 1, stream: 'chat', streamId: 'same-chat', type: 'message.created',
+      payload: { chatId: 'same-chat', id: 'b-message', role: 'assistant', text: 'B', createdAt: '2026-01-01T00:00:00.000Z' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(first.messages.map((message) => message.text)).toEqual(['A']);
+    expect(second.messages.map((message) => message.text)).toEqual(['B']);
+    expect(store.chats.items.size).toBe(2);
+  });
+
+  it('keeps the active node usable when another node is offline', async () => {
+    const factory = jest.fn((baseUrl: string) => ({
+      getHealth: async () => {
+        if (baseUrl.includes('offline')) throw new Error('network unavailable');
+        return { ok: true };
+      },
+      getCapabilities: async () => ({ ...capabilities, serverId: 'server-a' }),
+    }));
+    const store = createRootStore({ apiClientFactory: factory as never });
+
+    const first = await store.backend.connect('https://active.example');
+    const second = await store.backend.connect('https://offline.example');
+
+    expect(first?.status).toBe('connected');
+    expect(second?.status).toBe('offline');
+    expect(store.backend.activeServerId).toBe('server-a');
+    expect(store.backend.status).toBe('connected');
+    expect(store.backend.connections).toHaveLength(2);
+  });
+
+  it('passes and persists a per-server bearer credential', async () => {
+    const saved = new Map<string, string>();
+    const tokens: Array<string | undefined> = [];
+    const store = createRootStore({
+      apiClientFactory: ((baseUrl: string, _serverId?: string, token?: string) => {
+        tokens.push(token);
+        return {
+          getHealth: async () => ({ ok: true }),
+          getCapabilities: async () => ({ ...capabilities, serverId: 'secure-node', authRequired: true }),
+          checkAuth: async () => ({ ok: true as const }),
+        };
+      }) as never,
+      storage: {
+        load: async () => null,
+        save: async () => undefined,
+        clear: async () => undefined,
+        loadCredential: async (serverId) => saved.get(serverId) ?? null,
+        saveCredential: async (serverId, token) => { saved.set(serverId, token); },
+        clearCredential: async (serverId) => { saved.delete(serverId); },
+      },
+    });
+
+    const connection = await store.backend.connect('https://secure.example', 'secret-token');
+
+    expect(connection?.status).toBe('connected');
+    expect(tokens).toEqual(['secret-token']);
+    expect(saved.get('secure-node')).toBe('secret-token');
+    expect(store.backend.getAuthHeaders('secure-node')).toEqual({ authorization: 'Bearer secret-token' });
   });
 
   it('keeps an active task subscribed after its chat screen closes', async () => {
